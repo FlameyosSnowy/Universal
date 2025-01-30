@@ -41,7 +41,8 @@ repositories {
 }
 
 dependencies {
-    implementation 'me.flame:universal:1.0.0'
+    implementation("me.flame.universal:core:1.0.0")
+    implementation("me.flame.universal:PLATFORM:1.0.0")
 }
 ```
 
