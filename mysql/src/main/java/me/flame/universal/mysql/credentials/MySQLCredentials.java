@@ -19,8 +19,6 @@ public sealed interface MySQLCredentials permits MySQLCredentialsImpl {
 
     long connectionTimeout();
 
-    String jdbcUrl();
-
     class Builder {
         private String host;
         private int port;
@@ -75,11 +73,6 @@ public sealed interface MySQLCredentials permits MySQLCredentialsImpl {
             return this;
         }
 
-        public Builder type(String type) {
-            this.type = type;
-            return this;
-        }
-
         public Builder dataSourceProperty(String key, String value) {
             this.dataSourceProperties.put(key, value);
             return this;
@@ -107,28 +100,10 @@ public sealed interface MySQLCredentials permits MySQLCredentialsImpl {
             return this;
         }
 
-        private String buildJdbcUrl() {
-            StringBuilder url = new StringBuilder("jdbc:mysql://")
-                    .append(host)
-                    .append(":")
-                    .append(port)
-                    .append("/")
-                    .append(database)
-                    .append("?useSSL=")
-                    .append(ssl);
-
-            for (Map.Entry<String, String> entry : dataSourceProperties.entrySet()) {
-                url.append("&").append(entry.getKey()).append("=").append(entry.getValue());
-            }
-
-            return url.toString();
-        }
-
         public MySQLCredentials build() {
-            String jdbcUrl = buildJdbcUrl();
             return new MySQLCredentialsImpl(
-                    host, port, database, username, password, ssl, driver, type,
-                    poolSize, dataSourceProperties, minimumIdle, idleTimeout, connectionTimeout, jdbcUrl
+                    host, port, database, username, password, ssl, driver,
+                    poolSize, dataSourceProperties, minimumIdle, idleTimeout, connectionTimeout
             );
         }
     }
@@ -146,6 +121,4 @@ public sealed interface MySQLCredentials permits MySQLCredentialsImpl {
     boolean ssl();
 
     String driver();
-
-    String type();
 }
