@@ -10,11 +10,9 @@ public record MySQLCredentialsImpl(
         String password,
         boolean ssl,
         String driver,
-        String type,
         int poolSize,
         Map<String, String> dataSourceProperties,
         int minimumIdle,
         long idleTimeout,
-        long connectionTimeout,
-        String jdbcUrl
+        long connectionTimeout
 ) implements MySQLCredentials {}
