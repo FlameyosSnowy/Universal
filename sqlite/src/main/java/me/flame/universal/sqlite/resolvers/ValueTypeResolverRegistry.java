@@ -20,14 +20,22 @@ public class ValueTypeResolverRegistry {
             Map.entry(int.class, "INT"),
             Map.entry(Long.class, "BIGINT"),
             Map.entry(long.class, "BIGINT"),
-            Map.entry(Double.class, "INT"),
-            Map.entry(double.class, "INT"),
-            Map.entry(Float.class, "INT"),
-            Map.entry(float.class, "INT"),
+            Map.entry(Double.class, "DOUBLE"),
+            Map.entry(double.class, "DOUBLE"),
+            Map.entry(Float.class, "FLOAT"),
+            Map.entry(float.class, "FLOAT"),
             Map.entry(byte[].class, "BLOB"),
-            Map.entry(Timestamp.class, ""),
-            Map.entry(Time.class, ""),
-            Map.entry(Date.class, "")
+            Map.entry(Timestamp.class, "TIMESTAMP"),
+            Map.entry(Time.class, "TIME"),
+            Map.entry(Date.class, "DATE"),
+            Map.entry(Boolean.class, "BOOLEAN"),
+            Map.entry(boolean.class, "BOOLEAN"),
+            Map.entry(Short.class, "SMALLINT"),
+            Map.entry(short.class, "SMALLINT"),
+            Map.entry(Byte.class, "TINYINT"),
+            Map.entry(byte.class, "TINYINT"),
+            Map.entry(BigDecimal.class, "DECIMAL"),
+            Map.entry(BigInteger.class, "NUMERIC")
     );
 
     public ValueTypeResolverRegistry() {
@@ -112,6 +120,49 @@ public class ValueTypeResolverRegistry {
                 Date.class,
                 ResultSet::getDate,
                 (stmt, index, value) -> stmt.setDate(index, (Date) value));
+
+        register(Boolean.class,
+                boolean.class,
+                ResultSet::getBoolean,
+                (stmt, index, value) -> stmt.setBoolean(index, (Boolean) value));
+
+        register(boolean.class,
+                boolean.class,
+                ResultSet::getBoolean,
+                (stmt, index, value) -> stmt.setBoolean(index, (boolean) value));
+
+        register(Short.class,
+                short.class,
+                ResultSet::getShort,
+                (stmt, index, value) -> stmt.setShort(index, (Short) value));
+
+        register(short.class,
+                short.class,
+                ResultSet::getShort,
+                (stmt, index, value) -> stmt.setShort(index, (short) value));
+
+        register(Byte.class,
+                byte.class,
+                ResultSet::getByte,
+                (stmt, index, value) -> stmt.setByte(index, (Byte) value));
+
+        register(byte.class,
+                byte.class,
+                ResultSet::getByte,
+                (stmt, index, value) -> stmt.setByte(index, (byte) value));
+
+        register(BigDecimal.class,
+                BigDecimal.class,
+                ResultSet::getBigDecimal,
+                (stmt, index, value) -> stmt.setBigDecimal(index, (BigDecimal) value));
+
+        register(BigInteger.class,
+                BigInteger.class,
+                (rs, index) -> {
+                    BigDecimal decimal = rs.getBigDecimal(index);
+                    return decimal != null ? decimal.toBigInteger() : null;
+                },
+                (stmt, index, value) -> stmt.setBigDecimal(index, new BigDecimal((BigInteger) value)));
 
         register(Serializable.class,
                 byte[].class,
