@@ -1,6 +1,5 @@
 plugins {
     id("java")
-    id("signing")
     id("maven-publish")
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
@@ -21,7 +20,6 @@ dependencies {
     compileOnly("org.jetbrains:annotations:24.0.1")
 }
 
-/*
 subprojects {
     apply(plugin = "java")
     apply(plugin = "maven-publish")
@@ -68,8 +66,4 @@ subprojects {
             }
         }
     }
-
-    signing {
-        sign(publishing.publications["maven"])
-    }
-}*/
+}
