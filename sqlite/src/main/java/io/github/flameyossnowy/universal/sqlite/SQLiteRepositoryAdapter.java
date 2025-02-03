@@ -18,7 +18,7 @@ import io.github.flameyossnowy.universal.sqlite.query.InsertQueryParser;
 import io.github.flameyossnowy.universal.sqlite.query.RepositoryParser;
 import io.github.flameyossnowy.universal.sqlite.query.SelectQueryParser;
 import io.github.flameyossnowy.universal.sqlite.query.UpdateQueryParser;
-import io.github.flameyossnowy.universal.sqlite.resolvers.ValueTypeResolver;
+import io.github.flameyossnowy.universal.sqlite.resolvers.SQLiteValueTypeResolver;
 import me.sunlan.fastreflection.FastField;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -98,7 +98,7 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
             for (RepositoryMetadata.FieldData data : information.fields()) {
                 Object fieldValue = ReflectiveMetaData.getFieldValue(value, data.field());
 
-                ValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
+                SQLiteValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
                 resolver.insert(statement, index, fieldValue);
                 index++;
             }
@@ -199,7 +199,7 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            ValueTypeResolver resolver = this.resolverRegistry.getResolver(type);
+            SQLiteValueTypeResolver resolver = this.resolverRegistry.getResolver(type);
 
             Object value = resolver.resolve(set, name);
             if (value != null) field.set(instance, value);

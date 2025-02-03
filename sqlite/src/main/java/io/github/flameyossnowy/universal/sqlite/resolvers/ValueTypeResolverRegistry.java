@@ -13,7 +13,7 @@ import java.math.BigDecimal;
 
 @SuppressWarnings("unused")
 public class ValueTypeResolverRegistry {
-    private final Map<Class<?>, ValueTypeResolver> resolvers = new HashMap<>();
+    private final Map<Class<?>, SQLiteValueTypeResolver> resolvers = new HashMap<>();
 
     private static final Map<Class<?>, String> ENCODED_TYPE_MAPPERS = Map.ofEntries(
             Map.entry(String.class, "TEXT"),
@@ -62,7 +62,7 @@ public class ValueTypeResolverRegistry {
 
         register(Double.class,
                 Double.class,
-                ResultSet::getFloat,
+                ResultSet::getDouble,
                 (stmt, index, value) -> stmt.setDouble(index, (double) value));
 
         register(int.class,
@@ -163,7 +163,7 @@ public class ValueTypeResolverRegistry {
                     BigDecimal decimal = rs.getBigDecimal(index);
                     return decimal != null ? decimal.toBigInteger() : null;
                 },
-                (stmt, index, value) -> stmt.setBigDecimal(index, new BigDecimal((BigInteger) value)));
+                (stmt, index, value) -> stmt.setBigDecimal(index, new BigDecimal(value.toString())));
 
         register(Serializable.class,
                 byte[].class,
@@ -189,26 +189,28 @@ public class ValueTypeResolverRegistry {
                 });
     }
 
-    public void register(Class<?> type, Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) {
-        resolvers.put(type, new DefaultValueTypeResolver(encodedType, resolver, insertInt));
+    public void register(Class<?> decodedType, Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) {
+        resolvers.put(decodedType, new DefaultSQLiteValueTypeResolver(encodedType, resolver, insertInt));
     }
 
-    public void register(Class<?> type, ValueTypeResolver resolver) {
-        resolvers.put(type, resolver);
+    public void register(Class<?> decodedType, SQLiteValueTypeResolver resolver) {
+        resolvers.put(decodedType, resolver);
     }
 
-    public ValueTypeResolver getResolver(Class<?> type) {
-        ValueTypeResolver resolver = resolvers.get(type);
-        if (resolver != null) return resolver;
+    public <T, E> SQLiteValueTypeResolver getResolver(Class<T> decodedType) {
+        SQLiteValueTypeResolver resolver = resolvers.get(decodedType);
+        if (resolver != null) {
+            return resolver; // Cast to the correct generic types
+        }
 
-        if (Serializable.class.isAssignableFrom(type)) {
+        if (Serializable.class.isAssignableFrom(decodedType)) {
             return resolvers.get(Serializable.class);
         }
 
         return null;
     }
 
-    public String getType(@NotNull ValueTypeResolver resolver) {
+    public String getType(@NotNull SQLiteValueTypeResolver resolver) {
         String type = ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
         if (type == null) {
             throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
@@ -217,10 +219,10 @@ public class ValueTypeResolverRegistry {
     }
 
     public String getType(Class<?> resolver) {
-        ValueTypeResolver valueTypeResolver = this.getResolver(resolver);
-        String type = ENCODED_TYPE_MAPPERS.get(valueTypeResolver.encodedType());
+        SQLiteValueTypeResolver mySQLValueTypeResolver = this.getResolver(resolver);
+        String type = ENCODED_TYPE_MAPPERS.get(mySQLValueTypeResolver.encodedType());
         if (type == null) {
-            throw new IllegalArgumentException("Unknown type: " + valueTypeResolver.encodedType());
+            throw new IllegalArgumentException("Unknown type: " + mySQLValueTypeResolver.encodedType());
         }
         return type;
     }
@@ -235,15 +237,16 @@ public class ValueTypeResolverRegistry {
         void insert(PreparedStatement preparedStatement, int parameterIndex, Object value) throws SQLException;
     }
 
-    private record DefaultValueTypeResolver(Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) implements ValueTypeResolver {
+    private record DefaultSQLiteValueTypeResolver(Class<?> encodedType, ResolverFactory resolver,
+                                                  InsertFactory insertInt) implements SQLiteValueTypeResolver {
         @Override
-        public Object resolve(ResultSet resultSet, String parameterIndex) throws SQLException {
-            return resolver.resolve(resultSet, parameterIndex);
+        public Object resolve(ResultSet resultSet, String parameter) throws SQLException {
+            return resolver.resolve(resultSet, parameter);
         }
 
         @Override
-        public void insert(final PreparedStatement preparedStatement, final int parameterIndex, final Object value) throws SQLException {
-            insertInt.insert(preparedStatement, parameterIndex, value);
+        public void insert(PreparedStatement preparedStatement, int parameter, Object value) throws SQLException {
+            insertInt.insert(preparedStatement, parameter, value);
         }
     }
 }

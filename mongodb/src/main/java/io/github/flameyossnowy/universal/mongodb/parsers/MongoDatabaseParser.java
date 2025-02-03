@@ -3,7 +3,7 @@ package io.github.flameyossnowy.universal.mongodb.parsers;
 import io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter;
 import io.github.flameyossnowy.universal.api.ReflectiveMetaData;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
-import io.github.flameyossnowy.universal.mongodb.resolvers.ValueTypeResolver;
+import io.github.flameyossnowy.universal.mongodb.resolvers.MongoValueTypeResolver;
 import io.github.flameyossnowy.universal.mongodb.resolvers.ValueTypeResolverRegistry;
 import me.sunlan.fastreflection.FastField;
 import org.bson.Document;
@@ -36,7 +36,7 @@ public class MongoDatabaseParser {
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            ValueTypeResolver resolver = resolverRegistry.getResolver(type);
+            MongoValueTypeResolver resolver = resolverRegistry.getResolver(type);
 
             try {
                 resolver.insert(document, name, ReflectiveMetaData.getFieldValue(object, field));
@@ -67,7 +67,7 @@ public class MongoDatabaseParser {
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            ValueTypeResolver resolver = resolverRegistry.getResolver(type);
+            MongoValueTypeResolver resolver = resolverRegistry.getResolver(type);
 
             Object value = resolver.resolve(set, name);
             if (value != null) field.set(instance, value);
@@ -91,7 +91,7 @@ public class MongoDatabaseParser {
                 conditions.add(new MongoCondition(field.name(), field.condition().value()));
             }
             if (field.resolver() != null) {
-                resolverRegistry.register(field.type(), (ValueTypeResolver) ReflectiveMetaData.newInstance(field.resolver().value()));
+                resolverRegistry.register(field.type(), (MongoValueTypeResolver) ReflectiveMetaData.newInstance(field.resolver().value()));
             }
         }
     }

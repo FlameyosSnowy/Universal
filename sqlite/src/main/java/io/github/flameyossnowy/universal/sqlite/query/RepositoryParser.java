@@ -7,7 +7,7 @@ import io.github.flameyossnowy.universal.api.annotations.References;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata.FieldData;
-import io.github.flameyossnowy.universal.sqlite.resolvers.ValueTypeResolver;
+import io.github.flameyossnowy.universal.sqlite.resolvers.SQLiteValueTypeResolver;
 import io.github.flameyossnowy.universal.sqlite.SQLiteRepositoryAdapter;
 
 import org.jetbrains.annotations.Contract;
@@ -111,10 +111,10 @@ public class RepositoryParser {
     }
 
     private static String resolveType(@NotNull RepositoryMetadata.FieldData data, @NotNull SQLiteRepositoryAdapter<?> repository) {
-        ValueTypeResolver resolver = repository.getValueTypeResolverRegistry().getResolver(data.type());
+        SQLiteValueTypeResolver resolver = repository.getValueTypeResolverRegistry().getResolver(data.type());
 
         if (resolver == null && data.resolver() != null) {
-            resolver = (ValueTypeResolver) ReflectiveMetaData.newInstance(data.resolver().value());
+            resolver = (SQLiteValueTypeResolver) ReflectiveMetaData.newInstance(data.resolver().value());
             repository.getValueTypeResolverRegistry().register(data.type(), resolver);
         }
 

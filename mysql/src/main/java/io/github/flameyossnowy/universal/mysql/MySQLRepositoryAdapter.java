@@ -17,7 +17,7 @@ import io.github.flameyossnowy.universal.mysql.query.InsertQueryParser;
 import io.github.flameyossnowy.universal.mysql.query.RepositoryParser;
 import io.github.flameyossnowy.universal.mysql.query.SelectQueryParser;
 import io.github.flameyossnowy.universal.mysql.query.UpdateQueryParser;
-import io.github.flameyossnowy.universal.mysql.resolvers.ValueTypeResolver;
+import io.github.flameyossnowy.universal.mysql.resolvers.MySQLValueTypeResolver;
 import io.github.flameyossnowy.universal.mysql.resolvers.ValueTypeResolverRegistry;
 
 import me.sunlan.fastreflection.FastField;
@@ -104,7 +104,7 @@ public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapt
             for (RepositoryMetadata.FieldData data : information.fields()) {
                 Object fieldValue = ReflectiveMetaData.getFieldValue(value, data.field());
 
-                ValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
+                MySQLValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
                 resolver.insert(statement, index, fieldValue);
                 index++;
             }
@@ -137,7 +137,7 @@ public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapt
         for (RepositoryMetadata.FieldData data : information.fields()) {
             Object fieldValue = ReflectiveMetaData.getFieldValue(value, data.field());
 
-            ValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
+            MySQLValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
             resolver.insert(statement, index, fieldValue);
             index++;
         }
@@ -229,7 +229,7 @@ public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapt
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            ValueTypeResolver resolver = this.resolverRegistry.getResolver(type);
+            MySQLValueTypeResolver resolver = this.resolverRegistry.getResolver(type);
 
             Object value = resolver.resolve(set, name);
             if (value != null) field.set(instance, value);

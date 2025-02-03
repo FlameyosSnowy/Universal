@@ -5,7 +5,7 @@ import io.github.flameyossnowy.universal.api.annotations.Constraint;
 import io.github.flameyossnowy.universal.api.annotations.References;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
 import io.github.flameyossnowy.universal.mysql.MySQLRepositoryAdapter;
-import io.github.flameyossnowy.universal.mysql.resolvers.ValueTypeResolver;
+import io.github.flameyossnowy.universal.mysql.resolvers.MySQLValueTypeResolver;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
@@ -106,10 +106,10 @@ public class RepositoryParser {
     }
 
     private static String resolveType(@NotNull RepositoryMetadata.FieldData data, @NotNull MySQLRepositoryAdapter<?> repository) {
-        ValueTypeResolver resolver = repository.getValueTypeResolverRegistry().getResolver(data.type());
+        MySQLValueTypeResolver resolver = repository.getValueTypeResolverRegistry().getResolver(data.type());
 
         if (resolver == null && data.resolver() != null) {
-            resolver = (ValueTypeResolver) ReflectiveMetaData.newInstance(data.resolver().value());
+            resolver = (MySQLValueTypeResolver) ReflectiveMetaData.newInstance(data.resolver().value());
             repository.getValueTypeResolverRegistry().register(data.type(), resolver);
         }
 

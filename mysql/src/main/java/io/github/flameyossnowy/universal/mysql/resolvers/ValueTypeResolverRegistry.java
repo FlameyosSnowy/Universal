@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @SuppressWarnings("unused")
 public class ValueTypeResolverRegistry {
-    private final Map<Class<?>, ValueTypeResolver> resolvers = new HashMap<>();
+    private final Map<Class<?>, MySQLValueTypeResolver> resolvers = new HashMap<>();
 
     private static final Map<Class<?>, String> ENCODED_TYPE_MAPPERS = Map.ofEntries(
             Map.entry(String.class, "TEXT"),
@@ -190,15 +190,15 @@ public class ValueTypeResolverRegistry {
     }
 
     public void register(Class<?> type, Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) {
-        resolvers.put(type, new DefaultValueTypeResolver(encodedType, resolver, insertInt));
+        resolvers.put(type, new DefaultMySQLValueTypeResolver(encodedType, resolver, insertInt));
     }
 
-    public void register(Class<?> type, ValueTypeResolver resolver) {
+    public void register(Class<?> type, MySQLValueTypeResolver resolver) {
         resolvers.put(type, resolver);
     }
 
-    public ValueTypeResolver getResolver(Class<?> type) {
-        ValueTypeResolver resolver = resolvers.get(type);
+    public MySQLValueTypeResolver getResolver(Class<?> type) {
+        MySQLValueTypeResolver resolver = resolvers.get(type);
         if (resolver != null) return resolver;
 
         if (Serializable.class.isAssignableFrom(type)) {
@@ -208,7 +208,7 @@ public class ValueTypeResolverRegistry {
         return null;
     }
 
-    public String getType(@NotNull ValueTypeResolver resolver) {
+    public String getType(@NotNull MySQLValueTypeResolver resolver) {
         String type = ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
         if (type == null) {
             throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
@@ -217,10 +217,10 @@ public class ValueTypeResolverRegistry {
     }
 
     public String getType(Class<?> resolver) {
-        ValueTypeResolver valueTypeResolver = this.getResolver(resolver);
-        String type = ENCODED_TYPE_MAPPERS.get(valueTypeResolver.encodedType());
+        MySQLValueTypeResolver mySQLValueTypeResolver = this.getResolver(resolver);
+        String type = ENCODED_TYPE_MAPPERS.get(mySQLValueTypeResolver.encodedType());
         if (type == null) {
-            throw new IllegalArgumentException("Unknown type: " + valueTypeResolver.encodedType());
+            throw new IllegalArgumentException("Unknown type: " + mySQLValueTypeResolver.encodedType());
         }
         return type;
     }
@@ -235,7 +235,7 @@ public class ValueTypeResolverRegistry {
         void insert(PreparedStatement preparedStatement, int parameterIndex, Object value) throws SQLException;
     }
 
-    private record DefaultValueTypeResolver(Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) implements ValueTypeResolver {
+    private record DefaultMySQLValueTypeResolver(Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) implements MySQLValueTypeResolver {
         @Override
         public Object resolve(ResultSet resultSet, String parameterIndex) throws SQLException {
             return resolver.resolve(resultSet, parameterIndex);

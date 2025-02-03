@@ -1,9 +1,9 @@
-package io.github.flameyossnowy.universal.sqlite.resolvers;
+package io.github.flameyossnowy.universal.mysql.resolvers;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
-public interface ValueTypeResolver {
+public interface MySQLValueTypeResolver {
     Object resolve(ResultSet resultSet, String parameter) throws Exception;
 
     void insert(PreparedStatement preparedStatement, int parameter, Object value) throws Exception;

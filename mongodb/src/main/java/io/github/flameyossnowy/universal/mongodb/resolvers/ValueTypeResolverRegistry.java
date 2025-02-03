@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @SuppressWarnings("unused")
 public class ValueTypeResolverRegistry {
-    private final Map<Class<?>, ValueTypeResolver> resolvers = new HashMap<>();
+    private final Map<Class<?>, MongoValueTypeResolver> resolvers = new HashMap<>();
 
     private static final Map<Class<?>, String> ENCODED_TYPE_MAPPERS = Map.ofEntries(
             Map.entry(String.class, "TEXT"),
@@ -128,15 +128,15 @@ public class ValueTypeResolverRegistry {
     }
 
     public void register(Class<?> type, Class<?> encodedType, ResolverFactory resolver, InsertFactory insert) {
-        resolvers.put(type, new DefaultValueTypeResolver(encodedType, resolver, insert));
+        resolvers.put(type, new DefaultMongoValueTypeResolver(encodedType, resolver, insert));
     }
 
-    public void register(Class<?> type, ValueTypeResolver resolver) {
+    public void register(Class<?> type, MongoValueTypeResolver resolver) {
         resolvers.put(type, resolver);
     }
 
-    public ValueTypeResolver getResolver(Class<?> type) {
-        ValueTypeResolver resolver = resolvers.get(type);
+    public MongoValueTypeResolver getResolver(Class<?> type) {
+        MongoValueTypeResolver resolver = resolvers.get(type);
         if (resolver != null) return resolver;
 
         if (Serializable.class.isAssignableFrom(type)) {
@@ -146,7 +146,7 @@ public class ValueTypeResolverRegistry {
         return null;
     }
 
-    public String getType(@NotNull ValueTypeResolver resolver) {
+    public String getType(@NotNull MongoValueTypeResolver resolver) {
         String type = ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
         if (type == null) {
             throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
@@ -155,10 +155,10 @@ public class ValueTypeResolverRegistry {
     }
 
     public String getType(Class<?> resolver) {
-        ValueTypeResolver valueTypeResolver = this.getResolver(resolver);
-        String type = ENCODED_TYPE_MAPPERS.get(valueTypeResolver.encodedType());
+        MongoValueTypeResolver MongoValueTypeResolver = this.getResolver(resolver);
+        String type = ENCODED_TYPE_MAPPERS.get(MongoValueTypeResolver.encodedType());
         if (type == null) {
-            throw new IllegalArgumentException("Unknown type: " + valueTypeResolver.encodedType());
+            throw new IllegalArgumentException("Unknown type: " + MongoValueTypeResolver.encodedType());
         }
         return type;
     }
@@ -173,7 +173,7 @@ public class ValueTypeResolverRegistry {
         void insert(Document preparedStatement, String parameterIndex, Object value) throws SQLException;
     }
 
-    private record DefaultValueTypeResolver(Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) implements ValueTypeResolver {
+    private record DefaultMongoValueTypeResolver(Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) implements MongoValueTypeResolver {
         @Override
         public Object resolve(Document resultSet, String parameterIndex) throws SQLException {
             return resolver.resolve(resultSet, parameterIndex);
