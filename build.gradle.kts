@@ -21,6 +21,7 @@ dependencies {
     compileOnly("org.jetbrains:annotations:24.0.1")
 }
 
+/*
 subprojects {
     apply(plugin = "java")
     apply(plugin = "maven-publish")
@@ -71,4 +72,4 @@ subprojects {
     signing {
         sign(publishing.publications["maven"])
     }
-}
+}*/
