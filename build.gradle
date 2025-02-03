@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'me.flame.universal'
-version = '1.0.0'
+version = '1.0.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -31,6 +31,11 @@ subprojects {
     }
 
     publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+            }
+        }
         repositories {
             maven {
                 url 'https://jitpack.io'
