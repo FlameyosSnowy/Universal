@@ -1,5 +1,0 @@
-jdk:
-  - openjdk17
-
-gradle:
-  - 8.11
