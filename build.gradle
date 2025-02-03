@@ -28,7 +28,6 @@ subprojects {
 
     java {
         withSourcesJar()
-        withJavadocJar()
     }
 
     publishing {
