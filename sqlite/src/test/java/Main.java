@@ -12,7 +12,7 @@ public class Main {
         SQLiteRepositoryAdapter<User> adapter = SQLiteRepositoryAdapter
                 .builder(User.class)
                 .withCredentials(SQLiteCredentials.builder()
-                        .directory("/home/flameyosflow/helloworld.db")
+                        .directory("/home/flameyosflow/old.db")
                         .build())
 
                 .build();
@@ -20,17 +20,20 @@ public class Main {
         adapter.createRepository();
         adapter.clear();
 
-        List.of(
-                new User(UUID.randomUUID(), "Flameyos", 17, new Password("Flameyos"), List.of("Coding", "Sleeping")),
-                new User(UUID.randomUUID(), "Flow", 13, new Password("Flow"), List.of("Coding", "Sleeping")),
-                new User(UUID.randomUUID(), "FlameyosFlow", 15, new Password("FLAm"), List.of("Coding", "Sleeping"))
-        ).forEach(adapter::insert);
+        adapter.insertAll(List.of(
+                new User(UUID.randomUUID(), "Flameyos", 17,
+                        new Password("Flameyos"), List.of("Coding", "Sleeping")),
+                new User(UUID.randomUUID(), "Flow", 13,
+                        new Password("Flow"), List.of("Coding", "Sleeping")),
+                new User(UUID.randomUUID(), "FlameyosFlow", 15,
+                        new Password("FLAm"), List.of("Coding", "Sleeping"))
+        ));
 
         System.out.println(adapter.find());
     }
 
     @SuppressWarnings("unused")
-    @Repository(name = "Userss")
+    @Repository(name = "Use")
     public static class User {
         @Id
         private UUID id;
@@ -48,6 +51,7 @@ public class Main {
             this.username = username;
             this.age = age;
             this.password = password;
+            this.hobbies = hobbies;
         }
 
         public User() {}
