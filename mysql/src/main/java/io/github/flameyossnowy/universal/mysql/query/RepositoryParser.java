@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.StringJoiner;
 
+@SuppressWarnings("unchecked")
 public class RepositoryParser {
     public static @NotNull String read(@NotNull RepositoryMetadata.RepositoryInformation metadata, MySQLRepositoryAdapter<?> repository) {
         StringJoiner joiner = new StringJoiner(", ", "CREATE TABLE IF NOT EXISTS " + metadata.repository() + " (", ")");
@@ -31,7 +32,7 @@ public class RepositoryParser {
         List<Result> primaryKey = new ArrayList<>();
         List<Result> uniqueKeys = new ArrayList<>();
 
-        for (RepositoryMetadata.FieldData data : metadata.fields()) {
+        for (RepositoryMetadata.FieldData<?> data : metadata.fields()) {
             Result result = generateColumn(data, repository);
             joiner.add(result.column);
             if (result.hasPrimaryKey) primaryKey.add(result);
@@ -69,7 +70,7 @@ public class RepositoryParser {
 
     private static void processConstraints0(final @NotNull RepositoryMetadata.RepositoryInformation metadata, final String @NotNull [] fields, final List<String> checkConditions, final List<String> uniqueFields, final StringJoiner joiner, final String constraintName) {
         for (String fieldName : fields) {
-            RepositoryMetadata.FieldData fieldData = metadata.fieldData().get(fieldName);
+            RepositoryMetadata.FieldData<?> fieldData = metadata.fieldData().get(fieldName);
             if (fieldData == null) continue;
 
             if (fieldData.condition() != null) checkConditions.add(fieldData.condition().value());
@@ -85,7 +86,7 @@ public class RepositoryParser {
         }
     }
 
-    private static @NotNull Result generateColumn(@NotNull RepositoryMetadata.FieldData data, @NotNull MySQLRepositoryAdapter<?> repository) {
+    private static @NotNull Result generateColumn(@NotNull RepositoryMetadata.FieldData<?> data, @NotNull MySQLRepositoryAdapter<?> repository) {
         StringBuilder fieldBuilder = new StringBuilder();
         boolean primaryKey = data.primary();
         boolean unique = data.unique();
@@ -105,11 +106,11 @@ public class RepositoryParser {
         return new Result(primaryKey, unique, name, fieldBuilder.toString());
     }
 
-    private static String resolveType(@NotNull RepositoryMetadata.FieldData data, @NotNull MySQLRepositoryAdapter<?> repository) {
-        MySQLValueTypeResolver resolver = repository.getValueTypeResolverRegistry().getResolver(data.type());
+    private static <T> String resolveType(@NotNull RepositoryMetadata.FieldData<T> data, @NotNull MySQLRepositoryAdapter<?> repository) {
+        MySQLValueTypeResolver<T> resolver = (MySQLValueTypeResolver<T>) repository.getValueTypeResolverRegistry().getResolver(data.type());
 
         if (resolver == null && data.resolver() != null) {
-            resolver = (MySQLValueTypeResolver) ReflectiveMetaData.newInstance(data.resolver().value());
+            resolver = (MySQLValueTypeResolver<T>) ReflectiveMetaData.newInstance(data.resolver().value());
             repository.getValueTypeResolverRegistry().register(data.type(), resolver);
         }
 
@@ -117,7 +118,7 @@ public class RepositoryParser {
                 Objects.requireNonNull(resolver, "Unknown type: " + data.type() + " and no resolver provided."));
     }
 
-    private static void appendForeignKeyConstraints(@NotNull RepositoryMetadata.FieldData data, StringBuilder fieldBuilder) {
+    private static void appendForeignKeyConstraints(@NotNull RepositoryMetadata.FieldData<?> data, StringBuilder fieldBuilder) {
         References references = data.references();
         if (references.field().isEmpty()) throw new RuntimeException("FOREIGN KEY constraint requires referenced table and field.");
 
