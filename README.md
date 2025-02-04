@@ -17,19 +17,18 @@ To include Universal in your project, add it as a dependency in your `pom.xml` (
 
 ```xml
 <repository>
-  <id>foxikle-flameyos</id>
-  <name>Foxikle's Repository</name>
-  <url>https://repo.foxikle.dev/flameyos</url>
+  <id>jitpack.io</id>
+  <url>https://jitpack.io</url>
 </repository>
 
 <dependency>
-  <groupId>me.flame.universal</groupId>
+  <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifactId>core</artifactId>
   <version>1.0.0</version>
 </dependency>
 
 <dependency>
-  <groupId>me.flame.universal</groupId>
+  <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifactId>PLATFORM</artifactId>
   <version>1.0.0</version>
 </dependency>
@@ -41,8 +40,8 @@ repositories {
 }
 
 dependencies {
-    implementation("me.flame.universal:core:1.0.0")
-    implementation("me.flame.universal:PLATFORM:1.0.0")
+    implementation("com.github.FlameyosSnowy.Universal:core:1.0.0")
+    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:1.0.0")
 }
 ```
 
