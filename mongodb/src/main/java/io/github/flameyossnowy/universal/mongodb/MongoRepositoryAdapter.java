@@ -28,13 +28,11 @@ public class MongoRepositoryAdapter<T> implements RepositoryAdapter<T, ClientSes
     private final MongoClient client;
     private MongoCollection<Document> collection;
     private final Class<T> repository;
-    private final ValueTypeResolverRegistry resolverRegistry;
     private final MongoDatabaseParser parser;
 
     MongoRepositoryAdapter(@NotNull MongoClientSettings client, String databaseName, final ValueTypeResolverRegistry resolverRegistry, final Class<T> repository) {
         this.client = MongoClients.create(client);
         this.database = this.client.getDatabase(databaseName);
-        this.resolverRegistry = resolverRegistry;
         this.repository = repository;
         this.parser = new MongoDatabaseParser(resolverRegistry, repository);
     }

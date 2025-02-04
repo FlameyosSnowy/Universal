@@ -27,17 +27,20 @@ public class RepositoryMetadata {
         String name = entityAnnotation.name();
 
         Field[] fields = entityClass.getDeclaredFields();
-        Map<String, FieldData> fieldData = new LinkedHashMap<>();
+        Map<String, FieldData<?>> fieldData = new LinkedHashMap<>();
         Class<?>[] types = new Class<?>[fields.length];
+
         for (int i = 0; i < fields.length; i++) {
             Field field = fields[i];
             field.setAccessible(true);
-            fieldData.put(field.getName(), new FieldData(
+            Class<?> fieldType = field.getType();
+
+            fieldData.put(field.getName(), new FieldData<>(
                     field.getName(),
                     name,
                     FastField.create(field, true),
                     field,
-                    field.getType(),
+                    fieldType, // Now correctly typed
                     field.isAnnotationPresent(Id.class),
                     field.isAnnotationPresent(AutoIncrement.class),
                     field.isAnnotationPresent(NonNull.class),
@@ -48,21 +51,21 @@ public class RepositoryMetadata {
                     field.getAnnotation(OnUpdate.class),
                     field.getAnnotation(OnDelete.class),
                     field.getAnnotation(Foreign.class),
-                    field.getAnnotation(Resolver.class))
-            );
-            types[i] = field.getType();
+                    field.getAnnotation(Resolver.class)
+            ));
+            types[i] = fieldType;
         }
 
         return new RepositoryInformation(name, constraints, entityClass, types, fieldData, fieldData.values());
     }
 
-    public record RepositoryInformation(String repository, Constraint[] constraints, Class<?> type, Class<?>[] types, Map<String, FieldData> fieldData, Collection<FieldData> fields) {}
+    public record RepositoryInformation(String repository, Constraint[] constraints, Class<?> type, Class<?>[] types, Map<String, FieldData<?>> fieldData, Collection<FieldData<?>> fields) {}
 
-    public record FieldData(String name,
+    public record FieldData<T>(String name,
                             String tableName,
                             FastField field,
                             Field rawField,
-                            Class<?> type,
+                            Class<T> type,
                             boolean primary,
                             boolean autoIncrement,
                             boolean nonNull,

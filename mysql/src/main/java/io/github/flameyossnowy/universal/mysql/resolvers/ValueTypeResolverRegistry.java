@@ -3,17 +3,16 @@ package io.github.flameyossnowy.universal.mysql.resolvers;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.sql.*;
+import java.sql.Date;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.math.BigInteger;
+import java.math.BigDecimal;
 
 @SuppressWarnings("unused")
 public class ValueTypeResolverRegistry {
-    private final Map<Class<?>, MySQLValueTypeResolver> resolvers = new HashMap<>();
+    private final Map<Class<?>, MySQLValueTypeResolver<?>> resolvers = new HashMap<>();
 
     private static final Map<Class<?>, String> ENCODED_TYPE_MAPPERS = Map.ofEntries(
             Map.entry(String.class, "TEXT"),
@@ -43,47 +42,47 @@ public class ValueTypeResolverRegistry {
         register(String.class,
                 String.class,
                 ResultSet::getString,
-                (stmt, index, value) -> stmt.setString(index, (String) value));
+                PreparedStatement::setString);
 
         register(Integer.class,
                 Integer.class,
                 ResultSet::getInt,
-                (stmt, index, value) -> stmt.setInt(index, (Integer) value));
+                PreparedStatement::setInt);
 
         register(Long.class,
                 Long.class,
                 ResultSet::getLong,
-                (stmt, index, value) -> stmt.setLong(index, (Long) value));
+                PreparedStatement::setLong);
 
         register(Float.class,
                 Float.class,
                 ResultSet::getFloat,
-                (stmt, index, value) -> stmt.setFloat(index, (Float) value));
+                PreparedStatement::setFloat);
 
         register(Double.class,
                 Double.class,
-                ResultSet::getFloat,
-                (stmt, index, value) -> stmt.setDouble(index, (double) value));
+                ResultSet::getDouble,
+                PreparedStatement::setDouble);
 
         register(int.class,
                 int.class,
                 ResultSet::getInt,
-                (stmt, index, value) -> stmt.setInt(index, (int) value));
+                PreparedStatement::setInt);
 
         register(long.class,
                 long.class,
                 ResultSet::getLong,
-                (stmt, index, value) -> stmt.setLong(index, (long) value));
+                PreparedStatement::setLong);
 
         register(float.class,
                 float.class,
                 ResultSet::getFloat,
-                (stmt, index, value) -> stmt.setFloat(index, (float) value));
+                PreparedStatement::setFloat);
 
         register(double.class,
                 double.class,
                 ResultSet::getDouble,
-                (stmt, index, value) -> stmt.setDouble(index, (double) value));
+                PreparedStatement::setDouble);
 
         register(UUID.class,
                 String.class,
@@ -115,47 +114,47 @@ public class ValueTypeResolverRegistry {
         register(Time.class,
                 Time.class,
                 ResultSet::getTime,
-                (stmt, index, value) -> stmt.setTime(index, (Time) value));
+                PreparedStatement::setTime);
 
         register(Date.class,
                 Date.class,
                 ResultSet::getDate,
-                (stmt, index, value) -> stmt.setDate(index, (Date) value));
+                PreparedStatement::setDate);
 
         register(Boolean.class,
                 boolean.class,
                 ResultSet::getBoolean,
-                (stmt, index, value) -> stmt.setBoolean(index, (Boolean) value));
+                PreparedStatement::setBoolean);
 
         register(boolean.class,
                 boolean.class,
                 ResultSet::getBoolean,
-                (stmt, index, value) -> stmt.setBoolean(index, (boolean) value));
+                PreparedStatement::setBoolean);
 
         register(Short.class,
                 short.class,
                 ResultSet::getShort,
-                (stmt, index, value) -> stmt.setShort(index, (Short) value));
+                PreparedStatement::setShort);
 
         register(short.class,
                 short.class,
                 ResultSet::getShort,
-                (stmt, index, value) -> stmt.setShort(index, (short) value));
+                PreparedStatement::setShort);
 
         register(Byte.class,
                 byte.class,
                 ResultSet::getByte,
-                (stmt, index, value) -> stmt.setByte(index, (Byte) value));
+                PreparedStatement::setByte);
 
         register(byte.class,
                 byte.class,
                 ResultSet::getByte,
-                (stmt, index, value) -> stmt.setByte(index, (byte) value));
+                PreparedStatement::setByte);
 
         register(BigDecimal.class,
                 BigDecimal.class,
                 ResultSet::getBigDecimal,
-                (stmt, index, value) -> stmt.setBigDecimal(index, (BigDecimal) value));
+                PreparedStatement::setBigDecimal);
 
         register(BigInteger.class,
                 BigInteger.class,
@@ -163,9 +162,14 @@ public class ValueTypeResolverRegistry {
                     BigDecimal decimal = rs.getBigDecimal(index);
                     return decimal != null ? decimal.toBigInteger() : null;
                 },
-                (stmt, index, value) -> stmt.setBigDecimal(index, new BigDecimal((BigInteger) value)));
+                (stmt, index, value) -> stmt.setBigDecimal(index, new BigDecimal(value.toString())));
 
-        register(Serializable.class,
+        register(byte[].class,
+                byte[].class,
+                ResultSet::getBytes,
+                PreparedStatement::setBytes);
+
+        register(Object.class,
                 byte[].class,
                 (stmt, index) -> {
                     byte[] array = stmt.getBytes(index);
@@ -189,26 +193,32 @@ public class ValueTypeResolverRegistry {
                 });
     }
 
-    public void register(Class<?> type, Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) {
-        resolvers.put(type, new DefaultMySQLValueTypeResolver(encodedType, resolver, insertInt));
+    public <T> void register(Class<T> type, Class<?> encodedType, ResolverFactory<T> resolver, InsertFactory<T> inserter) {
+        resolvers.put(type, new DefaultSQLiteValueTypeResolver<>(encodedType, resolver, inserter));
     }
 
-    public void register(Class<?> type, MySQLValueTypeResolver resolver) {
+    public <T> void register(Class<T> type, MySQLValueTypeResolver<T> resolver) {
         resolvers.put(type, resolver);
     }
 
-    public MySQLValueTypeResolver getResolver(Class<?> type) {
-        MySQLValueTypeResolver resolver = resolvers.get(type);
-        if (resolver != null) return resolver;
+    @SuppressWarnings("unchecked")
+    public <T> MySQLValueTypeResolver<?> getResolver(Class<T> type) {
+        Objects.requireNonNull(type);
 
-        if (Serializable.class.isAssignableFrom(type)) {
-            return resolvers.get(Serializable.class);
+        MySQLValueTypeResolver<T> resolver = (MySQLValueTypeResolver<T>) resolvers.get(type);
+        if (resolver != null) {
+            return resolver;
+        }
+
+        if (Collection.class.isAssignableFrom(type)
+                || Map.class.isAssignableFrom(type)
+                || Serializable.class.isAssignableFrom(type)) {
+            return resolvers.get(Object.class);
         }
 
         return null;
     }
-
-    public String getType(@NotNull MySQLValueTypeResolver resolver) {
+    public String getType(@NotNull MySQLValueTypeResolver<?> resolver) {
         String type = ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
         if (type == null) {
             throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
@@ -216,34 +226,35 @@ public class ValueTypeResolverRegistry {
         return type;
     }
 
-    public String getType(Class<?> resolver) {
-        MySQLValueTypeResolver mySQLValueTypeResolver = this.getResolver(resolver);
-        String type = ENCODED_TYPE_MAPPERS.get(mySQLValueTypeResolver.encodedType());
-        if (type == null) {
-            throw new IllegalArgumentException("Unknown type: " + mySQLValueTypeResolver.encodedType());
+    public String getType(Class<?> type) {
+        MySQLValueTypeResolver<?> resolver = this.getResolver(type);
+        if (resolver == null) {
+            throw new IllegalArgumentException("Unknown type: " + type);
         }
-        return type;
+        return ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
     }
 
     @FunctionalInterface
-    public interface ResolverFactory {
-        Object resolve(ResultSet resultSet, String parameterIndex) throws SQLException;
+    public interface ResolverFactory<T> {
+        T resolve(ResultSet resultSet, String columnLabel) throws SQLException;
     }
 
     @FunctionalInterface
-    public interface InsertFactory {
-        void insert(PreparedStatement preparedStatement, int parameterIndex, Object value) throws SQLException;
+    public interface InsertFactory<T> {
+        void insert(PreparedStatement preparedStatement, int parameterIndex, T value) throws SQLException;
     }
 
-    private record DefaultMySQLValueTypeResolver(Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) implements MySQLValueTypeResolver {
+    private record DefaultSQLiteValueTypeResolver<T>(Class<?> encodedType,
+                                                     ResolverFactory<T> resolver,
+                                                     InsertFactory<T> insertInt) implements MySQLValueTypeResolver<T> {
         @Override
-        public Object resolve(ResultSet resultSet, String parameterIndex) throws SQLException {
-            return resolver.resolve(resultSet, parameterIndex);
+        public T resolve(ResultSet resultSet, String parameter) throws SQLException {
+            return resolver.resolve(resultSet, parameter);
         }
 
         @Override
-        public void insert(final PreparedStatement preparedStatement, final int parameterIndex, final Object value) throws SQLException {
-            insertInt.insert(preparedStatement, parameterIndex, value);
+        public void insert(PreparedStatement preparedStatement, int parameter, T value) throws SQLException {
+            insertInt.insert(preparedStatement, parameter, value);
         }
     }
 }

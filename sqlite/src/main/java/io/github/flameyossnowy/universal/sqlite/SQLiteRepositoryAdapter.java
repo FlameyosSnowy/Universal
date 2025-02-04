@@ -29,6 +29,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
+@SuppressWarnings("unchecked")
 public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapter<T, Connection> {
     private final ConnectionProvider<Connection> dataSource;
     private final ValueTypeResolverRegistry resolverRegistry = new ValueTypeResolverRegistry();
@@ -75,9 +76,7 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
     private static void setStatementParameters(final SelectQuery query, final PreparedStatement statement) throws SQLException {
         if (query == null || query.filters().isEmpty()) return;
         int index = 1;
-        for (SelectOption value : query.filters()) {
-            statement.setObject(index++, value.value());
-        }
+        for (SelectOption value : query.filters()) statement.setObject(index++, value.value());
     }
 
     @Override
@@ -95,11 +94,8 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(value.getClass());
         try (var statement = transactionContext.connection().prepareStatement(InsertQueryParser.parse(information, information.fields()))) {
             int index = 1;
-            for (RepositoryMetadata.FieldData data : information.fields()) {
-                Object fieldValue = ReflectiveMetaData.getFieldValue(value, data.field());
-
-                SQLiteValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
-                resolver.insert(statement, index, fieldValue);
+            for (RepositoryMetadata.FieldData<?> data : information.fields()) {
+                processValue0(ReflectiveMetaData.getFieldValue(value, data.field()), (SQLiteValueTypeResolver<Object>) this.resolverRegistry.getResolver(data.type()), statement, index);
                 index++;
             }
             statement.executeUpdate();
@@ -109,8 +105,37 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
     }
 
     @Override
-    public void insertAll(final Collection<T> value, final TransactionContext<Connection> transactionContext) {
+    public void insertAll(final @NotNull Collection<T> collection, final TransactionContext<Connection> transactionContext) {
+        if (collection.isEmpty()) return;
 
+        Class<?> first = collection.iterator().next().getClass();
+        RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(first);
+
+        try (var statement = transactionContext.connection().prepareStatement(
+                InsertQueryParser.parse(information, information.fields()))) {
+            int index = 1;
+            for (T value : collection) {
+                RepositoryMetadata.RepositoryInformation val = RepositoryMetadata.getMetadata(value.getClass());
+                index = processValue(collection, val, statement, index);
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        } catch (Exception e) {
+            throw new RuntimeException("Error executing insert query", e);
+        }
+    }
+
+    private int processValue(final Collection<T> collection, final RepositoryMetadata.@NotNull RepositoryInformation val, final PreparedStatement statement, int index) throws Exception {
+        for (RepositoryMetadata.FieldData<?> data : val.fields()) {
+            processValue0(ReflectiveMetaData.getFieldValue(collection, data.field()),
+                    (SQLiteValueTypeResolver<Object>) this.resolverRegistry.getResolver(data.type()), statement, index);
+            index++;
+        }
+        return index;
+    }
+
+    private void processValue0(final Object collection, final @NotNull SQLiteValueTypeResolver<Object> resolverRegistry, final PreparedStatement statement, final int index) throws Exception {
+        resolverRegistry.insert(statement, index, collection);
     }
 
     @Override
@@ -193,13 +218,14 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
 
     private void buildFields(final ResultSet set, final T instance) throws Throwable {
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(repository);
-        Collection<RepositoryMetadata.FieldData> data = information.fields();
-        for (RepositoryMetadata.FieldData entry : data) {
+        Collection<RepositoryMetadata.FieldData<?>> data = information.fields();
+        for (RepositoryMetadata.FieldData<?> entry : data) {
             String name = entry.name();
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            SQLiteValueTypeResolver resolver = this.resolverRegistry.getResolver(type);
+            SQLiteValueTypeResolver<Object> resolver =
+                    (SQLiteValueTypeResolver<Object>) this.resolverRegistry.getResolver(type);
 
             Object value = resolver.resolve(set, name);
             if (value != null) field.set(instance, value);

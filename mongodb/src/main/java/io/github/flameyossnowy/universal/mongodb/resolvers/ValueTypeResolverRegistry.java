@@ -2,34 +2,15 @@ package io.github.flameyossnowy.universal.mongodb.resolvers;
 
 import org.bson.Document;
 import org.bson.types.Binary;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
 import java.sql.*;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @SuppressWarnings("unused")
 public class ValueTypeResolverRegistry {
-    private final Map<Class<?>, MongoValueTypeResolver> resolvers = new HashMap<>();
-
-    private static final Map<Class<?>, String> ENCODED_TYPE_MAPPERS = Map.ofEntries(
-            Map.entry(String.class, "TEXT"),
-            Map.entry(Integer.class, "INT"),
-            Map.entry(int.class, "INT"),
-            Map.entry(Long.class, "BIGINT"),
-            Map.entry(long.class, "BIGINT"),
-            Map.entry(Double.class, "INT"),
-            Map.entry(double.class, "INT"),
-            Map.entry(Float.class, "INT"),
-            Map.entry(float.class, "INT"),
-            Map.entry(byte[].class, "BLOB"),
-            Map.entry(Timestamp.class, ""),
-            Map.entry(Time.class, ""),
-            Map.entry(Date.class, "")
-    );
+    private final Map<Class<?>, MongoValueTypeResolver<?>> resolvers = new HashMap<>();
 
     public ValueTypeResolverRegistry() {
         register(String.class,
@@ -50,11 +31,11 @@ public class ValueTypeResolverRegistry {
         register(Float.class,
                 Double.class,
                 (stmt, index) -> stmt.getDouble(index).floatValue(),
-                Document::put);
+                (stmt, index, value) -> stmt.put(index, value.doubleValue()));
 
         register(Double.class,
                 Double.class,
-                (stmt, index) -> stmt.getDouble(index).floatValue(),
+                Document::getDouble,
                 Document::put);
 
         register(int.class,
@@ -103,7 +84,7 @@ public class ValueTypeResolverRegistry {
                 },
                 (stmt, index, value) -> stmt.put(index, value.toString()));
 
-        register(Serializable.class,
+        register(Object.class,
                 byte[].class,
                 (stmt, index) -> {
                     byte[] array = stmt.get(index, Binary.class).getData();
@@ -127,60 +108,53 @@ public class ValueTypeResolverRegistry {
                 });
     }
 
-    public void register(Class<?> type, Class<?> encodedType, ResolverFactory resolver, InsertFactory insert) {
-        resolvers.put(type, new DefaultMongoValueTypeResolver(encodedType, resolver, insert));
+    public <T> void register(Class<T> type, Class<?> encodedType, ResolverFactory<T> resolver, InsertFactory<T> insert) {
+        resolvers.put(type, new DefaultMongoValueTypeResolver<>(encodedType, resolver, insert));
     }
 
-    public void register(Class<?> type, MongoValueTypeResolver resolver) {
+    public <T> void register(Class<?> type, MongoValueTypeResolver<T> resolver) {
         resolvers.put(type, resolver);
     }
 
-    public MongoValueTypeResolver getResolver(Class<?> type) {
-        MongoValueTypeResolver resolver = resolvers.get(type);
-        if (resolver != null) return resolver;
+    @SuppressWarnings("unchecked")
+    public <T> MongoValueTypeResolver<?> getResolver(Class<T> type) {
+        Objects.requireNonNull(type);
+        if (type == Object.class) {
+            throw new IllegalArgumentException("Unknown type: " + type);
+        }
 
-        if (Serializable.class.isAssignableFrom(type)) {
-            return resolvers.get(Serializable.class);
+        MongoValueTypeResolver<T> resolver = (MongoValueTypeResolver<T>) resolvers.get(type);
+        if (resolver != null) {
+            return resolver;
+        }
+
+        if (Collection.class.isAssignableFrom(type)
+                || Map.class.isAssignableFrom(type)
+                || Serializable.class.isAssignableFrom(type)) {
+            return resolvers.get(Object.class);
         }
 
         return null;
     }
 
-    public String getType(@NotNull MongoValueTypeResolver resolver) {
-        String type = ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
-        if (type == null) {
-            throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
-        }
-        return type;
-    }
-
-    public String getType(Class<?> resolver) {
-        MongoValueTypeResolver MongoValueTypeResolver = this.getResolver(resolver);
-        String type = ENCODED_TYPE_MAPPERS.get(MongoValueTypeResolver.encodedType());
-        if (type == null) {
-            throw new IllegalArgumentException("Unknown type: " + MongoValueTypeResolver.encodedType());
-        }
-        return type;
+    @FunctionalInterface
+    public interface ResolverFactory<T> {
+        T resolve(Document resultSet, String parameterIndex) throws SQLException;
     }
 
     @FunctionalInterface
-    public interface ResolverFactory {
-        Object resolve(Document resultSet, String parameterIndex) throws SQLException;
+    public interface InsertFactory<T> {
+        void insert(Document preparedStatement, String parameterIndex, T value) throws SQLException;
     }
 
-    @FunctionalInterface
-    public interface InsertFactory {
-        void insert(Document preparedStatement, String parameterIndex, Object value) throws SQLException;
-    }
-
-    private record DefaultMongoValueTypeResolver(Class<?> encodedType, ResolverFactory resolver, InsertFactory insertInt) implements MongoValueTypeResolver {
+    private record DefaultMongoValueTypeResolver<T>(Class<?> encodedType, ResolverFactory<T> resolver, InsertFactory<T> insertInt) implements MongoValueTypeResolver<T> {
         @Override
-        public Object resolve(Document resultSet, String parameterIndex) throws SQLException {
+        public T resolve(Document resultSet, String parameterIndex) throws SQLException {
             return resolver.resolve(resultSet, parameterIndex);
         }
 
         @Override
-        public void insert(final Document preparedStatement, final String parameterIndex, final Object value) throws SQLException {
+        public void insert(final Document preparedStatement, final String parameterIndex, final T value) throws SQLException {
             insertInt.insert(preparedStatement, parameterIndex, value);
         }
     }

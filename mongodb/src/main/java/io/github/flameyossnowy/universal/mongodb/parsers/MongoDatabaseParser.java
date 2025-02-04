@@ -28,15 +28,15 @@ public class MongoDatabaseParser {
     }
 
     public <T> Document toDocument(T object) {
-        Collection<RepositoryMetadata.FieldData> fields = repository.fields();
+        Collection<RepositoryMetadata.FieldData<?>> fields = repository.fields();
 
         Document document = new Document();
-        for (RepositoryMetadata.FieldData entry : fields) {
+        for (RepositoryMetadata.FieldData<?> entry : fields) {
             String name = entry.name();
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            MongoValueTypeResolver resolver = resolverRegistry.getResolver(type);
+            MongoValueTypeResolver<?> resolver = resolverRegistry.getResolver(type);
 
             try {
                 resolver.insert(document, name, ReflectiveMetaData.getFieldValue(object, field));
@@ -61,13 +61,13 @@ public class MongoDatabaseParser {
     }
 
     private <T> void buildFields(final Document set, final T instance) throws Throwable {
-        Collection<RepositoryMetadata.FieldData> data = repository.fields();
-        for (RepositoryMetadata.FieldData entry : data) {
+        Collection<RepositoryMetadata.FieldData<?>> data = repository.fields();
+        for (RepositoryMetadata.FieldData<?> entry : data) {
             String name = entry.name();
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            MongoValueTypeResolver resolver = resolverRegistry.getResolver(type);
+            MongoValueTypeResolver<?> resolver = resolverRegistry.getResolver(type);
 
             Object value = resolver.resolve(set, name);
             if (value != null) field.set(instance, value);
@@ -80,7 +80,7 @@ public class MongoDatabaseParser {
     }
 
     private void extractMetadata() {
-        for (RepositoryMetadata.FieldData field : repository.fields()) {
+        for (RepositoryMetadata.FieldData<?> field : repository.fields()) {
             if (field.unique()) {
                 uniqueFields.add(field.name());
             }
@@ -91,7 +91,7 @@ public class MongoDatabaseParser {
                 conditions.add(new MongoCondition(field.name(), field.condition().value()));
             }
             if (field.resolver() != null) {
-                resolverRegistry.register(field.type(), (MongoValueTypeResolver) ReflectiveMetaData.newInstance(field.resolver().value()));
+                resolverRegistry.register(field.type(), (MongoValueTypeResolver<?>) ReflectiveMetaData.newInstance(field.resolver().value()));
             }
         }
     }

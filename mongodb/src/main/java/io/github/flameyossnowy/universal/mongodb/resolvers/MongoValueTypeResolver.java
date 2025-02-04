@@ -2,10 +2,10 @@ package io.github.flameyossnowy.universal.mongodb.resolvers;
 
 import org.bson.Document;
 
-public interface MongoValueTypeResolver {
-    Object resolve(Document resultSet, String parameter) throws Exception;
+public interface MongoValueTypeResolver<T> {
+    T resolve(Document resultSet, String parameter) throws Exception;
 
-    void insert(Document preparedStatement, String parameter, Object value) throws Exception;
+    void insert(Document preparedStatement, String parameter, T value) throws Exception;
 
     Class<?> encodedType();
 }
