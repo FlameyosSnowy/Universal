@@ -23,7 +23,6 @@ public class RepositoryParser {
         String classConstraints = processClassLevelConstraints(metadata);
         if (!classConstraints.isEmpty()) joiner.add(classConstraints);
 
-        System.out.println(joiner);
         return joiner.toString();
     }
 

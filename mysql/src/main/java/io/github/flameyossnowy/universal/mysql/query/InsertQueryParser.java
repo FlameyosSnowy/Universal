@@ -7,9 +7,9 @@ import java.util.Collection;
 import java.util.StringJoiner;
 
 public class InsertQueryParser {
-    public static @NotNull String parse(RepositoryMetadata.RepositoryInformation information, @NotNull Collection<RepositoryMetadata.FieldData> fields) {
+    public static @NotNull String parse(RepositoryMetadata.RepositoryInformation information, @NotNull Collection<RepositoryMetadata.FieldData<?>> fields) {
         StringJoiner columnJoiner = new StringJoiner(", ");
-        for (RepositoryMetadata.FieldData data : fields) {
+        for (RepositoryMetadata.FieldData<?> data : fields) {
             if (data.autoIncrement()) continue;
             columnJoiner.add(data.name());
         }

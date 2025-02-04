@@ -90,6 +90,7 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
         return result;
     }
 
+    @Override
     public void insert(final @NotNull T value, TransactionContext<Connection> transactionContext) {
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(value.getClass());
         try (var statement = transactionContext.connection().prepareStatement(InsertQueryParser.parse(information, information.fields()))) {
@@ -111,12 +112,10 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
         Class<?> first = collection.iterator().next().getClass();
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(first);
 
-        try (var statement = transactionContext.connection().prepareStatement(
-                InsertQueryParser.parse(information, information.fields()))) {
-            int index = 1;
+        try (var statement = transactionContext.connection().prepareStatement(InsertQueryParser.parse(information, information.fields()))) {
             for (T value : collection) {
                 RepositoryMetadata.RepositoryInformation val = RepositoryMetadata.getMetadata(value.getClass());
-                index = processValue(collection, val, statement, index);
+                processValue(value, val, statement);
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -125,13 +124,13 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
         }
     }
 
-    private int processValue(final Collection<T> collection, final RepositoryMetadata.@NotNull RepositoryInformation val, final PreparedStatement statement, int index) throws Exception {
+    private void processValue(final T value, final RepositoryMetadata.@NotNull RepositoryInformation val, final PreparedStatement statement) throws Exception {
+        int index = 1;
         for (RepositoryMetadata.FieldData<?> data : val.fields()) {
-            processValue0(ReflectiveMetaData.getFieldValue(collection, data.field()),
+            processValue0(ReflectiveMetaData.getFieldValue(value, data.field()),
                     (SQLiteValueTypeResolver<Object>) this.resolverRegistry.getResolver(data.type()), statement, index);
             index++;
         }
-        return index;
     }
 
     private void processValue0(final Object collection, final @NotNull SQLiteValueTypeResolver<Object> resolverRegistry, final PreparedStatement statement, final int index) throws Exception {

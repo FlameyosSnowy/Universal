@@ -101,10 +101,10 @@ public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapt
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(value.getClass());
         try (var statement = transactionContext.connection().prepareStatement(InsertQueryParser.parse(information, information.fields()))) {
             int index = 1;
-            for (RepositoryMetadata.FieldData data : information.fields()) {
+            for (RepositoryMetadata.FieldData<?> data : information.fields()) {
                 Object fieldValue = ReflectiveMetaData.getFieldValue(value, data.field());
 
-                MySQLValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
+                MySQLValueTypeResolver<Object> resolver = (MySQLValueTypeResolver<Object>) this.resolverRegistry.getResolver(data.type());
                 resolver.insert(statement, index, fieldValue);
                 index++;
             }
@@ -115,14 +115,17 @@ public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapt
     }
 
     @Override
-    public void insertAll(final Collection<T> collection, final TransactionContext<Connection> transactionContext) {
+    public void insertAll(final @NotNull Collection<T> collection, final TransactionContext<Connection> transactionContext) {
         if (collection.isEmpty()) return;
 
         Class<?> first = collection.iterator().next().getClass();
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(first);
-        try (var statement = transactionContext.connection().prepareStatement(InsertQueryParser.parse(information, information.fields()))) {
+
+        try (var statement = transactionContext.connection().prepareStatement(
+                InsertQueryParser.parse(information, information.fields()))) {
             for (T value : collection) {
-                processValue(value, statement);
+                RepositoryMetadata.RepositoryInformation val = RepositoryMetadata.getMetadata(value.getClass());
+                processValue(value, val, statement);
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -131,16 +134,17 @@ public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapt
         }
     }
 
-    private void processValue(final T value, final PreparedStatement statement) throws Exception {
+    private void processValue(final T value, final RepositoryMetadata.@NotNull RepositoryInformation val, final PreparedStatement statement) throws Exception {
         int index = 1;
-        RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(value.getClass());
-        for (RepositoryMetadata.FieldData data : information.fields()) {
-            Object fieldValue = ReflectiveMetaData.getFieldValue(value, data.field());
-
-            MySQLValueTypeResolver resolver = this.resolverRegistry.getResolver(data.type());
-            resolver.insert(statement, index, fieldValue);
+        for (RepositoryMetadata.FieldData<?> data : val.fields()) {
+            processValue0(ReflectiveMetaData.getFieldValue(value, data.field()),
+                    (MySQLValueTypeResolver<Object>) this.resolverRegistry.getResolver(data.type()), statement, index);
             index++;
         }
+    }
+
+    private void processValue0(final Object collection, final @NotNull MySQLValueTypeResolver<Object> resolverRegistry, final PreparedStatement statement, final int index) throws Exception {
+        resolverRegistry.insert(statement, index, collection);
     }
 
     @Override
@@ -223,13 +227,13 @@ public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapt
 
     private void buildFields(final ResultSet set, final T instance) throws Throwable {
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(repository);
-        Collection<RepositoryMetadata.FieldData> data = information.fields();
-        for (RepositoryMetadata.FieldData entry : data) {
+        Collection<RepositoryMetadata.FieldData<?>> data = information.fields();
+        for (RepositoryMetadata.FieldData<?> entry : data) {
             String name = entry.name();
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            MySQLValueTypeResolver resolver = this.resolverRegistry.getResolver(type);
+            MySQLValueTypeResolver<Object> resolver = (MySQLValueTypeResolver<Object>) this.resolverRegistry.getResolver(type);
 
             Object value = resolver.resolve(set, name);
             if (value != null) field.set(instance, value);
