@@ -37,14 +37,19 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
 
     //private static final Logger LOGGER = Logger.getLogger("SQLiteRepositoryAdapter");
 
-    private SQLiteRepositoryAdapter(@NotNull SQLiteCredentials credentials, final Class<T> repository) {
+    private SQLiteRepositoryAdapter(@NotNull ConnectionProvider<Connection> dataSource, final Class<T> repository) {
         this.repository = repository;
-        this.dataSource = new SimpleConnectionProvider(credentials);
+        this.dataSource = dataSource;
+    }
+
+    @Contract("_, _ -> new")
+    public static @NotNull <T> SQLiteRepositoryAdapter<T> open(ConnectionProvider<Connection> credentials, Class<T> repository) {
+        return new SQLiteRepositoryAdapter<>(credentials, repository);
     }
 
     @Contract("_, _ -> new")
     public static @NotNull <T> SQLiteRepositoryAdapter<T> open(SQLiteCredentials credentials, Class<T> repository) {
-        return new SQLiteRepositoryAdapter<>(credentials, repository);
+        return new SQLiteRepositoryAdapter<>(new SimpleConnectionProvider(credentials), repository);
     }
 
     @Contract("_ -> new")

@@ -5,17 +5,18 @@ import io.github.flameyossnowy.universal.sqlite.connections.SimpleConnectionProv
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
 
 import java.sql.Connection;
+import java.util.function.Function;
 
 public class SQLiteRepositoryAdapterBuilder<T> {
     private SQLiteCredentials credentials;
-    private ConnectionProvider<Connection> connectionProvider;
+    private Function<SQLiteCredentials, ConnectionProvider<Connection>> connectionProvider;
     private final Class<T> repository;
 
     public SQLiteRepositoryAdapterBuilder(Class<T> repository) {
         this.repository = repository;
     }
 
-    public SQLiteRepositoryAdapterBuilder<T> withConnectionProvider(ConnectionProvider<Connection> connectionProvider) {
+    public SQLiteRepositoryAdapterBuilder<T> withConnectionProvider(Function<SQLiteCredentials, ConnectionProvider<Connection>> connectionProvider) {
         this.connectionProvider = connectionProvider;
         return this;
     }
@@ -30,9 +31,8 @@ public class SQLiteRepositoryAdapterBuilder<T> {
             throw new IllegalArgumentException("Credentials cannot be null");
         }
 
-        if (this.connectionProvider == null) {
-            this.connectionProvider = new SimpleConnectionProvider(this.credentials);
-        }
-        return SQLiteRepositoryAdapter.open(this.credentials, this.repository);
+        return SQLiteRepositoryAdapter.open(this.connectionProvider != null
+                ? this.connectionProvider.apply(credentials)
+                : new SimpleConnectionProvider(this.credentials), this.repository);
     }
 }

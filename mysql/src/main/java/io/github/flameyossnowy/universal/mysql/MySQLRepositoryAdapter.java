@@ -30,6 +30,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.function.Function;
 
 @SuppressWarnings({ "unchecked", "unused" })
 public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapter<T, Connection> {
