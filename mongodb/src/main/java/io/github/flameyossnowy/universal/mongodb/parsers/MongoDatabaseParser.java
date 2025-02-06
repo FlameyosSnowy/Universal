@@ -15,7 +15,6 @@ import java.util.*;
 public class MongoDatabaseParser {
     private final ValueTypeResolverRegistry resolverRegistry;
     private final RepositoryMetadata.RepositoryInformation repository;
-    private final String collectionName;
     private final List<MongoCondition> conditions = new ArrayList<>();
     private final Set<String> uniqueFields = new HashSet<>();
     private final Set<String> nonNullFields = new HashSet<>();
@@ -23,7 +22,6 @@ public class MongoDatabaseParser {
     public MongoDatabaseParser(final ValueTypeResolverRegistry resolverRegistry, final Class<?> repository) {
         this.resolverRegistry = resolverRegistry;
         this.repository = RepositoryMetadata.getMetadata(repository);
-        this.collectionName = extractCollectionName(repository);
         extractMetadata();
     }
 
@@ -36,10 +34,10 @@ public class MongoDatabaseParser {
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            MongoValueTypeResolver<?> resolver = resolverRegistry.getResolver(type);
+            MongoValueTypeResolver<?, ?> resolver = resolverRegistry.getResolver(type);
 
             try {
-                resolver.insert(document, name, ReflectiveMetaData.getFieldValue(object, field));
+                document.put(name, resolver.encode(ReflectiveMetaData.getFieldValue(object, field)));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -67,9 +65,9 @@ public class MongoDatabaseParser {
             FastField field = entry.field();
 
             Class<?> type = entry.rawField().getType();
-            MongoValueTypeResolver<?> resolver = resolverRegistry.getResolver(type);
+            MongoValueTypeResolver<Object, Object> resolver = (MongoValueTypeResolver<Object, Object>) resolverRegistry.getResolver(type);
 
-            Object value = resolver.resolve(set, name);
+            Object value = resolver.decode(set.get(name));
             if (value != null) field.set(instance, value);
         }
     }
@@ -91,7 +89,8 @@ public class MongoDatabaseParser {
                 conditions.add(new MongoCondition(field.name(), field.condition().value()));
             }
             if (field.resolver() != null) {
-                resolverRegistry.register(field.type(), (MongoValueTypeResolver<?>) ReflectiveMetaData.newInstance(field.resolver().value()));
+                resolverRegistry.register((Class<Object>) field.type(),
+                (MongoValueTypeResolver<Object, Object>) ReflectiveMetaData.newInstance(field.resolver().value()));
             }
         }
     }
@@ -170,8 +169,7 @@ public class MongoDatabaseParser {
         };
     }
 
-
-    public String getCollectionName() {
-        return collectionName;
+    public ValueTypeResolverRegistry getValueTypeResolverRegistry() {
+        return resolverRegistry;
     }
 }

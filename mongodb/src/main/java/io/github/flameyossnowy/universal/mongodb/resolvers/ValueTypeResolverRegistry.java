@@ -1,129 +1,60 @@
 package io.github.flameyossnowy.universal.mongodb.resolvers;
 
-import org.bson.Document;
 import org.bson.types.Binary;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
-import java.sql.*;
 import java.time.Instant;
 import java.util.*;
 
 @SuppressWarnings("unused")
 public class ValueTypeResolverRegistry {
-    private final Map<Class<?>, MongoValueTypeResolver<?>> resolvers = new HashMap<>();
+    private final Map<Class<?>, MongoValueTypeResolver<?, ?>> resolvers = new HashMap<>();
 
     public ValueTypeResolverRegistry() {
-        register(String.class,
-                String.class,
-                Document::getString,
-                Document::put);
+        register(String.class, String.class, value -> value, value -> value);
 
-        register(Integer.class,
-                Integer.class,
-                Document::getInteger,
-                Document::put);
+        register(Integer.class, Integer.class, value -> value, value -> value);
 
-        register(Long.class,
-                Long.class,
-                Document::getLong,
-                Document::put);
+        register(Long.class, Long.class, value -> value, value -> value);
 
-        register(Float.class,
-                Double.class,
-                (stmt, index) -> stmt.getDouble(index).floatValue(),
-                (stmt, index, value) -> stmt.put(index, value.doubleValue()));
+        register(Float.class, Double.class, Float::doubleValue, Double::floatValue);
 
-        register(Double.class,
-                Double.class,
-                Document::getDouble,
-                Document::put);
+        register(Double.class, Double.class, value -> value, value -> value);
 
-        register(int.class,
-                int.class,
-                Document::getInteger,
-                Document::put);
+        register(int.class, int.class, value -> value, value -> value);
 
-        register(long.class,
-                long.class,
-                Document::getLong,
-                Document::put);
+        register(long.class, long.class, value -> value, value -> value);
 
-        register(float.class,
-                double.class,
-                (stmt, index) -> stmt.getDouble(index).floatValue(),
-                Document::put);
+        register(float.class, double.class, Float::doubleValue, Double::floatValue);
 
-        register(double.class,
-                double.class,
-                Document::getDouble,
-                Document::put);
+        register(double.class, double.class, value -> value, value -> value);
 
-        register(UUID.class,
-                String.class,
-                (stmt, index) -> {
-                    String value = stmt.getString(index);
-                    if (value == null || value.isEmpty()) return null;
-                    try {
-                        return UUID.fromString(value);
-                    } catch (IllegalArgumentException e) {
-                        throw new SQLException("Invalid UUID value: " + value, e);
-                    }
-                },
-                (stmt, index, value) -> stmt.put(index, value.toString()));
+        register(UUID.class, String.class, UUID::toString, UUID::fromString);
 
-        register(Instant.class,
-                String.class,
-                (stmt, index) -> {
-                    String value = stmt.getString(index);
-                    if (value == null || value.isEmpty()) return null;
-                    try {
-                        return Instant.parse(value);
-                    } catch (IllegalArgumentException e) {
-                        throw new SQLException("Invalid UUID value: " + value, e);
-                    }
-                },
-                (stmt, index, value) -> stmt.put(index, value.toString()));
+        register(Instant.class, Long.class, Instant::toEpochMilli, Instant::ofEpochMilli);
 
-        register(Object.class,
-                byte[].class,
-                (stmt, index) -> {
-                    byte[] array = stmt.get(index, Binary.class).getData();
-                    if (array == null) return null;
-                    try (ByteArrayInputStream byteIn = new ByteArrayInputStream(array);
-                         ObjectInputStream objectIn = new ObjectInputStream(byteIn)) {
-                        return objectIn.readObject();
-                    } catch (IOException | ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
-                },
-                (stmt, index, value) -> {
-                    try (ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-                         ObjectOutputStream objectOut = new ObjectOutputStream(byteOut)) {
-                        objectOut.writeObject(value);
-                        byte[] array = byteOut.toByteArray();
-                        stmt.put(index, new Binary(array));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+        register(Object.class, Binary.class,
+                ValueTypeResolverRegistry::serializeObject,
+                ValueTypeResolverRegistry::deserializeObject);
     }
 
-    public <T> void register(Class<T> type, Class<?> encodedType, ResolverFactory<T> resolver, InsertFactory<T> insert) {
+    public <E, D> void register(Class<D> type, Class<E> encodedType, Encoder<E, D> resolver, Decoder<E, D> insert) {
         resolvers.put(type, new DefaultMongoValueTypeResolver<>(encodedType, resolver, insert));
     }
 
-    public <T> void register(Class<?> type, MongoValueTypeResolver<T> resolver) {
+    public <E, D> void register(Class<D> type, MongoValueTypeResolver<E, D> resolver) {
         resolvers.put(type, resolver);
     }
 
-    @SuppressWarnings("unchecked")
-    public <T> MongoValueTypeResolver<?> getResolver(Class<T> type) {
+    public <E, D> MongoValueTypeResolver<?, ?> getResolver(Class<D> type) {
         Objects.requireNonNull(type);
         if (type == Object.class) {
             throw new IllegalArgumentException("Unknown type: " + type);
         }
 
-        MongoValueTypeResolver<T> resolver = (MongoValueTypeResolver<T>) resolvers.get(type);
+        MongoValueTypeResolver<?, ?> resolver = resolvers.get(type);
         if (resolver != null) {
             return resolver;
         }
@@ -138,24 +69,45 @@ public class ValueTypeResolverRegistry {
     }
 
     @FunctionalInterface
-    public interface ResolverFactory<T> {
-        T resolve(Document resultSet, String parameterIndex) throws SQLException;
+    public interface Encoder<E, D> {
+        E encode(D value);
     }
 
     @FunctionalInterface
-    public interface InsertFactory<T> {
-        void insert(Document preparedStatement, String parameterIndex, T value) throws SQLException;
+    public interface Decoder<E, D> {
+        D decode(E value);
     }
 
-    private record DefaultMongoValueTypeResolver<T>(Class<?> encodedType, ResolverFactory<T> resolver, InsertFactory<T> insertInt) implements MongoValueTypeResolver<T> {
+    private record DefaultMongoValueTypeResolver<E, D>(Class<E> encodedType, Encoder<E, D> resolver, Decoder<E, D> insertInt) implements MongoValueTypeResolver<E, D> {
         @Override
-        public T resolve(Document resultSet, String parameterIndex) throws SQLException {
-            return resolver.resolve(resultSet, parameterIndex);
+        public E encode(D value) {
+            return resolver.encode(value);
         }
 
         @Override
-        public void insert(final Document preparedStatement, final String parameterIndex, final T value) throws SQLException {
-            insertInt.insert(preparedStatement, parameterIndex, value);
+        public D decode(E value) {
+            return insertInt.decode( value);
+        }
+    }
+
+    @Contract("_ -> new")
+    private static @NotNull Binary serializeObject(Object value) {
+        try (ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+             ObjectOutputStream objectOut = new ObjectOutputStream(byteOut)) {
+            objectOut.writeObject(value);
+            return new Binary(byteOut.toByteArray());
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to serialize object", e);
+        }
+    }
+
+    private static Object deserializeObject(@NotNull Binary binary) {
+        byte[] array = binary.getData();
+        try (ByteArrayInputStream byteIn = new ByteArrayInputStream(array);
+             ObjectInputStream objectIn = new ObjectInputStream(byteIn)) {
+            return objectIn.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            throw new RuntimeException("Failed to deserialize object", e);
         }
     }
 }

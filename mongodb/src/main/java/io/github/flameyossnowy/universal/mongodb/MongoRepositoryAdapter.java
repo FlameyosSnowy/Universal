@@ -6,11 +6,14 @@ import com.mongodb.client.model.Updates;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
+import io.github.flameyossnowy.universal.mongodb.resolvers.MongoValueTypeResolver;
 import io.github.flameyossnowy.universal.mongodb.resolvers.ValueTypeResolverRegistry;
 import io.github.flameyossnowy.universal.mongodb.parsers.MongoDatabaseParser;
+import org.bson.BsonDocument;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.jetbrains.annotations.Contract;
@@ -20,9 +23,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static com.mongodb.client.model.Filters.and;
-import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.*;
 
+@SuppressWarnings({"unused", "unchecked"})
 public class MongoRepositoryAdapter<T> implements RepositoryAdapter<T, ClientSession> {
     private final MongoDatabase database;
     private final MongoClient client;
@@ -50,17 +53,35 @@ public class MongoRepositoryAdapter<T> implements RepositoryAdapter<T, ClientSes
     }
 
     @Override
-    public List<T> find(@NotNull SelectQuery query) {
+    public List<T> find(final SelectQuery query) {
+        List<Bson> filterList = new ArrayList<>();
+        if (query != null && !query.filters().isEmpty()) processFilters(query, filterList);
+        Bson filter = filterList.isEmpty() ? new BsonDocument() : and(filterList);
         List<T> results = new ArrayList<>();
-        List<Bson> filters = new ArrayList<>();
-        for (var f : query.filters()) {
-            filters.add(eq(f.option(), f.value()));
-        }
-        Bson filter = and(filters);
-        for (var doc : collection.find(filter)) {
+        for (Document doc : collection.find(filter)) {
             results.add(parser.fromDocument(doc));
         }
         return results;
+    }
+
+    private void processFilters(final @NotNull SelectQuery query, final List<Bson> filterList) {
+        for (SelectOption option : query.filters()) {
+            MongoValueTypeResolver<Object, Object> resolver =
+                    (MongoValueTypeResolver<Object, Object>) parser.getValueTypeResolverRegistry().getResolver(option.value().getClass());
+            Object storedValue = (resolver != null) ? resolver.encode(option.value()) : option.value();
+            processExpression(filterList, option, storedValue);
+        }
+    }
+
+    private static void processExpression(final List<Bson> filterList, final @NotNull SelectOption option, final Object storedValue) {
+        switch (option.operator()) {
+            case "=" -> filterList.add(eq(option.option(), storedValue));
+            case ">" -> filterList.add(gt(option.option(), storedValue));
+            case "<" -> filterList.add(lt(option.option(), storedValue));
+            case ">=" -> filterList.add(gte(option.option(), storedValue));
+            case "<=" -> filterList.add(lte(option.option(), storedValue));
+            default -> throw new IllegalArgumentException("Unsupported filter operation: " + option.operator());
+        }
     }
 
     @Override

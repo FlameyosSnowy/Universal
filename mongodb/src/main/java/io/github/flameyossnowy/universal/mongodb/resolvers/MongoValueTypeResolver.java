@@ -1,11 +1,9 @@
 package io.github.flameyossnowy.universal.mongodb.resolvers;
 
-import org.bson.Document;
+public interface MongoValueTypeResolver<E, D> {
+    E encode(D decoded);
 
-public interface MongoValueTypeResolver<T> {
-    T resolve(Document resultSet, String parameter) throws Exception;
+    D decode(E encoded);
 
-    void insert(Document preparedStatement, String parameter, T value) throws Exception;
-
-    Class<?> encodedType();
+    Class<E> encodedType();
 }
