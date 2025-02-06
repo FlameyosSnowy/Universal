@@ -30,7 +30,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.function.Function;
 
 @SuppressWarnings({ "unchecked", "unused" })
 public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapter<T, Connection> {
@@ -79,23 +78,24 @@ public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapt
         }
     }
 
-    private static void setStatementParameters(final SelectQuery query, final PreparedStatement statement) throws SQLException {
+    private void setStatementParameters(final SelectQuery query, final PreparedStatement statement) throws Exception {
         if (query == null || query.filters().isEmpty()) return;
         int index = 1;
         for (SelectOption value : query.filters()) {
-            statement.setObject(index++, value.value());
+            MySQLValueTypeResolver<Object> resolver = (MySQLValueTypeResolver<Object>) resolverRegistry.getResolver(value.value().getClass());
+            resolver.insert(statement, index, value.value());
         }
-    }
-
-    @Override
-    public List<T> find() {
-        return this.find(null);
     }
 
     private @NotNull List<T> mapResults(@NotNull ResultSet resultSet) throws SQLException {
         List<T> result = new ArrayList<>();
         while (resultSet.next()) result.add(build(resultSet));
         return result;
+    }
+
+    @Override
+    public List<T> find() {
+        return this.find(null);
     }
 
     public void insert(final @NotNull T value, TransactionContext<Connection> transactionContext) {

@@ -78,21 +78,24 @@ public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdap
         }
     }
 
-    private static void setStatementParameters(final SelectQuery query, final PreparedStatement statement) throws SQLException {
+    private void setStatementParameters(final SelectQuery query, final PreparedStatement statement) throws Exception {
         if (query == null || query.filters().isEmpty()) return;
         int index = 1;
-        for (SelectOption value : query.filters()) statement.setObject(index++, value.value());
-    }
-
-    @Override
-    public List<T> find() {
-        return this.find(null);
+        for (SelectOption value : query.filters()) {
+            SQLiteValueTypeResolver<Object> resolver = (SQLiteValueTypeResolver<Object>) resolverRegistry.getResolver(value.value().getClass());
+            resolver.insert(statement, index, value.value());
+        }
     }
 
     private @NotNull List<T> mapResults(@NotNull ResultSet resultSet) throws SQLException {
         List<T> result = new ArrayList<>();
         while (resultSet.next()) result.add(build(resultSet));
         return result;
+    }
+
+    @Override
+    public List<T> find() {
+        return this.find(null);
     }
 
     @Override
