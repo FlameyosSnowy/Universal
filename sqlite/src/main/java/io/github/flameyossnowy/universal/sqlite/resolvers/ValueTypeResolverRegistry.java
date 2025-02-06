@@ -99,17 +99,17 @@ public class ValueTypeResolverRegistry {
         );
 
         register(Instant.class,
-                String.class,
+                long.class,
                 (stmt, index) -> {
-                    String value = stmt.getString(index);
-                    if (value == null || value.isEmpty()) return null;
+                    long value = stmt.getLong(index);
+                    if (value == 0) return null;
                     try {
-                        return Instant.parse(value);
+                        return Instant.ofEpochMilli(value);
                     } catch (IllegalArgumentException e) {
                         throw new SQLException("Invalid UUID value: " + value, e);
                     }
                 },
-                (stmt, index, value) -> stmt.setString(index, value.toString()));
+                (stmt, index, value) -> stmt.setLong(index, value.toEpochMilli()));
 
         register(Time.class,
                 Time.class,
