@@ -29,8 +29,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
-@SuppressWarnings("unchecked")
-public class SQLiteRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapter<T, Connection> {
+@SuppressWarnings({ "unchecked", "unused" })
+public class SQLiteRepositoryAdapter<T> implements RepositoryAdapter<T, Connection> {
     private final ConnectionProvider<Connection> dataSource;
     private final ValueTypeResolverRegistry resolverRegistry = new ValueTypeResolverRegistry();
     private final Class<T> repository;

@@ -160,4 +160,10 @@ public class MongoRepositoryAdapter<T> implements RepositoryAdapter<T, ClientSes
     public boolean isValueExists(String field, Object value) {
         return collection.find(eq(field, value)).first() != null;
     }
+
+    @Override
+    public void close() {
+        client.close();
+        collection = null;
+    }
 }

@@ -32,7 +32,7 @@ import java.sql.SQLException;
 import java.util.*;
 
 @SuppressWarnings({ "unchecked", "unused" })
-public class MySQLRepositoryAdapter<T> implements AutoCloseable, RepositoryAdapter<T, Connection> {
+public class MySQLRepositoryAdapter<T> implements RepositoryAdapter<T, Connection> {
     private final ConnectionProvider<Connection> dataSource;
     private final ValueTypeResolverRegistry resolverRegistry = new ValueTypeResolverRegistry();
     private final Class<T> repository;

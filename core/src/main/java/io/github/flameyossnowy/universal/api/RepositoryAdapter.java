@@ -9,7 +9,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-public interface RepositoryAdapter<T, C> {
+@SuppressWarnings("unused")
+public interface RepositoryAdapter<T, C> extends AutoCloseable {
     List<T> find(SelectQuery query);
 
     List<T> find();
