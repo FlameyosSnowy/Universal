@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.mongodb.parsers;
 import io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter;
 import io.github.flameyossnowy.universal.api.ReflectiveMetaData;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
+import io.github.flameyossnowy.universal.mongodb.annotations.MongoResolver;
 import io.github.flameyossnowy.universal.mongodb.resolvers.MongoValueTypeResolver;
 import io.github.flameyossnowy.universal.mongodb.resolvers.ValueTypeResolverRegistry;
 import me.sunlan.fastreflection.FastField;
@@ -72,11 +73,6 @@ public class MongoDatabaseParser {
         }
     }
 
-    private String extractCollectionName(Class<?> entityClass) {
-        RepositoryMetadata.RepositoryInformation metadata = RepositoryMetadata.getMetadata(entityClass);
-        return metadata.repository();
-    }
-
     private void extractMetadata() {
         for (RepositoryMetadata.FieldData<?> field : repository.fields()) {
             if (field.unique()) {
@@ -88,10 +84,12 @@ public class MongoDatabaseParser {
             if (field.condition() != null) {
                 conditions.add(new MongoCondition(field.name(), field.condition().value()));
             }
-            if (field.resolver() != null) {
-                resolverRegistry.register((Class<Object>) field.type(),
-                (MongoValueTypeResolver<Object, Object>) ReflectiveMetaData.newInstance(field.resolver().value()));
-            }
+            MongoResolver annotation = field.rawField().getAnnotation(MongoResolver.class);
+            if (annotation == null) continue;
+
+            MongoValueTypeResolver<Object, Object> resolver
+                    = (MongoValueTypeResolver<Object, Object>) ReflectiveMetaData.newInstance(annotation.value());
+            resolverRegistry.register((Class<Object>) field.type(), resolver);
         }
     }
 
@@ -157,7 +155,7 @@ public class MongoDatabaseParser {
     }
 
     // Generic comparison method for different numeric types
-    private static <T extends Number & Comparable<T>> boolean compare(T value, T compareValue, String operator) {
+    private static <T extends Number & Comparable<T>> boolean compare(T value, T compareValue, @NotNull String operator) {
         return switch (operator) {
             case ">"  -> value.compareTo(compareValue) > 0;
             case ">=" -> value.compareTo(compareValue) >= 0;

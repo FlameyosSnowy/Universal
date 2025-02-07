@@ -7,11 +7,13 @@ import io.github.flameyossnowy.universal.api.annotations.References;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata.FieldData;
+import io.github.flameyossnowy.universal.sqlite.annotations.SQLiteResolver;
 import io.github.flameyossnowy.universal.sqlite.resolvers.SQLiteValueTypeResolver;
 import io.github.flameyossnowy.universal.sqlite.SQLiteRepositoryAdapter;
 
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -115,18 +117,23 @@ public class RepositoryParser {
                                       @NotNull SQLiteRepositoryAdapter<?> repository) {
         SQLiteValueTypeResolver<T> resolver = (SQLiteValueTypeResolver<T>) repository.getValueTypeResolverRegistry().getResolver(data.type());
 
-        if (resolver == null && data.resolver() != null) {
-            resolver = instantiateResolver(data.resolver().value());
-            repository.getValueTypeResolverRegistry().register(data.type(), resolver);
+        if (resolver == null) {
+            resolver = parseResolver(data, repository);
         }
 
         return repository.getValueTypeResolverRegistry().getType(
                 Objects.requireNonNull(resolver, "Unknown type: " + data.type() + " and no resolver provided."));
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T extends SQLiteValueTypeResolver<?>> T instantiateResolver(Class<?> resolverClass) {
-        return (T) ReflectiveMetaData.newInstance(resolverClass);
+    private static <T> @Nullable SQLiteValueTypeResolver<T> parseResolver(final RepositoryMetadata.@NotNull FieldData<T> data, final @NotNull SQLiteRepositoryAdapter<?> repository) {
+        SQLiteResolver annotation = data.rawField().getAnnotation(SQLiteResolver.class);
+        if (annotation == null) {
+            return null;
+        }
+        SQLiteValueTypeResolver<Object> newResolver
+                = (SQLiteValueTypeResolver<Object>) ReflectiveMetaData.newInstance(annotation.value());
+        repository.getValueTypeResolverRegistry().register((Class<Object>) data.type(), newResolver);
+        return (SQLiteValueTypeResolver<T>) newResolver;
     }
 
     private static void appendForeignKeyConstraints(@NotNull FieldData<?> data, StringBuilder fieldBuilder) {

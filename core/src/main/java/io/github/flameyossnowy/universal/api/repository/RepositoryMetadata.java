@@ -40,7 +40,7 @@ public class RepositoryMetadata {
                     name,
                     FastField.create(field, true),
                     field,
-                    fieldType, // Now correctly typed
+                    fieldType,
                     field.isAnnotationPresent(Id.class),
                     field.isAnnotationPresent(AutoIncrement.class),
                     field.isAnnotationPresent(NonNull.class),
@@ -50,8 +50,7 @@ public class RepositoryMetadata {
                     field.getAnnotation(Condition.class),
                     field.getAnnotation(OnUpdate.class),
                     field.getAnnotation(OnDelete.class),
-                    field.getAnnotation(Foreign.class),
-                    field.getAnnotation(Resolver.class)
+                    field.getAnnotation(Foreign.class)
             ));
             types[i] = fieldType;
         }
@@ -75,6 +74,5 @@ public class RepositoryMetadata {
                             Condition condition,
                             OnUpdate onUpdate,
                             OnDelete onDelete,
-                            Foreign foreign,
-                            Resolver resolver) {}
+                            Foreign foreign) {}
 }

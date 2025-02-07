@@ -5,9 +5,11 @@ import io.github.flameyossnowy.universal.api.annotations.Constraint;
 import io.github.flameyossnowy.universal.api.annotations.References;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
 import io.github.flameyossnowy.universal.mysql.MySQLRepositoryAdapter;
+import io.github.flameyossnowy.universal.mysql.annotations.MySQLResolver;
 import io.github.flameyossnowy.universal.mysql.resolvers.MySQLValueTypeResolver;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -108,13 +110,23 @@ public class RepositoryParser {
     private static <T> String resolveType(@NotNull RepositoryMetadata.FieldData<T> data, @NotNull MySQLRepositoryAdapter<?> repository) {
         MySQLValueTypeResolver<T> resolver = (MySQLValueTypeResolver<T>) repository.getValueTypeResolverRegistry().getResolver(data.type());
 
-        if (resolver == null && data.resolver() != null) {
-            resolver = (MySQLValueTypeResolver<T>) ReflectiveMetaData.newInstance(data.resolver().value());
-            repository.getValueTypeResolverRegistry().register(data.type(), resolver);
+        if (resolver == null) {
+            resolver = parseResolver(data, repository);
         }
 
         return repository.getValueTypeResolverRegistry().getType(
                 Objects.requireNonNull(resolver, "Unknown type: " + data.type() + " and no resolver provided."));
+    }
+
+    private static <T> @Nullable MySQLValueTypeResolver<T> parseResolver(final RepositoryMetadata.@NotNull FieldData<T> data, final @NotNull MySQLRepositoryAdapter<?> repository) {
+        MySQLResolver annotation = data.rawField().getAnnotation(MySQLResolver.class);
+        if (annotation == null) {
+            return null;
+        }
+        MySQLValueTypeResolver<Object> newResolver
+                = (MySQLValueTypeResolver<Object>) ReflectiveMetaData.newInstance(annotation.value());
+        repository.getValueTypeResolverRegistry().register((Class<Object>) data.type(), newResolver);
+        return (MySQLValueTypeResolver<T>) newResolver;
     }
 
     private static void appendForeignKeyConstraints(@NotNull RepositoryMetadata.FieldData<?> data, StringBuilder fieldBuilder) {
