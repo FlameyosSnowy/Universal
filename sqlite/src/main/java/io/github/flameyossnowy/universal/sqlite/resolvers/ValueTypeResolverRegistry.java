@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.sqlite.resolvers;
 
+import io.github.flameyossnowy.universal.api.FastUUID;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
@@ -25,6 +26,7 @@ public class ValueTypeResolverRegistry {
             Map.entry(Float.class, "FLOAT"),
             Map.entry(float.class, "FLOAT"),
             Map.entry(byte[].class, "BLOB"),
+            Map.entry(UUID.class, "BINARY(16)"),
             Map.entry(Timestamp.class, "TIMESTAMP"),
             Map.entry(Time.class, "TIME"),
             Map.entry(Date.class, "DATE"),
@@ -88,12 +90,8 @@ public class ValueTypeResolverRegistry {
                 String.class,
                 (stmt, index) -> {
                     String value = stmt.getString(index);
-                    if (value == null || value.isEmpty()) return null;
-                    try {
-                        return UUID.fromString(value);
-                    } catch (IllegalArgumentException e) {
-                        throw new SQLException("Invalid UUID value: " + value, e);
-                    }
+                    if (value == null) return null;
+                    return FastUUID.parseUUID(value);
                 },
                 (stmt, index, value) -> stmt.setString(index, value.toString())
         );
@@ -201,6 +199,17 @@ public class ValueTypeResolverRegistry {
         resolvers.put(type, resolver);
     }
 
+    public <E extends Enum<E>> void registerEnum(Class<E> enumType) {
+        register(enumType,
+                String.class,
+                (resultSet, columnLabel) -> {
+                    String value = resultSet.getString(columnLabel);
+                    return value != null ? Enum.valueOf(enumType, value) : null;
+                },
+                (preparedStatement, parameterIndex, value) -> preparedStatement.setString(parameterIndex, value.name())
+        );
+    }
+
     @SuppressWarnings("unchecked")
     public <T> SQLiteValueTypeResolver<?> getResolver(Class<T> type) {
         Objects.requireNonNull(type);
@@ -247,7 +256,8 @@ public class ValueTypeResolverRegistry {
 
     private record DefaultSQLiteValueTypeResolver<T>(Class<?> encodedType,
                                                      ResolverFactory<T> resolver,
-                                                     InsertFactory<T> insertInt) implements SQLiteValueTypeResolver<T> {
+                                                     InsertFactory<T> insertInt)
+            implements SQLiteValueTypeResolver<T> {
         @Override
         public T resolve(ResultSet resultSet, String parameter) throws SQLException {
             return resolver.resolve(resultSet, parameter);

@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.mysql.resolvers;
 
+import io.github.flameyossnowy.universal.api.FastUUID;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
@@ -15,7 +16,7 @@ public class ValueTypeResolverRegistry {
     private final Map<Class<?>, MySQLValueTypeResolver<?>> resolvers = new HashMap<>();
 
     private static final Map<Class<?>, String> ENCODED_TYPE_MAPPERS = Map.ofEntries(
-            Map.entry(String.class, "TEXT"),
+            Map.entry(String.class, "VARCHAR(255)"),
             Map.entry(Integer.class, "INT"),
             Map.entry(int.class, "INT"),
             Map.entry(Long.class, "BIGINT"),
@@ -24,7 +25,6 @@ public class ValueTypeResolverRegistry {
             Map.entry(double.class, "DOUBLE"),
             Map.entry(Float.class, "FLOAT"),
             Map.entry(float.class, "FLOAT"),
-            Map.entry(byte[].class, "BLOB"),
             Map.entry(Timestamp.class, "TIMESTAMP"),
             Map.entry(Time.class, "TIME"),
             Map.entry(Date.class, "DATE"),
@@ -88,12 +88,8 @@ public class ValueTypeResolverRegistry {
                 String.class,
                 (stmt, index) -> {
                     String value = stmt.getString(index);
-                    if (value == null || value.isEmpty()) return null;
-                    try {
-                        return UUID.fromString(value);
-                    } catch (IllegalArgumentException e) {
-                        throw new SQLException("Invalid UUID value: " + value, e);
-                    }
+                    if (value == null) return null;
+                    return FastUUID.parseUUID(value);
                 },
                 (stmt, index, value) -> stmt.setString(index, value.toString())
         );
@@ -199,6 +195,17 @@ public class ValueTypeResolverRegistry {
 
     public <T> void register(Class<T> type, MySQLValueTypeResolver<T> resolver) {
         resolvers.put(type, resolver);
+    }
+
+    public <E extends Enum<E>> void registerEnum(Class<E> enumType) {
+        register(enumType,
+                String.class,
+                (resultSet, columnLabel) -> {
+                    String value = resultSet.getString(columnLabel);
+                    return value != null ? Enum.valueOf(enumType, value) : null;
+                },
+                (preparedStatement, parameterIndex, value) -> preparedStatement.setString(parameterIndex, value.name())
+        );
     }
 
     @SuppressWarnings("unchecked")

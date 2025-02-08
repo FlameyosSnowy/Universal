@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.mongodb.resolvers;
 
+import io.github.flameyossnowy.universal.api.FastUUID;
 import org.bson.types.Binary;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -31,7 +32,7 @@ public class ValueTypeResolverRegistry {
 
         register(double.class, double.class, value -> value, value -> value);
 
-        register(UUID.class, String.class, UUID::toString, UUID::fromString);
+        register(UUID.class, String.class, UUID::toString, FastUUID::parseUUID);
 
         register(Instant.class, Long.class, Instant::toEpochMilli, Instant::ofEpochMilli);
 
@@ -46,6 +47,10 @@ public class ValueTypeResolverRegistry {
 
     public <E, D> void register(Class<D> type, MongoValueTypeResolver<E, D> resolver) {
         resolvers.put(type, resolver);
+    }
+
+    public <E extends Enum<E>> void registerEnum(Class<E> enumType) {
+        register(enumType, String.class, Enum::name, (value) -> Enum.valueOf(enumType, value));
     }
 
     public <E, D> MongoValueTypeResolver<?, ?> getResolver(Class<D> type) {
