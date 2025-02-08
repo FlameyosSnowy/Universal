@@ -11,13 +11,7 @@ import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
 
 import io.github.flameyossnowy.universal.sqlite.resolvers.ValueTypeResolverRegistry;
-import io.github.flameyossnowy.universal.sqlite.connections.SimpleConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.connections.SimpleTransactionContext;
-import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
-import io.github.flameyossnowy.universal.sqlite.query.InsertQueryParser;
-import io.github.flameyossnowy.universal.sqlite.query.RepositoryParser;
-import io.github.flameyossnowy.universal.sqlite.query.SelectQueryParser;
-import io.github.flameyossnowy.universal.sqlite.query.UpdateQueryParser;
 import io.github.flameyossnowy.universal.sqlite.resolvers.SQLiteValueTypeResolver;
 import me.sunlan.fastreflection.FastField;
 import org.jetbrains.annotations.Contract;
@@ -33,23 +27,13 @@ import java.util.*;
 public class SQLiteRepositoryAdapter<T> implements RepositoryAdapter<T, Connection> {
     private final ConnectionProvider<Connection> dataSource;
     private final ValueTypeResolverRegistry resolverRegistry = new ValueTypeResolverRegistry();
+    private final QueryParseEngine engine;
     private final Class<T> repository;
 
-    //private static final Logger LOGGER = Logger.getLogger("SQLiteRepositoryAdapter");
-
-    private SQLiteRepositoryAdapter(@NotNull ConnectionProvider<Connection> dataSource, final Class<T> repository) {
+    SQLiteRepositoryAdapter(@NotNull ConnectionProvider<Connection> dataSource, final QueryParseEngine engine, final Class<T> repository) {
+        this.engine = engine;
         this.repository = repository;
         this.dataSource = dataSource;
-    }
-
-    @Contract("_, _ -> new")
-    public static @NotNull <T> SQLiteRepositoryAdapter<T> open(ConnectionProvider<Connection> credentials, Class<T> repository) {
-        return new SQLiteRepositoryAdapter<>(credentials, repository);
-    }
-
-    @Contract("_, _ -> new")
-    public static @NotNull <T> SQLiteRepositoryAdapter<T> open(SQLiteCredentials credentials, Class<T> repository) {
-        return new SQLiteRepositoryAdapter<>(new SimpleConnectionProvider(credentials), repository);
     }
 
     @Contract("_ -> new")
@@ -64,7 +48,7 @@ public class SQLiteRepositoryAdapter<T> implements RepositoryAdapter<T, Connecti
 
     @Override
     public List<T> find(final SelectQuery query) {
-        String sql = SelectQueryParser.parse(query, repository);
+        String sql = engine.parseSelect(query, repository);
 
         try (var connection = dataSource.getConnection();
              var statement = connection.prepareStatement(sql)) {
@@ -101,7 +85,7 @@ public class SQLiteRepositoryAdapter<T> implements RepositoryAdapter<T, Connecti
     @Override
     public void insert(final @NotNull T value, TransactionContext<Connection> transactionContext) {
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(value.getClass());
-        try (var statement = transactionContext.connection().prepareStatement(InsertQueryParser.parse(information, information.fields()))) {
+        try (var statement = transactionContext.connection().prepareStatement(engine.parseInsert(information, information.fields()))) {
             int index = 1;
             for (RepositoryMetadata.FieldData<?> data : information.fields()) {
                 processValue0(ReflectiveMetaData.getFieldValue(value, data.field()), (SQLiteValueTypeResolver<Object>) this.resolverRegistry.getResolver(data.type()), statement, index);
@@ -120,7 +104,7 @@ public class SQLiteRepositoryAdapter<T> implements RepositoryAdapter<T, Connecti
         Class<?> first = collection.iterator().next().getClass();
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(first);
 
-        try (var statement = transactionContext.connection().prepareStatement(InsertQueryParser.parse(information, information.fields()))) {
+        try (var statement = transactionContext.connection().prepareStatement(engine.parseInsert(information, information.fields()))) {
             for (T value : collection) {
                 RepositoryMetadata.RepositoryInformation val = RepositoryMetadata.getMetadata(value.getClass());
                 processValue(value, val, statement);
@@ -147,9 +131,9 @@ public class SQLiteRepositoryAdapter<T> implements RepositoryAdapter<T, Connecti
 
     @Override
     public void updateAll(final @NotNull UpdateQuery query, TransactionContext<Connection> transactionContext) {
-        try (var statement = transactionContext.connection().prepareStatement(UpdateQueryParser.parse(query, repository))) {
+        try (var statement = transactionContext.connection().prepareStatement(engine.parseUpdate(query, repository))) {
 
-            setStatementParameters(statement, query.getUpdates(), query.getConditions());
+            setStatementParameters(statement, query.updates(), query.conditions());
             statement.executeUpdate();
         } catch (Exception e) {
             throw new RuntimeException("Error executing update query", e);
@@ -188,10 +172,18 @@ public class SQLiteRepositoryAdapter<T> implements RepositoryAdapter<T, Connecti
         RepositoryMetadata.RepositoryInformation metadata = RepositoryMetadata.getMetadata(repository);
 
         try (var connection = dataSource.getConnection();
-             var statement = connection.prepareStatement(RepositoryParser.read(metadata, this))) {
+             var statement = connection.prepareStatement(engine.parseRepository(metadata, this))) {
             statement.execute();
+
+            processIndexes(metadata, connection);
         } catch (Exception e) {
             throw new RuntimeException("Error creating table: " + e.getMessage(), e);
+        }
+    }
+
+    private void processIndexes(final RepositoryMetadata.RepositoryInformation metadata, final Connection connection) throws SQLException {
+        for (String index : engine.generateIndexes(metadata)) try (var indexStatement = connection.prepareStatement(index)) {
+            indexStatement.execute();
         }
     }
 

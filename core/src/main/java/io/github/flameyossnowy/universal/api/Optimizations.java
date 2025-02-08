@@ -1,9 +1,13 @@
 package io.github.flameyossnowy.universal.api;
 
-// TODO: coming soon
 public enum Optimizations {
     /**
-     * Profiles the usage of specific insertions/fetching and optimizes them based on the usage.
+     * Caches parsed queries to slightly improve performance.
      */
-    PROFILE_USAGE
+    CACHE_PARSED_QUERIES,
+
+    /**
+     * Sets the recommended settings for the repository to optimize for performance.
+     */
+    RECOMMENDED_SETTINGS
 }

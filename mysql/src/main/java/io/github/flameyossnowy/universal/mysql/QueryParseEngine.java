@@ -9,6 +9,7 @@ import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
 import io.github.flameyossnowy.universal.mysql.annotations.MySQLResolver;
 import io.github.flameyossnowy.universal.mysql.resolvers.MySQLValueTypeResolver;
+import io.github.flameyossnowy.universal.mysql.resolvers.ValueTypeResolverRegistry;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -182,12 +183,6 @@ public class QueryParseEngine {
         String resolvedType = resolveType(data, repository);
         fieldBuilder.append(name).append(' ').append(resolvedType);
 
-        /*if (resolvedType.equals("TEXT") || resolvedType.equals("BLOB")) {
-            if (primaryKey || unique) {
-                fieldBuilder.append("(").append(36).append(")"); // Limit index length
-            }
-        }*/
-
         if (data.nonNull()) {
             fieldBuilder.append(" NOT NULL");
         }
@@ -213,11 +208,29 @@ public class QueryParseEngine {
         MySQLValueTypeResolver<T> resolver = (MySQLValueTypeResolver<T>) registry.getResolver(data.type());
 
         if (resolver == null) {
-            resolver = parseResolver(data, repository);
+            resolver = createResolver(data, repository, registry);
         }
 
-        return registry.getType(Objects.requireNonNull(resolver,
-                "Unknown type: " + data.type() + " and no resolver provided."));
+        if (resolver == null) {
+            throw new IllegalArgumentException("Unknown type: " + data.type() + " and no resolver provided.");
+        }
+
+        return registry.getType(resolver);
+    }
+
+    // suppress raw use of parameterized class
+    @SuppressWarnings("rawtypes")
+    private static <T> @Nullable MySQLValueTypeResolver<T> createResolver(final RepositoryMetadata.@NotNull FieldData<T> data, final @NotNull MySQLRepositoryAdapter<?> repository, final ValueTypeResolverRegistry registry) {
+        MySQLValueTypeResolver<T> resolver;
+        if (Enum.class.isAssignableFrom(data.type())) {
+            Class<? extends Enum> enumClass = (Class<? extends Enum<?>>) data.type();
+
+            registry.registerEnum(enumClass);
+            resolver = (MySQLValueTypeResolver<T>) registry.getResolver(enumClass);
+        } else {
+            resolver = parseResolver(data, repository);
+        }
+        return resolver;
     }
 
     private static <T> @Nullable MySQLValueTypeResolver<T> parseResolver(final RepositoryMetadata.@NotNull FieldData<T> data,
