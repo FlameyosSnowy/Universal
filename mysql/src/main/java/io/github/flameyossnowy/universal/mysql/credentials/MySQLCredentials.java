@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.mysql.credentials;
 import java.util.HashMap;
 import java.util.Map;
 
+@SuppressWarnings("unused")
 public sealed interface MySQLCredentials permits MySQLCredentialsImpl {
 
     static Builder builder() {
@@ -27,7 +28,7 @@ public sealed interface MySQLCredentials permits MySQLCredentialsImpl {
         private String password;
         private boolean ssl = false;
         private String driver = "com.mysql.cj.jdbc.Driver";
-        private int poolSize;
+        private int poolSize = 4;
         private final Map<String, String> dataSourceProperties = new HashMap<>();
         private int minimumIdle = 2;
         private long idleTimeout = 30000;
