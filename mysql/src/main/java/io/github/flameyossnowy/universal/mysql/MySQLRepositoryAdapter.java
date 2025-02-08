@@ -9,14 +9,7 @@ import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
-
-import io.github.flameyossnowy.universal.mysql.connections.SimpleConnectionProvider;
 import io.github.flameyossnowy.universal.mysql.connections.SimpleTransactionContext;
-import io.github.flameyossnowy.universal.mysql.credentials.MySQLCredentials;
-import io.github.flameyossnowy.universal.mysql.query.InsertQueryParser;
-import io.github.flameyossnowy.universal.mysql.query.RepositoryParser;
-import io.github.flameyossnowy.universal.mysql.query.SelectQueryParser;
-import io.github.flameyossnowy.universal.mysql.query.UpdateQueryParser;
 import io.github.flameyossnowy.universal.mysql.resolvers.MySQLValueTypeResolver;
 import io.github.flameyossnowy.universal.mysql.resolvers.ValueTypeResolverRegistry;
 
@@ -35,21 +28,13 @@ import java.util.*;
 public class MySQLRepositoryAdapter<T> implements RepositoryAdapter<T, Connection> {
     private final ConnectionProvider<Connection> dataSource;
     private final ValueTypeResolverRegistry resolverRegistry = new ValueTypeResolverRegistry();
+    private final QueryParseEngine engine;
     private final Class<T> repository;
 
-    private MySQLRepositoryAdapter(ConnectionProvider<Connection> connectionProvider, final Class<T> repository) {
+    MySQLRepositoryAdapter(ConnectionProvider<Connection> connectionProvider, final QueryParseEngine engine, final Class<T> repository) {
+        this.engine = engine;
         this.repository = repository;
         this.dataSource = connectionProvider;
-    }
-
-    @Contract("_, _ -> new")
-    public static @NotNull <T> MySQLRepositoryAdapter<T> open(ConnectionProvider<Connection> connectionProvider, Class<T> repository) {
-        return new MySQLRepositoryAdapter<>(connectionProvider, repository);
-    }
-
-    @Contract("_, _ -> new")
-    public static @NotNull <T> MySQLRepositoryAdapter<T> open(MySQLCredentials credentials, Class<T> repository) {
-        return new MySQLRepositoryAdapter<>(new SimpleConnectionProvider(credentials), repository);
     }
 
     @Contract("_ -> new")
@@ -64,7 +49,7 @@ public class MySQLRepositoryAdapter<T> implements RepositoryAdapter<T, Connectio
 
     @Override
     public List<T> find(final SelectQuery query) {
-        String sql = SelectQueryParser.parse(query, repository);
+        String sql = engine.parseSelect(query, repository);
 
         try (var connection = dataSource.getConnection();
              var statement = connection.prepareStatement(sql)) {
@@ -100,7 +85,7 @@ public class MySQLRepositoryAdapter<T> implements RepositoryAdapter<T, Connectio
 
     public void insert(final @NotNull T value, TransactionContext<Connection> transactionContext) {
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(value.getClass());
-        try (var statement = transactionContext.connection().prepareStatement(InsertQueryParser.parse(information, information.fields()))) {
+        try (var statement = transactionContext.connection().prepareStatement(engine.parseInsert(information, information.fields()))) {
             int index = 1;
             for (RepositoryMetadata.FieldData<?> data : information.fields()) {
                 Object fieldValue = ReflectiveMetaData.getFieldValue(value, data.field());
@@ -123,7 +108,7 @@ public class MySQLRepositoryAdapter<T> implements RepositoryAdapter<T, Connectio
         RepositoryMetadata.RepositoryInformation information = RepositoryMetadata.getMetadata(first);
 
         try (var statement = transactionContext.connection().prepareStatement(
-                InsertQueryParser.parse(information, information.fields()))) {
+                engine.parseInsert(information, information.fields()))) {
             for (T value : collection) {
                 RepositoryMetadata.RepositoryInformation val = RepositoryMetadata.getMetadata(value.getClass());
                 processValue(value, val, statement);
@@ -150,9 +135,9 @@ public class MySQLRepositoryAdapter<T> implements RepositoryAdapter<T, Connectio
 
     @Override
     public void updateAll(final @NotNull UpdateQuery query, TransactionContext<Connection> transactionContext) {
-        try (var statement = transactionContext.connection().prepareStatement(UpdateQueryParser.parse(query, repository))) {
+        try (var statement = transactionContext.connection().prepareStatement(engine.parseUpdate(query, repository))) {
 
-            setStatementParameters(statement, query.getUpdates(), query.getConditions());
+            setStatementParameters(statement, query.updates(), query.conditions());
             statement.executeUpdate();
         } catch (Exception e) {
             throw new RuntimeException("Error executing update query", e);
@@ -191,10 +176,17 @@ public class MySQLRepositoryAdapter<T> implements RepositoryAdapter<T, Connectio
         RepositoryMetadata.RepositoryInformation metadata = RepositoryMetadata.getMetadata(repository);
 
         try (var connection = dataSource.getConnection();
-             var statement = connection.prepareStatement(RepositoryParser.read(metadata, this))) {
+             var statement = connection.prepareStatement(engine.parseRepository(metadata, this))) {
             statement.execute();
+            processIndexes(metadata, connection);
         } catch (Exception e) {
             throw new RuntimeException("Error creating table: " + e.getMessage(), e);
+        }
+    }
+
+    private void processIndexes(final RepositoryMetadata.RepositoryInformation metadata, final Connection connection) throws SQLException {
+        for (String index : engine.generateIndexes(metadata)) try (var indexStatement = connection.prepareStatement(index)) {
+            indexStatement.execute();
         }
     }
 
