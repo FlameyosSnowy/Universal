@@ -1,11 +1,12 @@
 plugins {
     id 'java'
     id 'maven-publish'
+    id 'me.champeau.jmh' version '0.7.2'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'io.github.flameyossnowy.universal'
-version = '1.1.3'
+version = '1.2.0'
 
 repositories {
     mavenCentral()
@@ -18,4 +19,20 @@ dependencies {
 
     compileOnly project(':core')
     implementation 'me.sunlan:fast-reflection:1.0.3'
+
+    testImplementation project(':core')
+    testImplementation 'org.xerial:sqlite-jdbc:3.48.0.0'
+
+    jmh 'org.openjdk.jmh:jmh-core:1.35' // Use the latest version
+    jmhAnnotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.35'
+}
+
+sourceSets {
+    jmh {
+        java {
+            srcDirs = ['src/jmh/java']
+        }
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
 }
