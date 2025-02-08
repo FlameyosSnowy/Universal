@@ -2,13 +2,11 @@ package io.github.flameyossnowy.universal.mongodb;
 
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.*;
+import com.mongodb.client.model.Sorts;
 import com.mongodb.client.model.Updates;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
-import io.github.flameyossnowy.universal.api.options.DeleteQuery;
-import io.github.flameyossnowy.universal.api.options.SelectOption;
-import io.github.flameyossnowy.universal.api.options.SelectQuery;
-import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
 import io.github.flameyossnowy.universal.mongodb.resolvers.MongoValueTypeResolver;
 import io.github.flameyossnowy.universal.mongodb.resolvers.ValueTypeResolverRegistry;
@@ -53,12 +51,27 @@ public class MongoRepositoryAdapter<T> implements RepositoryAdapter<T, ClientSes
     }
 
     @Override
-    public List<T> find(final SelectQuery query) {
+    public List<T> find(final @NotNull SelectQuery query) {
         List<Bson> filterList = new ArrayList<>();
-        if (query != null && !query.filters().isEmpty()) processFilters(query, filterList);
+        if (!query.filters().isEmpty()) processFilters(query, filterList);
         Bson filter = filterList.isEmpty() ? new BsonDocument() : and(filterList);
         List<T> results = new ArrayList<>();
-        for (Document doc : collection.find(filter)) {
+
+        FindIterable<Document> findIterable = collection.find(filter);
+        if (query.limit() != -1) {
+            findIterable = findIterable.limit(query.limit());
+        }
+
+        if (!query.sortOptions().isEmpty()) {
+            List<Bson> sorts = query.sortOptions().stream()
+                    .map(option -> option.order() == SortOrder.ASCENDING
+                            ? Sorts.ascending(option.field())
+                            : Sorts.descending(option.field()))
+                    .toList();
+            findIterable = findIterable.sort(Sorts.orderBy(sorts));
+        }
+
+        for (Document doc : findIterable) {
             results.add(parser.fromDocument(doc));
         }
         return results;
@@ -118,13 +131,13 @@ public class MongoRepositoryAdapter<T> implements RepositoryAdapter<T, ClientSes
     @Override
     public void updateAll(UpdateQuery query, TransactionContext<ClientSession> transactionContext) {
         List<Bson> conditions = new ArrayList<>();
-        for (var f : query.getConditions()) {
+        for (var f : query.conditions()) {
             conditions.add(eq(f.option(), f.value()));
         }
         Bson filter = and(conditions);
 
         List<Bson> updates = new ArrayList<>();
-        for (var e : query.getUpdates().entrySet()) {
+        for (var e : query.updates().entrySet()) {
             updates.add(Updates.set(e.getKey(), e.getValue()));
         }
         Bson update = Updates.combine(updates);
