@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
-@SuppressWarnings("unchecked")
+@SuppressWarnings({"unchecked", "rawtypes"})
 public class MongoDatabaseParser {
     private final ValueTypeResolverRegistry resolverRegistry;
     private final RepositoryMetadata.RepositoryInformation repository;
@@ -84,12 +84,20 @@ public class MongoDatabaseParser {
             if (field.condition() != null) {
                 conditions.add(new MongoCondition(field.name(), field.condition().value()));
             }
-            MongoResolver annotation = field.rawField().getAnnotation(MongoResolver.class);
-            if (annotation == null) continue;
 
-            MongoValueTypeResolver<Object, Object> resolver
+            MongoValueTypeResolver<Object, Object> resolver =
+                    (MongoValueTypeResolver<Object, Object>) resolverRegistry.getResolver(field.type());
+            if (resolver != null) continue;
+
+            MongoResolver annotation = field.rawField().getAnnotation(MongoResolver.class);
+            if (annotation == null) {
+                if (Enum.class.isAssignableFrom(field.type())) resolverRegistry.registerEnum((Class<? extends Enum>) field.type());
+                throw new IllegalArgumentException("Field cannot be resolved automatically: " + field.name() + " and no resolver has been provided.");
+            }
+
+            MongoValueTypeResolver<Object, Object> newResolvr
                     = (MongoValueTypeResolver<Object, Object>) ReflectiveMetaData.newInstance(annotation.value());
-            resolverRegistry.register((Class<Object>) field.type(), resolver);
+            resolverRegistry.register((Class<Object>) field.type(), newResolvr);
         }
     }
 
