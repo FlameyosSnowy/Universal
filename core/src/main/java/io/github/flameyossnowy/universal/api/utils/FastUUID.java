@@ -1,4 +1,4 @@
-package io.github.flameyossnowy.universal.api;
+package io.github.flameyossnowy.universal.api.utils;
 
 import java.util.UUID;
 import java.util.Arrays;
