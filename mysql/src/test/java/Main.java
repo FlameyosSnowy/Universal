@@ -1,65 +1,72 @@
-import io.github.flameyossnowy.universal.api.annotations.Id;
-import io.github.flameyossnowy.universal.api.annotations.Repository;
+import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.mysql.MySQLRepositoryAdapter;
 import io.github.flameyossnowy.universal.mysql.connections.HikariConnectionProvider;
 import io.github.flameyossnowy.universal.mysql.credentials.MySQLCredentials;
 
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.UUID;
 
 public class Main {
     public static void main(String[] args) {
-        MySQLRepositoryAdapter<User> adapter = MySQLRepositoryAdapter
-                .builder(User.class)
-                .withCredentials(MySQLCredentials.builder()
-                        .database("testdb")
-                        .host("localhost")
-                        .username("flameyosflow")
-                        .port(3306)
-                        .password("...")
-                        .build())
+        MySQLCredentials credentials = MySQLCredentials.builder()
+                .database("testdb")
+                .host("localhost")
+                .username("flameyosflow")
+                .port(3306)
+                .password("eyad4056")
+                .build();
+        MySQLRepositoryAdapter<Faction, UUID> factions = MySQLRepositoryAdapter
+                .builder(Faction.class, UUID.class)
+                .withCredentials(credentials)
                 .withConnectionProvider(HikariConnectionProvider::new)
                 .build();
 
-        adapter.createRepository();
+        MySQLRepositoryAdapter<Warp, UUID> warps = MySQLRepositoryAdapter
+                .builder(Warp.class, UUID.class)
+                .withCredentials(credentials)
+                .withConnectionProvider(HikariConnectionProvider::new)
+                .build();
 
-        System.out.println(adapter.find().size());
+        factions.createRepository();
+        warps.createRepository();
+
+        factions.clear();
+        warps.clear();
+
+        UUID id = UUID.randomUUID();
+        Faction faction = new Faction();
+        faction.id = id;
+
+        Warp warp = new Warp();
+        warp.id = UUID.randomUUID();
+        warp.name = "Test";
+
+        Warp warp2 = new Warp();
+        warp2.id = UUID.randomUUID();
+        warp2.name = "Test2";
+
+        faction.warps = new ArrayList<>();
+        faction.warps.add(warp);
+        faction.warps.add(warp2);
+        warp.faction = faction;
+        warp2.faction = faction;
+
+        factions.insert(faction);
+        warps.insert(warp);
+
+        /*factions.updateAll(Query.update()
+                .set("warps", List.of(warp)
+                ));*/
+
+        System.out.println(factions.find(Query.select()
+                .where("id", "=", id)
+                .build()));
 
         try {
-            adapter.close();
+            factions.close();
+            warps.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    @SuppressWarnings("unused")
-    @Repository(name = "testUsers")
-    public static class User {
-        @Id
-        private UUID id;
-
-        private String username;
-
-        private int age;
-
-        private Instant createdAt;
-
-        public User(UUID id, String username, int age, Instant createdAt) {
-            this.id = id;
-            this.username = username;
-            this.age = age;
-            this.createdAt = createdAt;
-        }
-
-        public User() {}
-
-        public String toString() {
-            return "User{" +
-                    "id=" + id +
-                    ", username='" + username + '\'' +
-                    ", age=" + age +
-                    ", createdAt=" + createdAt +
-                    '}';
         }
     }
 }

@@ -19,10 +19,11 @@ dependencies {
     compileOnly 'org.jetbrains:annotations:24.0.1'
 
     compileOnly project(':core')
-    compileOnly "me.sunlan:fast-reflection:1.0.3"
-    compileOnly "com.github.FlameyosSnowy:Velocis:1.0.2"
+    compileOnly project(':sql-common')
 
     testImplementation project(':core')
+    testImplementation project(':sql-common')
+
     testImplementation 'org.xerial:sqlite-jdbc:3.48.0.0'
 
     compileOnly 'org.xerial:sqlite-jdbc:3.48.0.0'

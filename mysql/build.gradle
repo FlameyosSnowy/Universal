@@ -18,15 +18,15 @@ dependencies {
     compileOnly 'org.jetbrains:annotations:24.0.1'
 
     compileOnly project(':core')
+    compileOnly project(':sql-common')
 
+    testImplementation project(':sql-common')
     testImplementation project(':core')
+
     testImplementation 'com.zaxxer:HikariCP:6.2.1'
     testImplementation 'mysql:mysql-connector-java:8.0.28'
 
     compileOnly 'mysql:mysql-connector-java:8.0.28'
-
-    compileOnly "me.sunlan:fast-reflection:1.0.3"
-    compileOnly "com.github.FlameyosSnowy:Velocis:1.0.2"
 
     jmh 'org.openjdk.jmh:jmh-core:1.37' // Use the latest version
     jmhAnnotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.35'

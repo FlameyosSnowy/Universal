@@ -12,8 +12,8 @@ public class Main {
     public static final Instant DEFAULT_PASSWORD = Instant.now();
 
     public static void main(String[] args) {
-        SQLiteRepositoryAdapter<User> adapter = SQLiteRepositoryAdapter
-                .builder(User.class)
+        SQLiteRepositoryAdapter<User, UUID> adapter = SQLiteRepositoryAdapter
+                .builder(User.class, UUID.class)
                 .withCredentials(SQLiteCredentials.builder()
                         .directory("/home/flameyosflow/old.db")
                         .build())

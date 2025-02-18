@@ -1,10 +1,12 @@
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import io.github.flameyossnowy.universal.api.annotations.Condition;
 import io.github.flameyossnowy.universal.api.annotations.Id;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
 import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,8 +19,8 @@ public class Main {
                         "mongodb+srv://...:...@testingjava.vmol6.mongodb.net/?retryWrites=true&w=majority&appName=TestingJava"
                 ))
                 .build();
-        MongoRepositoryAdapter<User> adapter = MongoRepositoryAdapter
-                .builder(User.class)
+        MongoRepositoryAdapter<User, UUID> adapter = MongoRepositoryAdapter
+                .builder(User.class, UUID.class)
                 .withCredentials(settings)
                 .setDatabase("users")
                 .build();
@@ -54,6 +56,8 @@ public class Main {
         private UUID id;
 
         private String username;
+
+        @Condition(value = "age > 18")
         private int age;
 
         private Instant password;

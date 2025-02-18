@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.api;
 
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 
@@ -10,22 +11,44 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @SuppressWarnings("unused")
-public interface RepositoryAdapter<T, C> extends AutoCloseable {
+public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
     List<T> find(SelectQuery query);
 
     List<T> find();
 
-    void createRepository();
+    default T findById(ID key) {
+        return first(Query.select().where("id", "=", key).build());
+    }
+
+    T first(SelectQuery query);
+
+    default T first() {
+        return first(null);
+    }
+
+    default void createRepository() {
+        this.createRepository(false);
+    }
+
+    void createRepository(boolean ifNotExists);
 
     TransactionContext<C> beginTransaction() throws Exception;
 
     void insert(T value, TransactionContext<C> transactionContext);
 
-    void insertAll(Collection<T> value, TransactionContext<C> transactionContext);
+    void insertAll(List<T> value, TransactionContext<C> transactionContext);
 
     void updateAll(UpdateQuery query, TransactionContext<C> transactionContext);
 
     void delete(DeleteQuery query, TransactionContext<C> transactionContext);
+
+    void createIndex(IndexOptions index);
+
+    default void createIndexes(IndexOptions... indexes) {
+        for (IndexOptions elements : indexes) {
+            this.createIndex(elements);
+        }
+    }
 
     default void insert(T value) {
         try (var transactionContext = beginTransaction()) {

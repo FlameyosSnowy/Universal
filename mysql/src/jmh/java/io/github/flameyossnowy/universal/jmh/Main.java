@@ -21,12 +21,12 @@ import java.util.concurrent.TimeUnit;
 public class Main {
     public static final Instant DEFAULT_CREATED_AT = Instant.now();
 
-    private MySQLRepositoryAdapter<User> adapter;
+    private MySQLRepositoryAdapter<User, UUID> adapter;
 
     @Setup(Level.Trial)
     public void setup() {
         this.adapter = MySQLRepositoryAdapter
-                .builder(User.class)
+                .builder(User.class, UUID.class)
                 .withCredentials(MySQLCredentials.builder()
                         .database("testdb")
                         .host("localhost")

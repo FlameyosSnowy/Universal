@@ -1,4 +1,4 @@
-package io.github.flameyossnowy.universal.sqlite.annotations;
+package io.github.flameyossnowy.universal.api.annotations;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -7,6 +7,6 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface SQLiteResolver {
-    Class<?> value();
+public @interface Join {
+    String name();
 }

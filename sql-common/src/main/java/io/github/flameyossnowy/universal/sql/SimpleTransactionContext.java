@@ -1,4 +1,4 @@
-package io.github.flameyossnowy.universal.sqlite.connections;
+package io.github.flameyossnowy.universal.sql;
 
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 

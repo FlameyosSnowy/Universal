@@ -1,6 +1,5 @@
-package io.github.flameyossnowy.universal.api;
+package io.github.flameyossnowy.universal.api.reflect;
 
-import io.github.flameyossnowy.universal.api.repository.RepositoryMetadata;
 import me.sunlan.fastreflection.FastConstructor;
 import me.sunlan.fastreflection.FastField;
 import org.jetbrains.annotations.NotNull;
@@ -19,9 +18,24 @@ public class ReflectiveMetaData {
     * @param field The field to retrieve.
     * @return The field's value.
     */
-    public static <T, E> E getFieldValue(T obj, FastField field) {
+    public static <T, E> E getFieldValue(T obj, FieldData<?> field) {
         try {
-            return (E) field.get(obj);
+            return (E) field.field().get(obj);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+    * Sets a value to an object's field dynamically.
+    *
+    * @param obj   The object whose field value is to be set.
+    * @param field The field to set.
+    * @param value The value to set.
+    */
+    public static <T, E> void setFieldValue(T obj, E value, FieldData<?> field) {
+        try {
+            field.field().set(obj, value);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -29,7 +43,7 @@ public class ReflectiveMetaData {
 
     private ReflectiveMetaData() {}
 
-    public static @NotNull Object newInstance(RepositoryMetadata.RepositoryInformation metadata) {
+    public static @NotNull Object newInstance(RepositoryInformation metadata) {
         return newInstance(metadata.type());
     }
 

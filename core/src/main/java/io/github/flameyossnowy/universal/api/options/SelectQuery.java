@@ -3,7 +3,7 @@ package io.github.flameyossnowy.universal.api.options;
 import java.util.ArrayList;
 import java.util.List;
 
-public record SelectQuery(List<String> columns, List<SelectOption> filters, List<SortOption> sortOptions, List<JoinOption> joins, int limit) {
+public record SelectQuery(List<String> columns, List<SelectOption> filters, List<SortOption> sortOptions, List<JoinOption> joins, int limit) implements Query {
     public static class SelectQueryBuilder {
         private final List<String> columns;
         private final List<SelectOption> filters = new ArrayList<>();
@@ -17,6 +17,11 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
 
         public SelectQueryBuilder where(String key, String operator, Object value) {
             filters.add(new SelectOption(key, operator, value));
+            return this;
+        }
+
+        public SelectQueryBuilder where(String key, Object value) {
+            filters.add(new SelectOption(key, "=", value));
             return this;
         }
 

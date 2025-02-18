@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.mysql.connections;
 
+import com.mysql.cj.jdbc.MysqlDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.flameyossnowy.universal.api.Optimizations;
@@ -19,7 +20,8 @@ public class HikariConnectionProvider implements ConnectionProvider<Connection> 
     public HikariConnectionProvider(@NotNull MySQLCredentials credentials) {
         HikariConfig config = new HikariConfig();
 
-        defaultConfig(credentials, config);
+        MysqlDataSource mysqlDataSource = new MysqlDataSource();
+        defaultConfig(credentials, config, mysqlDataSource);
 
         this.dataSource = new HikariDataSource(config);
     }
@@ -27,39 +29,52 @@ public class HikariConnectionProvider implements ConnectionProvider<Connection> 
     public HikariConnectionProvider(@NotNull MySQLCredentials credentials, @NotNull EnumSet<Optimizations> optimizations) {
         HikariConfig config = new HikariConfig();
 
+        MysqlDataSource mysqlDataSource = new MysqlDataSource();
         if (optimizations.contains(Optimizations.RECOMMENDED_SETTINGS)) {
-            config.addDataSourceProperty("cachePrepStmts", "true");
-            config.addDataSourceProperty("prepStmtCacheSize", "250");
-            config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-            config.addDataSourceProperty("useServerPrepStmts", "true");
-            config.addDataSourceProperty("useLocalSessionState", "true");
-            config.addDataSourceProperty("cacheResultSetMetadata", "true");
-            config.addDataSourceProperty("rewriteBatchedStatements", "true");
-            config.addDataSourceProperty("maintainTimeStats", "false");
-            config.addDataSourceProperty("elideSetAutoCommits", "true");
+            try {
+                addRecommendedPerformanceSettings(mysqlDataSource);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+
         }
-        defaultConfig(credentials, config);
+        defaultConfig(credentials, config, mysqlDataSource);
 
         this.dataSource = new HikariDataSource(config);
     }
 
-    private static void defaultConfig(final @NotNull MySQLCredentials credentials, final HikariConfig config) {
-        if (credentials.ssl()) {
-            config.addDataSourceProperty("useSSL", "true");
-            config.addDataSourceProperty("requireSSL", "true");
-            config.addDataSourceProperty("verifyServerCertificate", "true");
-        } else {
-            config.addDataSourceProperty("useSSL", "false");
-            config.addDataSourceProperty("requireSSL", "false");
-            config.addDataSourceProperty("verifyServerCertificate", "false");
+    private static void addRecommendedPerformanceSettings(final @NotNull MysqlDataSource mysqlDataSource) throws SQLException {
+        mysqlDataSource.setCachePrepStmts(true);
+        mysqlDataSource.setPrepStmtCacheSize(250);
+        mysqlDataSource.setPrepStmtCacheSqlLimit(2048);
+        mysqlDataSource.setUseServerPrepStmts(true);
+        mysqlDataSource.setRewriteBatchedStatements(true);
+        mysqlDataSource.setUseLocalSessionState(true);
+        mysqlDataSource.setCacheResultSetMetadata(true);
+        mysqlDataSource.setElideSetAutoCommits(true);
+        mysqlDataSource.setMaintainTimeStats(false);
+    }
+
+    private static void defaultConfig(final @NotNull MySQLCredentials credentials, final HikariConfig config, final MysqlDataSource dataSource) {
+        try {
+            if (credentials.ssl()) {
+                dataSource.setUseSSL(true);
+                dataSource.setRequireSSL(true);
+                dataSource.setVerifyServerCertificate(true);
+            } else {
+                dataSource.setUseSSL(false);
+                dataSource.setRequireSSL(false);
+                dataSource.setVerifyServerCertificate(false);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
 
-        config.setPassword(credentials.password());
-        config.setUsername(credentials.username());
-        config.addDataSourceProperty("databaseName", credentials.database()); // Set database here        //config.setDriverClassName(credentials.driver());
-        // mysql datasource class name
-        config.setDataSourceClassName("com.mysql.cj.jdbc.MysqlDataSource");
+        dataSource.setPassword(credentials.password());
+        dataSource.setUser(credentials.username());
+        dataSource.setDatabaseName(credentials.database());
 
+        config.setDataSource(dataSource);
         for (Map.Entry<String, String> entry : credentials.dataSourceProperties().entrySet()) {
             config.addDataSourceProperty(entry.getKey(), entry.getValue());
         }

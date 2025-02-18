@@ -2,33 +2,32 @@ package io.github.flameyossnowy.universal.mongodb;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
-import io.github.flameyossnowy.universal.mongodb.resolvers.ValueTypeResolverRegistry;
+import io.github.flameyossnowy.universal.api.cache.ResultCache;
+import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.api.annotations.Cacheable;
 
-public class MongoRepositoryAdapterBuilder<T> {
+public class MongoRepositoryAdapterBuilder<T, ID> {
     private MongoClientSettings.Builder credentialsBuilder;
 
     private final Class<T> repository;
-    private MongoClientSettings credentials;
 
     private String database;
-
-    private final ValueTypeResolverRegistry resolverRegistry = new ValueTypeResolverRegistry();
 
     MongoRepositoryAdapterBuilder(Class<T> repository) {
         this.repository = repository;
     }
 
-    public MongoRepositoryAdapterBuilder<T> withCredentials(MongoClientSettings credentials) {
-        this.credentials = credentials;
+    public MongoRepositoryAdapterBuilder<T, ID> withCredentials(MongoClientSettings credentials) {
+        this.credentialsBuilder = MongoClientSettings.builder(credentials);
         return this;
     }
 
-    public MongoRepositoryAdapterBuilder<T> withConnectionString(ConnectionString string) {
+    public MongoRepositoryAdapterBuilder<T, ID> withConnectionString(ConnectionString string) {
         getCredentialsBuilder().applyConnectionString(string);
         return this;
     }
 
-    public MongoRepositoryAdapterBuilder<T> withConnectionString(String string) {
+    public MongoRepositoryAdapterBuilder<T, ID> withConnectionString(String string) {
         getCredentialsBuilder().applyConnectionString(new ConnectionString(string));
         return this;
     }
@@ -37,16 +36,14 @@ public class MongoRepositoryAdapterBuilder<T> {
         return credentialsBuilder == null ? MongoClientSettings.builder() : credentialsBuilder;
     }
 
-    public MongoRepositoryAdapter<T> build() {
-        MongoClientSettings settings = this.getSettings();
-        return new MongoRepositoryAdapter<>(settings, database, resolverRegistry, repository);
+    public MongoRepositoryAdapter<T, ID> build() {
+        Cacheable cacheable = RepositoryMetadata.getMetadata(repository).cacheable();
+        return new MongoRepositoryAdapter<>(this.credentialsBuilder, database, cacheable != null ?
+                new ResultCache(cacheable.maxCacheSize(), cacheable.algorithm())
+                : null, repository);
     }
 
-    private MongoClientSettings getSettings() {
-        return credentials == null ? getCredentialsBuilder().build() : credentials;
-    }
-
-    public MongoRepositoryAdapterBuilder<T> setDatabase(final String database) {
+    public MongoRepositoryAdapterBuilder<T, ID> setDatabase(final String database) {
         this.database = database;
         return this;
     }
