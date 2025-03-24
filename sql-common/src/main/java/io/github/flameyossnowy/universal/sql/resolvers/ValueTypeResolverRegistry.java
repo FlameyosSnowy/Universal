@@ -1,12 +1,14 @@
 package io.github.flameyossnowy.universal.sql.resolvers;
 
-import io.github.flameyossnowy.universal.api.reflect.ReflectiveMetaData;
+import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.utils.FastUUID;
 import io.github.flameyossnowy.universal.sql.annotations.SQLResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
 import java.sql.*;
 import java.sql.Date;
 import java.time.Instant;
@@ -14,7 +16,7 @@ import java.util.*;
 import java.math.BigInteger;
 import java.math.BigDecimal;
 
-@SuppressWarnings({"unused", "unchecked", "rawtypes"})
+@SuppressWarnings({"unused", "unchecked", "rawtypes", "UnnecessaryBoxing"})
 public class ValueTypeResolverRegistry {
     private final Map<Class<?>, SQLValueTypeResolver<?>> resolvers = new HashMap<>();
 
@@ -27,7 +29,6 @@ public class ValueTypeResolverRegistry {
             Map.entry(Double.class, new EncodedTypeInfo("DOUBLE", Types.DOUBLE)),
             Map.entry(double.class, new EncodedTypeInfo("DOUBLE", Types.DOUBLE)),
             Map.entry(Float.class, new EncodedTypeInfo("FLOAT", Types.FLOAT)),
-            Map.entry(float.class, new EncodedTypeInfo("FLOAT", Types.FLOAT)),
             Map.entry(byte[].class, new EncodedTypeInfo("BLOB", Types.BLOB)),
             Map.entry(Timestamp.class, new EncodedTypeInfo("TIMESTAMP", Types.TIMESTAMP)),
             Map.entry(Time.class, new EncodedTypeInfo("TIME", Types.TIME)),
@@ -42,8 +43,19 @@ public class ValueTypeResolverRegistry {
             Map.entry(BigInteger.class, new EncodedTypeInfo("NUMERIC", Types.NUMERIC))
     );
 
+    private static final Map<Class<?>, Class<?>> PRIMITIVE_TO_BOXED_MAPPER = Map.ofEntries(
+        Map.entry(int.class, Integer.class),
+        Map.entry(long.class, Long.class),
+        Map.entry(float.class, Float.class),
+        Map.entry(double.class, Double.class),
+        Map.entry(byte.class, Byte.class),
+        Map.entry(short.class, Short.class),
+        Map.entry(boolean.class, Boolean.class)
+    );
 
-    public ValueTypeResolverRegistry() {
+    public static final ValueTypeResolverRegistry INSTANCE = new ValueTypeResolverRegistry();
+
+    private ValueTypeResolverRegistry() {
         register(String.class,
                 String.class,
                 ResultSet::getString,
@@ -51,43 +63,28 @@ public class ValueTypeResolverRegistry {
 
         register(Integer.class,
                 Integer.class,
-                ResultSet::getInt,
+                (stmt, index) -> Integer.valueOf(stmt.getInt(index)),
                 PreparedStatement::setInt);
 
         register(Long.class,
                 Long.class,
-                ResultSet::getLong,
+                (stmt, index) -> Long.valueOf(stmt.getLong(index)),
                 PreparedStatement::setLong);
 
         register(Float.class,
                 Float.class,
-                ResultSet::getFloat,
+                (stmt, index) -> Float.valueOf(stmt.getFloat(index)),
                 PreparedStatement::setFloat);
 
         register(Double.class,
                 Double.class,
-                ResultSet::getDouble,
+                (stmt, index) -> Double.valueOf(stmt.getDouble(index)),
                 PreparedStatement::setDouble);
 
-        register(int.class,
-                int.class,
-                ResultSet::getInt,
-                PreparedStatement::setInt);
-
-        register(long.class,
-                long.class,
-                ResultSet::getLong,
-                PreparedStatement::setLong);
-
-        register(float.class,
-                float.class,
-                ResultSet::getFloat,
-                PreparedStatement::setFloat);
-
-        register(double.class,
-                double.class,
-                ResultSet::getDouble,
-                PreparedStatement::setDouble);
+        register(Short.class,
+                Short.class,
+                (stmt, index) -> Short.valueOf(stmt.getShort(index)),
+                PreparedStatement::setShort);
 
         register(UUID.class,
                 String.class,
@@ -132,25 +129,22 @@ public class ValueTypeResolverRegistry {
                 ResultSet::getBoolean,
                 PreparedStatement::setBoolean);
 
-        register(Short.class,
-                short.class,
-                ResultSet::getShort,
-                PreparedStatement::setShort);
-
-        register(short.class,
-                short.class,
-                ResultSet::getShort,
-                PreparedStatement::setShort);
-
         register(Byte.class,
                 byte.class,
-                ResultSet::getByte,
+                (stmt, index) -> {
+                    byte value = stmt.getByte(index);
+                    return Byte.valueOf(value);
+                },
                 PreparedStatement::setByte);
 
         register(byte.class,
-                byte.class,
-                ResultSet::getByte,
+                Byte.class,
+                (stmt, index) -> {
+                    byte value = stmt.getByte(index);
+                    return Byte.valueOf(value);
+                },
                 PreparedStatement::setByte);
+
 
         register(BigDecimal.class,
                 BigDecimal.class,
@@ -223,15 +217,17 @@ public class ValueTypeResolverRegistry {
         SQLValueTypeResolver<T> resolver = (SQLValueTypeResolver<T>) resolvers.get(type);
         if (resolver != null) return resolver;
 
+        Class<?> primitiveType = PRIMITIVE_TO_BOXED_MAPPER.get(type);
+        if (primitiveType != null) {
+            return (SQLValueTypeResolver<T>) resolvers.get(primitiveType);
+        }
+
         // Normal resolution logic for basic types
         if (Serializable.class.isAssignableFrom(type)) {
             return (SQLValueTypeResolver<T>) resolvers.get(Object.class);
         }
 
-        SQLValueTypeResolver<T> newResolver = createResolver(type);
-
-        if (newResolver != null) return newResolver;
-        throw new IllegalArgumentException("Unknown type: " + type + " and no resolver provided.");
+        return createResolver(type);
     }
 
     private <T> @Nullable SQLValueTypeResolver<T> createResolver(final @NotNull Class<?> data) {
@@ -255,10 +251,13 @@ public class ValueTypeResolverRegistry {
         if (!SQLValueTypeResolver.class.isAssignableFrom(annotation.value())) {
             throw new IllegalArgumentException("Annotation value must be an SQLValueTypeResolver: " + annotation.value());
         }
-        SQLValueTypeResolver<Object> newResolver =
-                (SQLValueTypeResolver<Object>) ReflectiveMetaData.newInstance(annotation.value());
-        register((Class<Object>) data, newResolver);
-        return newResolver;
+        try {
+            SQLValueTypeResolver<Object> newResolver = (SQLValueTypeResolver<Object>) annotation.value().getDeclaredConstructor().newInstance();
+            register((Class<Object>) data, newResolver);
+            return newResolver;
+        } catch (InstantiationException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public String getType(@NotNull SQLValueTypeResolver<?> resolver) {
@@ -270,9 +269,13 @@ public class ValueTypeResolverRegistry {
     }
 
     public String getType(Class<?> type) {
+        RepositoryInformation information;
+        if ((information = RepositoryMetadata.getMetadata(type)) != null) return getType(information.getPrimaryKey().type());
+
         SQLValueTypeResolver<?> resolver = this.getResolver(type);
         if (resolver != null) {
             EncodedTypeInfo info = ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
+            if (info == null) throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
             return info.sqlTypeName;
         }
 

@@ -21,18 +21,21 @@ public class SimpleTransactionContext implements TransactionContext<Connection> 
 
     @Override
     public void commit() throws SQLException {
+        if (commited) return;
         connection.commit();
         commited = true;
     }
 
     @Override
     public void rollback() throws SQLException {
-        if (!commited) connection.rollback();
+        if (!commited && connection != null && !connection.isClosed()) connection.rollback();
     }
 
     @Override
     public void close() throws Exception {
-        rollback();
-        connection.close();
+        if (connection != null && !connection.isClosed()) {
+            if (!commited) connection.rollback();
+            connection.close();
+        }
     }
 }

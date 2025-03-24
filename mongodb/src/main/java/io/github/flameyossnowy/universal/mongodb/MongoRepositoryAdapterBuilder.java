@@ -2,19 +2,16 @@ package io.github.flameyossnowy.universal.mongodb;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
-import io.github.flameyossnowy.universal.api.cache.ResultCache;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
-import io.github.flameyossnowy.universal.api.annotations.Cacheable;
 
 public class MongoRepositoryAdapterBuilder<T, ID> {
     private MongoClientSettings.Builder credentialsBuilder;
-
     private final Class<T> repository;
-
+    private final Class<ID> idType;
     private String database;
 
-    MongoRepositoryAdapterBuilder(Class<T> repository) {
+    MongoRepositoryAdapterBuilder(Class<T> repository, Class<ID> idType) {
         this.repository = repository;
+        this.idType = idType;
     }
 
     public MongoRepositoryAdapterBuilder<T, ID> withCredentials(MongoClientSettings credentials) {
@@ -37,10 +34,8 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
     }
 
     public MongoRepositoryAdapter<T, ID> build() {
-        Cacheable cacheable = RepositoryMetadata.getMetadata(repository).cacheable();
-        return new MongoRepositoryAdapter<>(this.credentialsBuilder, database, cacheable != null ?
-                new ResultCache(cacheable.maxCacheSize(), cacheable.algorithm())
-                : null, repository);
+        //Cacheable cacheable = RepositoryMetadata.getMetadata(repository).getCacheable();
+        return new MongoRepositoryAdapter<>(this.credentialsBuilder, database, repository, idType);
     }
 
     public MongoRepositoryAdapterBuilder<T, ID> setDatabase(final String database) {

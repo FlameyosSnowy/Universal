@@ -106,14 +106,15 @@ public class FastUUID {
     }
 
     static long getHexValueForChar(final char c) {
+        long value = HEX_VALUES[c];
         try {
-            if (HEX_VALUES[c] < 0) {
+            if (value < 0) {
                 throw new IllegalArgumentException("Illegal hexadecimal digit: " + c);
             }
         } catch (final ArrayIndexOutOfBoundsException e) {
             throw new IllegalArgumentException("Illegal hexadecimal digit: " + c);
         }
 
-        return HEX_VALUES[c];
+        return value;
     }
 }

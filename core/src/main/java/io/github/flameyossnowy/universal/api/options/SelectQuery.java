@@ -3,12 +3,11 @@ package io.github.flameyossnowy.universal.api.options;
 import java.util.ArrayList;
 import java.util.List;
 
-public record SelectQuery(List<String> columns, List<SelectOption> filters, List<SortOption> sortOptions, List<JoinOption> joins, int limit) implements Query {
+public record SelectQuery(List<String> columns, List<SelectOption> filters, List<SortOption> sortOptions, int limit) implements Query {
     public static class SelectQueryBuilder {
         private final List<String> columns;
         private final List<SelectOption> filters = new ArrayList<>();
         private final List<SortOption> sortOptions = new ArrayList<>();
-        private final List<JoinOption> joins = new ArrayList<>();
         private int limit = -1;
 
         public SelectQueryBuilder(String... columns) {
@@ -35,13 +34,8 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
             return this;
         }
 
-        public SelectQueryBuilder join(String joinType, String targetTable, String onCondition) {
-            joins.add(new JoinOption(joinType, targetTable, onCondition));
-            return this;
-        }
-
         public SelectQuery build() {
-            return new SelectQuery(columns, filters, sortOptions, joins, limit);
+            return new SelectQuery(columns, filters, sortOptions, limit);
         }
     }
 }

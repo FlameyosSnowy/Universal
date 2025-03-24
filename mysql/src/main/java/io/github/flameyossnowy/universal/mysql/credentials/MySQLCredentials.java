@@ -1,125 +1,112 @@
 package io.github.flameyossnowy.universal.mysql.credentials;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.mysql.cj.jdbc.MysqlDataSource;
+
+import java.util.function.Consumer;
 
 @SuppressWarnings("unused")
-public sealed interface MySQLCredentials permits MySQLCredentialsImpl {
+public final class MySQLCredentials {
+    private final String host;
+    private final int port;
+    private final String database;
+    private final String username;
+    private final String password;
+    private boolean ssl = false;
+    private String driver = "com.mysql.cj.jdbc.Driver";
+    private int poolSize = 4;
+    private int minimumIdle = 2;
+    private long idleTimeout = 30000;
+    private long connectionTimeout = 30000;
+    private Consumer<MysqlDataSource> dataSourceConsumer = (dataSource) -> {};
 
-    static Builder builder() {
-        return new Builder();
+    public MySQLCredentials(String host, int port, String database, String username, String password) {
+        this.host = host;
+        this.port = port;
+        this.database = database;
+        this.username = username;
+        this.password = password;
     }
 
-    int poolSize();
-
-    Map<String, String> dataSourceProperties();
-
-    int minimumIdle();
-
-    long idleTimeout();
-
-    long connectionTimeout();
-
-    class Builder {
-        private String host;
-        private int port;
-        private String database;
-        private String username;
-        private String password;
-        private boolean ssl = false;
-        private String driver = "com.mysql.cj.jdbc.Driver";
-        private int poolSize = 4;
-        private final Map<String, String> dataSourceProperties = new HashMap<>();
-        private int minimumIdle = 2;
-        private long idleTimeout = 30000;
-        private long connectionTimeout = 30000;
-
-        public Builder poolSize(int poolSize) {
-            this.poolSize = poolSize;
-            return this;
-        }
-
-        public Builder port(int port) {
-            this.port = port;
-            return this;
-        }
-
-        public Builder host(String host) {
-            this.host = host;
-            return this;
-        }
-
-        public Builder database(String database) {
-            this.database = database;
-            return this;
-        }
-
-        public Builder username(String username) {
-            this.username = username;
-            return this;
-        }
-
-        public Builder password(String password) {
-            this.password = password;
-            return this;
-        }
-
-        public Builder ssl(boolean ssl) {
-            this.ssl = ssl;
-            return this;
-        }
-
-        public Builder driver(String driver) {
-            this.driver = driver;
-            return this;
-        }
-
-        public Builder dataSourceProperty(String key, String value) {
-            this.dataSourceProperties.put(key, value);
-            return this;
-        }
-
-        public Builder dataSourceProperties(Map<String, Object> properties) {
-            for (Map.Entry<String, Object> entry : properties.entrySet()) {
-                this.dataSourceProperties.put(entry.getKey(), entry.getValue().toString());
-            }
-            return this;
-        }
-
-        public Builder minimumIdle(int minimumIdle) {
-            this.minimumIdle = minimumIdle;
-            return this;
-        }
-
-        public Builder idleTimeout(long idleTimeout) {
-            this.idleTimeout = idleTimeout;
-            return this;
-        }
-
-        public Builder connectionTimeout(long connectionTimeout) {
-            this.connectionTimeout = connectionTimeout;
-            return this;
-        }
-
-        public MySQLCredentials build() {
-            return new MySQLCredentialsImpl(
-                    host, port, database, username, password, ssl, driver,
-                    poolSize, dataSourceProperties, minimumIdle, idleTimeout, connectionTimeout
-            );
-        }
+    public MySQLCredentials setPoolSize(int poolSize) {
+        this.poolSize = poolSize;
+        return this;
     }
 
-    String host();
+    public MySQLCredentials setMinimumIdle(int minimumIdle) {
+        this.minimumIdle = minimumIdle;
+        return this;
+    }
 
-    int port();
+    public MySQLCredentials setIdleTimeout(long idleTimeout) {
+        this.idleTimeout = idleTimeout;
+        return this;
+    }
 
-    String database();
+    public MySQLCredentials setConnectionTimeout(long connectionTimeout) {
+        this.connectionTimeout = connectionTimeout;
+        return this;
+    }
 
-    String username();
+    public MySQLCredentials setSsl(boolean ssl) {
+        this.ssl = ssl;
+        return this;
+    }
 
-    String password();
+    public MySQLCredentials setDriver(String driver) {
+        this.driver = driver;
+        return this;
+    }
 
-    boolean ssl();
+    public MySQLCredentials setDataSourceConsumer(Consumer<MysqlDataSource> consumer) {
+        this.dataSourceConsumer = consumer;
+        return this;
+    }
 
-    String driver();
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public String getDatabase() {
+        return database;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public boolean isSsl() {
+        return ssl;
+    }
+
+    public String getDriver() {
+        return driver;
+    }
+
+    public int getPoolSize() {
+        return poolSize;
+    }
+
+    public int getMinimumIdle() {
+        return minimumIdle;
+    }
+
+    public long getIdleTimeout() {
+        return idleTimeout;
+    }
+
+    public long getConnectionTimeout() {
+        return connectionTimeout;
+    }
+
+    public Consumer<MysqlDataSource> getDataSourceConsumer() {
+        return dataSourceConsumer;
+    }
 }

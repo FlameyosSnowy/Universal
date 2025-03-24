@@ -3,13 +3,11 @@ package io.github.flameyossnowy.universal.sqlite;
 import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.annotations.Cacheable;
 import io.github.flameyossnowy.universal.api.cache.ResultCache;
-import io.github.flameyossnowy.universal.api.connection.ConnectionProvider;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
-import io.github.flameyossnowy.universal.sqlite.connections.SimpleConnectionProvider;
+import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
+import io.github.flameyossnowy.universal.sqlite.connections.SQLiteSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
-import io.github.flameyossnowy.universal.sql.QueryParseEngine;
 
-import java.sql.Connection;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -20,20 +18,22 @@ import java.util.function.Function;
 @SuppressWarnings("unused")
 public class SQLiteRepositoryAdapterBuilder<T, ID> {
     private SQLiteCredentials credentials;
-    private BiFunction<SQLiteCredentials, EnumSet<Optimizations>, ConnectionProvider<Connection>> connectionProvider;
+    private BiFunction<SQLiteCredentials, EnumSet<Optimizations>, SQLConnectionProvider> connectionProvider;
     private final EnumSet<Optimizations> optimizations = EnumSet.noneOf(Optimizations.class);
     private final Class<T> repository;
+    private final Class<ID> idClass;
 
-    public SQLiteRepositoryAdapterBuilder(Class<T> repository) {
+    public SQLiteRepositoryAdapterBuilder(Class<T> repository, Class<ID> id) {
         this.repository = Objects.requireNonNull(repository, "Repository cannot be null");
+        this.idClass = Objects.requireNonNull(id, "ID class cannot be null");
     }
 
-    public SQLiteRepositoryAdapterBuilder<T, ID> withConnectionProvider(BiFunction<SQLiteCredentials, EnumSet<Optimizations>, ConnectionProvider<Connection>> connectionProvider) {
+    public SQLiteRepositoryAdapterBuilder<T, ID> withConnectionProvider(BiFunction<SQLiteCredentials, EnumSet<Optimizations>, SQLConnectionProvider> connectionProvider) {
         this.connectionProvider = connectionProvider;
         return this;
     }
 
-    public SQLiteRepositoryAdapterBuilder<T, ID> withConnectionProvider(Function<SQLiteCredentials, ConnectionProvider<Connection>> connectionProvider) {
+    public SQLiteRepositoryAdapterBuilder<T, ID> withConnectionProvider(Function<SQLiteCredentials, SQLConnectionProvider> connectionProvider) {
         this.connectionProvider = (credentials, optimizations) -> connectionProvider.apply(credentials);
         return this;
     }
@@ -56,17 +56,13 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
     public SQLiteRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
 
-        Cacheable cacheable = RepositoryMetadata.getMetadata(this.repository).cacheable();
+        Cacheable cacheable = RepositoryMetadata.getMetadata(this.repository).getCacheable();
+
+        ResultCache<T, ID> cache = cacheable != null ? new ResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null;
 
         return new SQLiteRepositoryAdapter<>(
-                connectionProvider != null
-                ? this.connectionProvider.apply(credentials, optimizations)
-                : new SimpleConnectionProvider(this.credentials),
-                cacheable != null
-                        ? new ResultCache(cacheable.maxCacheSize(), cacheable.algorithm())
-                        : null,
-                this.optimizations,
-                this.repository
+                connectionProvider != null ? this.connectionProvider.apply(credentials, optimizations) : new SQLiteSimpleConnectionProvider(this.credentials, optimizations),
+                cache, this.repository, this.idClass
         );
     }
 }

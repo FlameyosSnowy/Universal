@@ -73,18 +73,18 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
         }
 
         public Builder field(String name) {
-            return this.field(getInformation().fieldData().get(name));
+            return this.field(getInformation().getField(name));
         }
 
         public Builder fields(String... names) {
             return this.fields(Arrays.stream(names)
-                    .map(getInformation().fieldData()::get)
+                    .map(getInformation()::getField)
                     .toArray(FieldData<?>[]::new));
         }
 
         public Builder rawFields(@NotNull Collection<String> names) {
             return this.fields(names.stream()
-                    .map(getInformation().fieldData()::get)
+                    .map(getInformation()::getField)
                     .toArray(FieldData<?>[]::new));
         }
 

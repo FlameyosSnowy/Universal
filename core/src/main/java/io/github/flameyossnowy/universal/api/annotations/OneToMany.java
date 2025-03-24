@@ -8,5 +8,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface OneToMany {
-    String mappedBy();
+    Class<?> mappedBy();
+
+    boolean lazy() default false;
 }

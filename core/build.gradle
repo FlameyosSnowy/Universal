@@ -18,5 +18,5 @@ dependencies {
 
     implementation "me.sunlan:fast-reflection:1.0.3"
 
-    implementation "com.github.FlameyosSnowy:Velocis:1.0.2"
+    implementation "com.github.FlameyosSnowy:Velocis:1.1.0"
 }

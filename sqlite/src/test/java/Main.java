@@ -1,6 +1,6 @@
 import io.github.flameyossnowy.universal.api.annotations.Id;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
-import io.github.flameyossnowy.universal.api.options.Query;
+import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sqlite.SQLiteRepositoryAdapter;
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
 
@@ -9,35 +9,31 @@ import java.util.List;
 import java.util.UUID;
 
 public class Main {
-    public static final Instant DEFAULT_PASSWORD = Instant.now();
-
     public static void main(String[] args) {
+        Logging.ENABLED = true;
+        //Logging.DEEP = true;
         SQLiteRepositoryAdapter<User, UUID> adapter = SQLiteRepositoryAdapter
                 .builder(User.class, UUID.class)
-                .withCredentials(SQLiteCredentials.builder()
-                        .directory("/home/flameyosflow/old.db")
-                        .build())
+                .withCredentials(new SQLiteCredentials("/home/flameyosflow/newdb.db"))
                 .build();
 
-        adapter.createRepository();
+        adapter.executeRawQuery("DROP TABLE IF EXISTS users;");
+        adapter.createRepository(true);
         adapter.clear();
 
-        adapter.insertAll(List.of(
-                new User(UUID.randomUUID(), "Flameyos", 17,
-                        Instant.now(), List.of("Coding", "Sleeping")),
-                new User(UUID.randomUUID(), "Flow", 13,
-                        Instant.now(), List.of("Coding", "Sleeping")),
-                new User(UUID.randomUUID(), "FlameyosFlow", 15,
-                        Instant.now(), List.of("Coding", "Sleeping"))
-        ));
+        adapter.insert(new User(UUID.randomUUID(), "Flameyos", 17, Instant.now(), List.of("Coding", "Sleeping")));
+        System.out.println("Finding users");
+        List<User> users = adapter.find().list();
 
-        System.out.println(adapter.find(Query.select()
-                .where("password", "<", DEFAULT_PASSWORD)
-                .build()));
+        for (User user : users) {
+            System.out.println(user);
+        }
+
+        System.out.println("Found users");
     }
 
     @SuppressWarnings("unused")
-    @Repository(name = "Use")
+    @Repository(name = "users")
     public static class User {
         @Id
         private UUID id;

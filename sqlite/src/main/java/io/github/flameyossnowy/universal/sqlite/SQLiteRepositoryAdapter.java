@@ -1,21 +1,19 @@
 package io.github.flameyossnowy.universal.sqlite;
 
-import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.cache.ResultCache;
-import io.github.flameyossnowy.universal.api.connection.ConnectionProvider;
-import io.github.flameyossnowy.universal.sql.AbstractRelationalRepositoryAdapter;
-import io.github.flameyossnowy.universal.sql.QueryParseEngine;
+import io.github.flameyossnowy.universal.sql.internals.AbstractRelationalRepositoryAdapter;
+import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
+import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
-import java.sql.Connection;
-import java.util.EnumSet;
-
 public class SQLiteRepositoryAdapter<T, ID> extends AbstractRelationalRepositoryAdapter<T, ID> {
-    protected SQLiteRepositoryAdapter(@NotNull final ConnectionProvider<Connection> dataSource, final ResultCache cache, final EnumSet<Optimizations> optimizations, final Class<T> repository) {
-        super(dataSource, cache, optimizations, repository, QueryParseEngine.SQLType.SQLITE);
+    protected SQLiteRepositoryAdapter(@NotNull final SQLConnectionProvider dataSource, final ResultCache<T, ID> cache, final Class<T> repository, final Class<ID> idClass) {
+        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.SQLITE);
     }
 
-    public static <T, ID> SQLiteRepositoryAdapterBuilder<T, ID> builder(Class<T> repository) {
-        return new SQLiteRepositoryAdapterBuilder<>(repository);
+    @Contract("_, _ -> new")
+    public static <T, ID> @NotNull SQLiteRepositoryAdapterBuilder<T, ID> builder(Class<T> repository, Class<ID> id) {
+        return new SQLiteRepositoryAdapterBuilder<>(repository, id);
     }
 }

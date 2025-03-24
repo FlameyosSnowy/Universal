@@ -1,24 +1,21 @@
 package io.github.flameyossnowy.universal.api;
 
+import io.github.flameyossnowy.universal.api.cache.FetchedDataResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
-import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @SuppressWarnings("unused")
 public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
-    List<T> find(SelectQuery query);
+    FetchedDataResult<T, ID> find(SelectQuery query);
 
-    List<T> find();
+    FetchedDataResult<T, ID> find();
 
-    default T findById(ID key) {
-        return first(Query.select().where("id", "=", key).build());
-    }
+    T findById(ID key);
 
     T first(SelectQuery query);
 
@@ -34,15 +31,19 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
 
     TransactionContext<C> beginTransaction() throws Exception;
 
-    void insert(T value, TransactionContext<C> transactionContext);
+    boolean insert(T value, TransactionContext<C> transactionContext);
 
     void insertAll(List<T> value, TransactionContext<C> transactionContext);
 
-    void updateAll(UpdateQuery query, TransactionContext<C> transactionContext);
+    boolean updateAll(UpdateQuery query, TransactionContext<C> transactionContext);
 
-    void delete(DeleteQuery query, TransactionContext<C> transactionContext);
+    boolean delete(DeleteQuery query, TransactionContext<C> transactionContext);
+
+    boolean delete(T value);
 
     void createIndex(IndexOptions index);
+
+    void clear();
 
     default void createIndexes(IndexOptions... indexes) {
         for (IndexOptions elements : indexes) {
@@ -50,47 +51,23 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
         }
     }
 
-    default void insert(T value) {
-        try (var transactionContext = beginTransaction()) {
-            insert(value, transactionContext);
-            transactionContext.commit();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+    <A> A createDynamicProxy(Class<A> adapter);
 
-    default void updateAll(UpdateQuery query) {
-        try (var transactionContext = beginTransaction()) {
-            updateAll(query, transactionContext);
-            transactionContext.commit();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+    boolean insert(T value);
 
-    default void delete(DeleteQuery query) {
-        try (var transactionContext = beginTransaction()) {
-            delete(query, transactionContext);
-            transactionContext.commit();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+    boolean updateAll(UpdateQuery query);
 
-    default void insertAll(Collection<T> query) {
-        try (var transactionContext = beginTransaction()) {
-            insertAll(query, transactionContext);
-            transactionContext.commit();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+    boolean delete(DeleteQuery query);
 
-    default CompletableFuture<List<T>> findAsync(SelectQuery query) {
+    void insertAll(List<T> query);
+
+    Class<ID> getIdType();
+
+    default CompletableFuture<FetchedDataResult<T, ID>> findAsync(SelectQuery query) {
         return CompletableFuture.supplyAsync(() -> find(query));
     }
 
-    default CompletableFuture<List<T>> findAsync() {
+    default CompletableFuture<FetchedDataResult<T, ID>> findAsync() {
         return CompletableFuture.supplyAsync(this::find);
     }
 
@@ -113,6 +90,4 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
     default CompletableFuture<Void> clearAsync() {
         return CompletableFuture.runAsync(this::clear);
     }
-
-    void clear();
 }
