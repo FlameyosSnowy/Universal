@@ -28,8 +28,8 @@ import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 @SuppressWarnings({ "unused", "unchecked" })
 public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, ClientSession> {
     private final MongoClient client;
-    private MongoCollection<Document> collection;
-    private final ObjectFactory objectFactory;
+    MongoCollection<Document> collection;
+    private final ObjectFactory<T, ID> objectFactory;
 
     private final RepositoryInformation information;
 
@@ -66,7 +66,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
         ADAPTERS.put(repo, this);
 
-        this.objectFactory = new ObjectFactory(this.information);
+        this.objectFactory = new ObjectFactory<>(this.information, repo, idType);
 
         List<Codec<?>> codecs = new ArrayList<>();
         List<IndexOptions> queued = new ArrayList<>();
