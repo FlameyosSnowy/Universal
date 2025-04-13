@@ -105,7 +105,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public boolean insert(@NotNull T value, TransactionContext<Connection> transactionContext) {
-        return executeUpdate(transactionContext, engine.parseInsert(), stmt -> this.objectFactory.insertEntity(stmt, value));
+        return executeInsertAndSetId(transactionContext, engine.parseInsert(), value);
     }
 
     @Override
@@ -173,7 +173,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public boolean insert(T value) {
-        return executeUpdate(null, engine.parseInsert(), stmt -> this.objectFactory.insertEntity(stmt, value));
+        return executeInsertAndSetId(null, engine.parseInsert(), value);
     }
 
     @Override
@@ -265,6 +265,29 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
             if (setter != null) setter.set(statement);
             if (cache != null) cache.clear();
             return statement.execute();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean executeInsertAndSetId(TransactionContext<Connection> transactionContext, String sql, T value) {
+        try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
+             PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
+
+            this.objectFactory.insertEntity(statement, value);
+
+            if (statement.executeUpdate() > 0) {
+                if (!repositoryInformation.getPrimaryKey().autoIncrement()) return true;
+                ResultSet generatedKeys = statement.getGeneratedKeys();
+                if (generatedKeys.next()) {
+                    SQLValueTypeResolver<Object> resolver = (SQLValueTypeResolver<Object>) ValueTypeResolverRegistry.INSTANCE.getResolver(repositoryInformation.getPrimaryKey().type());
+                    Object generatedId = resolver.resolve(generatedKeys, repositoryInformation.getPrimaryKey().name());
+                    repositoryInformation.getPrimaryKey().setValue(value, generatedId);
+                }
+                if (cache != null) cache.clear();
+                return true;
+            }
+            return false;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
