@@ -1,6 +1,7 @@
-package io.github.flameyossnowy.universal.api.cache;
+package io.github.flameyossnowy.universal.sql.internals;
 
 import io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmType;
+import io.github.flameyossnowy.universal.api.cache.FetchedDataResult;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFRUCache;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFUCache;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLRUCache;

@@ -1,6 +1,6 @@
 package io.github.flameyossnowy.universal.mysql;
 
-import io.github.flameyossnowy.universal.api.cache.ResultCache;
+import io.github.flameyossnowy.universal.sql.internals.ResultCache;
 import io.github.flameyossnowy.universal.sql.internals.AbstractRelationalRepositoryAdapter;
 
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;

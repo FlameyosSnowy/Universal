@@ -2,7 +2,7 @@ package io.github.flameyossnowy.universal.mysql;
 
 import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.annotations.Cacheable;
-import io.github.flameyossnowy.universal.api.cache.ResultCache;
+import io.github.flameyossnowy.universal.sql.internals.ResultCache;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.mysql.connections.MySQLSimpleConnectionProvider;
