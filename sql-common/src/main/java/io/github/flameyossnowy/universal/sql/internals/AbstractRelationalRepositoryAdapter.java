@@ -3,7 +3,6 @@ package io.github.flameyossnowy.universal.sql.internals;
 import io.github.flameyossnowy.universal.api.IndexOptions;
 import io.github.flameyossnowy.universal.api.annotations.Index;
 import io.github.flameyossnowy.universal.api.cache.FetchedDataResult;
-import io.github.flameyossnowy.universal.api.cache.ResultCache;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.reflect.*;
