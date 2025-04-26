@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.flameyossnowy.universal'
-version = '1.3.0'
+version = '3.0.0b1'
 
 repositories {
     mavenCentral()
@@ -26,8 +26,12 @@ dependencies {
     testImplementation project(':sql-common')
     testImplementation project(':core')
 
+    annotationProcessor project(":compile-time-checker")
+
     testImplementation 'com.zaxxer:HikariCP:6.2.1'
     testImplementation 'mysql:mysql-connector-java:8.0.28'
+
+    //testAnnotationProcessor project(":compile-time-checker")
 
     compileOnly 'mysql:mysql-connector-java:8.0.28'
     // 'com.github.FlameyosSnowy:Velocis:1.1.0'

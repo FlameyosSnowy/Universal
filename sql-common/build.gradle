@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'me.flame.universal.'
-version = '1.3.0-SNAPSHOT'
+version = '3.0.0b1'
 
 repositories {
     mavenCentral()
