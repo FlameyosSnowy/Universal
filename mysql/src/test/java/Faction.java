@@ -1,32 +1,24 @@
-import io.github.flameyossnowy.universal.api.annotations.AutoIncrement;
-import io.github.flameyossnowy.universal.api.annotations.Id;
-import io.github.flameyossnowy.universal.api.annotations.OneToMany;
-import io.github.flameyossnowy.universal.api.annotations.Repository;
+import io.github.flameyossnowy.universal.api.annotations.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository(name = "factions")
 public class Faction {
     @Id
-    @AutoIncrement
-    public int id;
+    public UUID id;
 
     public String name;
 
-    @OneToMany(mappedBy = Warp.class)
-    public List<Warp> warps;
+    @OneToOne
+    public Warp warp;
 
-    @OneToMany(mappedBy = User.class)
-    public List<User> users;
+    @OneToOne
+    public transient String hi;
 
-    public Faction() {
-    }
+    public Faction() {}
 
-    public Faction(String name) {
-        this.name = name;
-    }
-
-    public Faction(int id, String name) {
+    public Faction(String name, UUID id) {
         this.name = name;
         this.id = id;
     }
@@ -35,8 +27,7 @@ public class Faction {
         return "Faction{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
-                ", warps=" + warps +
-                ", users=" + users +
+                ", warp=" + (warp == null ? "None (Error)" : warp.id) +
                 '}';
     }
 }
