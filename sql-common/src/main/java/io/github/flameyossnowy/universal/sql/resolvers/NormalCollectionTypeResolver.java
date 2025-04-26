@@ -64,7 +64,7 @@ public class NormalCollectionTypeResolver<T, ID> {
 
     public Collection<T> resolve(ID id) {
         try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connection.prepareStatement("SELECT * FROM " + tableName + " WHERE id = ?;")) {
+             PreparedStatement stmt = connectionProvider.prepareStatement("SELECT * FROM " + tableName + " WHERE id = ?;", connection)) {
 
             idResolver.insert(stmt, 1, id);
 

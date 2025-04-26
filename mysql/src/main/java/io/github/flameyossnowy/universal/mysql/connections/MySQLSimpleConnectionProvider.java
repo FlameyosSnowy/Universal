@@ -61,6 +61,7 @@ public class MySQLSimpleConnectionProvider implements SQLConnectionProvider {
 
     @Override
     public void close() {
+
     }
 
     @Override

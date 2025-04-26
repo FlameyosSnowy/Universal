@@ -21,9 +21,9 @@ public class NormalMapTypeResolver<K, V, ID> {
     private final SQLConnectionProvider connectionProvider;
     private final RepositoryInformation information;
 
-    public NormalMapTypeResolver(Class<ID> idType, Class<K> keyType, Class<V> valueType,
+    public NormalMapTypeResolver(Class<ID> idType, Class<K> keyType, @NotNull Class<V> valueType,
                                  final SQLConnectionProvider connectionProvider,
-                                 final RepositoryInformation information) {
+                                 final @NotNull RepositoryInformation information) {
         this.connectionProvider = connectionProvider;
         this.information = information;
 

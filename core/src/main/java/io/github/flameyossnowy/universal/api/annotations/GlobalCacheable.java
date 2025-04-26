@@ -11,9 +11,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface GlobalCacheable {
-    int maxCacheSize() default 100;
-
-    CacheAlgorithmType algorithm() default CacheAlgorithmType.LEAST_FREQUENTLY_USED;
-
     Class<?> sessionCache() default SessionCache.class;
 }
