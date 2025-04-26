@@ -4,4 +4,6 @@ import java.lang.annotation.*;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface MongoResolver { Class<?> value(); }
+public @interface MongoResolver {
+    Class<?> value();
+}

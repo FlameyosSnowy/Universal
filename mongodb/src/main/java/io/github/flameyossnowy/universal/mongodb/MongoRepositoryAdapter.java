@@ -3,14 +3,19 @@ package io.github.flameyossnowy.universal.mongodb;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.*;
 import com.mongodb.client.model.*;
+import com.mongodb.client.result.DeleteResult;
 import io.github.flameyossnowy.universal.api.*;
 import io.github.flameyossnowy.universal.api.IndexOptions;
 import io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmType;
 import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
-import io.github.flameyossnowy.universal.api.cache.FetchedDataResult;
+import io.github.flameyossnowy.universal.api.cache.Session;
+import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.listener.AuditLogger;
+import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.reflect.*;
+import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.mongodb.annotations.MongoResolver;
 import org.bson.*;
 import org.bson.codecs.*;
@@ -18,9 +23,14 @@ import org.bson.codecs.configuration.*;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
 import org.jetbrains.annotations.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Proxy;
+import java.sql.Connection;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongFunction;
 
 import static com.mongodb.client.model.Filters.*;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
@@ -28,6 +38,9 @@ import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 @SuppressWarnings({ "unused", "unchecked" })
 public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, ClientSession> {
     private final MongoClient client;
+
+    private static final Document EMPTY = new Document();
+
     MongoCollection<Document> collection;
     private final ObjectFactory<T, ID> objectFactory;
     private final RepositoryInformation information;
@@ -35,17 +48,29 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     private final MongoResultCache<T, ID> resultCache;
 
+    private final Logger logger = LoggerFactory.getLogger(MongoRepositoryAdapter.class);
+
     private static final Set<Class<?>> NUMBERS = Set.of(
             Integer.class, Long.class, Float.class, Double.class,
-            Short.class, Byte.class, int.class, long.class,
-            float.class, double.class, short.class, byte.class
+            Short.class, Byte.class, Character.class, int.class, long.class,
+            float.class, double.class, short.class, byte.class, char.class
     );
 
-    static final Map<Class<?>, MongoRepositoryAdapter<?, ?>> ADAPTERS = new ConcurrentHashMap<>();
+    static final Map<Class<?>, MongoRepositoryAdapter<?, ?>> ADAPTERS = new ConcurrentHashMap<>(10);
 
-    MongoRepositoryAdapter(@NotNull MongoClientSettings.Builder clientBuilder, String dbName, Class<T> repo, Class<ID> idType) {
+    private final AuditLogger<T> auditLogger;
+    private final EntityLifecycleListener<T> entityLifecycleListener;
+
+    private final SessionCache<ID, T> globalCache;
+    private long openSessions = 1;
+
+    private final LongFunction<SessionCache<ID, T>> sessionCacheSupplier;
+
+    MongoRepositoryAdapter(@NotNull MongoClientSettings.Builder clientBuilder, String dbName, Class<T> repo, Class<ID> idType, SessionCache<ID, T> sessionCache, LongFunction<SessionCache<ID, T>> sessionCacheSupplier) {
         this.information = RepositoryMetadata.getMetadata(repo);
         this.idType = idType;
+        this.globalCache = sessionCache;
+        this.sessionCacheSupplier = sessionCacheSupplier;
 
         if (information == null) throw new IllegalArgumentException("Unable to find repository information for " + repo.getSimpleName());
         if (NUMBERS.contains(information.getPrimaryKey().type()) || information.getPrimaryKey().autoIncrement())
@@ -55,8 +80,8 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         this.objectFactory = new ObjectFactory<>(this.information, repo, idType);
         this.resultCache = new MongoResultCache<>(1000, CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED);
 
-        List<Codec<?>> codecs = new ArrayList<>();
-        List<IndexOptions> queued = new ArrayList<>();
+        List<Codec<?>> codecs = new ArrayList<>(2);
+        List<IndexOptions> queued = new ArrayList<>(2);
         for (FieldData<?> field : information.getFields()) {
             if (field.unique()) queued.add(IndexOptions.builder(information.getType()).type(IndexType.UNIQUE).field(field).build());
 
@@ -69,6 +94,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                 }
             }
         }
+
+        entityLifecycleListener = (EntityLifecycleListener<T>) information.getEntityLifecycleListener();
+        auditLogger = (AuditLogger<T>) information.getAuditLogger();
 
         CodecRegistry provider = getProvider(PojoCodecProvider.builder().automatic(true).build(), codecs, MongoClientSettings.getDefaultCodecRegistry());
         clientBuilder.codecRegistry(provider);
@@ -89,53 +117,64 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
-    public FetchedDataResult<T, ID> find(@NotNull SelectQuery query) {
+    public List<T> find(@NotNull SelectQuery query) {
         Document filterDoc = createFilterDocument(query.filters());
-        FetchedDataResult<T, ID> cached = resultCache.fetch(filterDoc);
+        List<T> cached = resultCache.fetch(filterDoc);
         if (cached != null) return cached;
 
         FindIterable<Document> iterable = process(query, collection.find(filterDoc), information.getFetchPageSize());
         if (query.limit() == 1) {
-            T result = (T) objectFactory.fromDocument(iterable.first());
-            FetchedDataResult<T, ID> single = FetchedDataResult.of(result);
+            T result = objectFactory.fromDocument(iterable.first());
+            List<T> single = List.of(result);
             resultCache.insert(filterDoc, single);
             return single;
         }
 
-        List<T> results = new ArrayList<>();
-        for (Document doc : iterable) results.add((T) objectFactory.fromDocument(doc));
-        FetchedDataResult<T, ID> multi = FetchedDataResult.of(results);
-        resultCache.insert(filterDoc, multi);
-        return multi;
+        try (MongoCursor<Document> cursor = iterable.iterator()) {
+            List<T> results = new ArrayList<>(cursor.available());
+            while (cursor.hasNext()) results.add(objectFactory.fromDocument(cursor.next()));
+            resultCache.insert(filterDoc, results);
+            return results;
+        }
     }
 
     @Override
-    public FetchedDataResult<T, ID> find() {
-        Document empty = new Document();
-        FetchedDataResult<T, ID> cached = resultCache.fetch(empty);
+    public List<T> find() {
+        List<T> cached = resultCache.fetch(EMPTY);
         if (cached != null) return cached;
 
-        List<T> results = new ArrayList<>();
-        for (Document doc : collection.find()) results.add((T) objectFactory.fromDocument(doc));
-        FetchedDataResult<T, ID> result = FetchedDataResult.of(results);
-        resultCache.insert(empty, result);
-        return result;
+        try (MongoCursor<Document> iterable = collection.find().iterator()) {
+            List<T> results = new ArrayList<>(iterable.available());
+            while (iterable.hasNext()) {
+                Document doc = iterable.next();
+                results.add(objectFactory.fromDocument(doc));
+            }
+
+            resultCache.insert(EMPTY, results);
+            return results;
+        }
     }
 
     @Override
     public T findById(ID key) {
-        Document filter = new Document(information.getPrimaryKey().name(), key);
-        FetchedDataResult<T, ID> cached = resultCache.fetch(filter);
-        if (cached != null && cached.first() != null) return cached.first();
+        T cached = globalCache == null ? null : globalCache.get(key);
+        if (cached != null) {
+            Logging.deepInfo("Cache hit for " + information.getRepositoryName() + " with key " + key);
+            return cached;
+        }
 
-        T result = (T) objectFactory.fromDocument(collection.find(filter).first());
-        resultCache.insert(filter, FetchedDataResult.of(result));
+        if (globalCache != null) Logging.deepInfo("Cache miss for " + information.getRepositoryName() + " with key " + key);
+
+        Document filter = new Document(information.getPrimaryKey().name(), key);
+
+        T result = objectFactory.fromDocument(collection.find(filter).first());
+        resultCache.insert(filter, List.of(result));
         return result;
     }
 
     @Override
     public T first(SelectQuery query) {
-        return (T) this.objectFactory.fromDocument(search(query).first());
+        return this.objectFactory.fromDocument(search(query).first());
     }
 
     private FindIterable<Document> search(SelectQuery query) {
@@ -165,26 +204,35 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         });
     }
 
-    private Document createFilterDocument(List<SelectOption> options) {
-        List<Bson> filters = new ArrayList<>();
+    private static Document createFilterDocument(List<SelectOption> options) {
+        List<Bson> filters = new ArrayList<>(options.size());
         for (SelectOption option : options) processExpression(filters, option, option.value());
         return Document.parse((filters.isEmpty() ? new BsonDocument() : and(filters)).toBsonDocument(Document.class, MongoClientSettings.getDefaultCodecRegistry()).toJson());
     }
 
-    private void invalidate(Document... filters) {
-        resultCache.clear();
-        resultCache.clear(new Document()); // also clear "find()" cache
+    private void invalidate(Document filters) {
+        if (resultCache != null) resultCache.clear(filters);
+    }
+
+    private void invalidate() {
+        if (resultCache != null) resultCache.clear();
     }
 
     @Override
     public boolean insert(T value, @NotNull TransactionContext<ClientSession> tx) {
+        entityLifecycleListener.onPrePersist(value);
+        if (information.getAuditLogger() != null)
+            ((AuditLogger<T>) information.getAuditLogger()).onInsert(value);
         collection.insertOne(tx.connection(), objectFactory.toDocument(value));
         invalidate(); // Clear all because we don't know affected filters
+        entityLifecycleListener.onPostPersist(value);
         return true;
     }
 
     @Override
     public boolean insert(T value) {
+        if (information.getAuditLogger() != null)
+            ((AuditLogger<T>) information.getAuditLogger()).onInsert(value);
         collection.insertOne(objectFactory.toDocument(value));
         invalidate();
         return true;
@@ -192,6 +240,8 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public void insertAll(List<T> values, @NotNull TransactionContext<ClientSession> tx) {
+        if (information.getAuditLogger() != null)
+            ((AuditLogger<T>) information.getAuditLogger()).onInsert(values);
         List<Document> docs = values.stream().map(objectFactory::toDocument).toList();
         collection.insertMany(tx.connection(), docs);
         invalidate();
@@ -202,6 +252,75 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         List<Document> docs = values.stream().map(objectFactory::toDocument).toList();
         collection.insertMany(docs);
         invalidate();
+    }
+
+    @Override
+    public boolean updateAll(@NotNull T entity, TransactionContext<ClientSession> tx) {
+        Objects.requireNonNull(entity);
+        Objects.requireNonNull(tx);
+
+        entityLifecycleListener.onPreUpdate(entity);
+        Document doc = objectFactory.toDocument(entity);
+        ID id = doc.get(information.getPrimaryKey().name(), idType);
+
+        Document replaced = collection.findOneAndUpdate(new Document(information.getPrimaryKey().name(), id), doc);
+
+        if (id != null) {
+            globalCache.put(id, entity);
+            auditLogger.onUpdate(entity, objectFactory.fromDocument(replaced));
+        }
+
+        entityLifecycleListener.onPostUpdate(entity);
+        return replaced != null;
+    }
+
+    @Override
+    public boolean updateAll(@NotNull T entity) {
+        entityLifecycleListener.onPreUpdate(entity);
+        Document doc = objectFactory.toDocument(entity);
+        ID id = doc.get(information.getPrimaryKey().name(), idType);
+
+        Document replaced = collection.findOneAndUpdate(new Document(information.getPrimaryKey().name(), id), doc);
+
+        if (id != null) {
+            globalCache.put(id, entity);
+            auditLogger.onUpdate(entity, objectFactory.fromDocument(replaced));
+        }
+
+        entityLifecycleListener.onPostUpdate(entity);
+        return replaced != null;
+    }
+
+    @Override
+    public boolean delete(T entity) {
+        ID id = information.getPrimaryKey().getValue(entity);
+
+        entityLifecycleListener.onPreDelete(entity);
+        globalCache.remove(id);
+
+        Document filter = new Document(information.getPrimaryKey().name(), id);
+        DeleteResult result = collection.deleteOne(filter);
+        invalidate(filter);
+
+        auditLogger.onDelete(entity);
+        entityLifecycleListener.onPostDelete(entity);
+        return result.getDeletedCount() > 0;
+    }
+
+    @Override
+    public boolean deleteById(ID id, TransactionContext<ClientSession> transactionContext) {
+        Document filter = new Document(information.getPrimaryKey().name(), id);
+        DeleteResult result = collection.deleteOne(transactionContext.connection(), filter);
+
+        globalCache.remove(id);
+
+        invalidate(filter);
+        return result.getDeletedCount() > 0;
+    }
+
+    @Override
+    public boolean deleteById(ID value) {
+        return false;
     }
 
     @Override
@@ -239,13 +358,14 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
-    public boolean delete(DeleteQuery query) {
-        if (query == null || query.filters().isEmpty()) {
+    public boolean delete(@NotNull DeleteQuery query) {
+        if (query.filters().isEmpty()) {
             collection.deleteMany(new Document());
             invalidate();
             return true;
         }
-        List<Bson> filters = new ArrayList<>();
+
+        List<Bson> filters = new ArrayList<>(query.filters().size());
         for (var f : query.filters()) filters.add(eq(f.option(), f.value()));
         collection.deleteMany(and(filters));
         invalidate(createFilterDocument(query.filters()));
@@ -253,10 +373,20 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
-    public boolean delete(T value) {
-        collection.deleteOne(eq(information.getPrimaryKey().name(), value));
-        invalidate();
-        return true;
+    public boolean delete(T entity, TransactionContext<ClientSession> tx) {
+        ID id = information.getPrimaryKey().getValue(entity);
+
+        entityLifecycleListener.onPreDelete(entity);
+
+        Document filter = new Document(information.getPrimaryKey().name(), id);
+        DeleteResult result = collection.deleteOne(tx.connection(), filter);
+
+        invalidate(filter);
+        globalCache.remove(id);
+
+        auditLogger.onDelete(entity);
+        entityLifecycleListener.onPostDelete(entity);
+        return result.getDeletedCount() > 0;
     }
 
     @Override
@@ -276,14 +406,25 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
+    public Session<ID, T, ClientSession> createSession() {
+        openSessions++;
+        return new MongoSession<>(this, sessionCacheSupplier.apply(openSessions), openSessions);
+    }
+
+    @Override
     public void clear() {
         collection.deleteMany(new Document());
         resultCache.clear();
+        globalCache.clear();
     }
 
     @Override
     public <A> A createDynamicProxy(Class<A> adapter) {
-        return null;
+        return (A) Proxy.newProxyInstance(
+                adapter.getClassLoader(),
+                new Class[]{ adapter },
+                new MongoProxiedAdapterHandler<>(this)
+        );
     }
 
     @Override
@@ -295,5 +436,10 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     public void close() {
         client.close();
         collection = null;
+    }
+
+    @Override
+    public RepositoryInformation getInformation() {
+        return information;
     }
 }
