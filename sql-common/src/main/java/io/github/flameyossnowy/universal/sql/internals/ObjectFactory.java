@@ -5,156 +5,214 @@ import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.RelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
 import io.github.flameyossnowy.universal.sql.resolvers.ValueTypeResolverRegistry;
-
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.time.*;
 import java.util.*;
+import java.util.function.Supplier;
 
+@ApiStatus.Internal
 @SuppressWarnings("unchecked")
 public final class ObjectFactory<T, ID> {
-    private final RepositoryInformation repositoryInformation;
-    private final DatabaseRelationshipHandler<T, ID> databaseRelationshipHandler;
+
+    private final RepositoryInformation repoInfo;
+    private final DatabaseRelationshipHandler<T, ID> relationshipHandler;
     private final boolean hasPrimaryKey;
 
-    public ObjectFactory(RepositoryInformation repositoryInformation, SQLConnectionProvider connectionProvider, @NotNull RelationalRepositoryAdapter<T, ID> relationalRepositoryAdapter) {
-        this.repositoryInformation = repositoryInformation;
-        this.databaseRelationshipHandler = new DatabaseRelationshipHandler<>(repositoryInformation, connectionProvider, this, relationalRepositoryAdapter.getIdType());
-        this.hasPrimaryKey = repositoryInformation.getPrimaryKey() != null;
+    private static final Map<Class<?>, Supplier<Object>> NOW_MAPPERS = Map.ofEntries(
+            Map.entry(Instant.class, Instant::now),
+            Map.entry(Date.class, Date::new),
+            Map.entry(java.sql.Time.class, () -> java.sql.Time.valueOf(LocalTime.now())),
+            Map.entry(Timestamp.class, () -> new Timestamp(System.currentTimeMillis())),
+            Map.entry(Year.class, Year::now),
+            Map.entry(java.sql.Date.class, () -> new java.sql.Date(System.currentTimeMillis())),
+            Map.entry(TimeZone.class, TimeZone::getDefault),
+            Map.entry(Calendar.class, Calendar::getInstance),
+            Map.entry(LocalDate.class, LocalDate::now),
+            Map.entry(LocalDateTime.class, LocalDateTime::now),
+            Map.entry(LocalTime.class, LocalTime::now),
+            Map.entry(ZoneId.class, ZoneId::systemDefault),
+            Map.entry(ZoneOffset.class, ZoneOffset::systemDefault),
+            Map.entry(ZonedDateTime.class, ZonedDateTime::now)
+    );
+
+    public ObjectFactory(RepositoryInformation repoInfo,
+                         SQLConnectionProvider connectionProvider,
+                         @NotNull RelationalRepositoryAdapter<T, ID> adapter) {
+        this.repoInfo = repoInfo;
+        this.relationshipHandler = new DatabaseRelationshipHandler<>(repoInfo, connectionProvider, adapter.getIdType());
+        this.hasPrimaryKey = repoInfo.getPrimaryKey() != null;
     }
 
-    public @NotNull T create(ResultSet resultSet) throws Exception {
-        T instance = (T) repositoryInformation.newInstance();
+    public @NotNull T create(ResultSet rs) throws Exception {
+        T instance = (T) repoInfo.newInstance();
+        ID id = null;
 
-        ID primaryKeyValue = null;
-
-        for (FieldData<?> field : repositoryInformation.getFields()) {
-            if (field.manyToOne() != null || field.oneToMany() != null) {
-                Logging.error("ObjectFactory#create should not be used for relationships, use createWithRelationships instead.");
+        for (FieldData<?> field : repoInfo.getFields()) {
+            if (isRelationshipField(field)) {
+                warnRelationshipInCreate(field);
                 continue;
             }
 
-            if (List.class.isAssignableFrom(field.type())) {
-                Field rawField = field.rawField();
-                ParameterizedType type = (ParameterizedType) rawField.getGenericType();
-                Class<?> rawType = (Class<?>) type.getActualTypeArguments()[0];
-                databaseRelationshipHandler.handleNormalLists(field, instance, primaryKeyValue, rawType);
+            if (isListField(field)) {
+                handleGenericListField(field, instance, id);
                 continue;
             }
 
             if (field.primary()) {
-                Object value = getValue(resultSet, field, field.name());
-                if (value == null)
-                    throw new IllegalArgumentException("Primary key cannot be null");
-                primaryKeyValue = (ID) value;
+                Object value = resolveFieldValue(rs, field);
+                if (value == null) throw new IllegalArgumentException("Primary key cannot be null.");
+                id = (ID) value;
                 field.setValue(instance, value);
                 continue;
             }
 
-            populateFieldInternal(resultSet, field, instance, field.name());
+            populateFieldInternal(rs, field, instance);
         }
 
         return instance;
     }
 
-    public @NotNull T createWithRelationships(ResultSet resultSet) throws Exception {
-        ID primaryKeyValue = null;
-        if (hasPrimaryKey) {
-            FieldData<?> primaryKeyField = repositoryInformation.getPrimaryKey();
-            SQLValueTypeResolver<ID> primaryKeyResolver = (SQLValueTypeResolver<ID>) ValueTypeResolverRegistry.INSTANCE.getResolver(primaryKeyField.type());
-            primaryKeyValue = primaryKeyResolver.resolve(resultSet, primaryKeyField.name());
+    public @NotNull T createWithRelationships(ResultSet rs) throws Exception {
+        T instance = (T) repoInfo.newInstance();
+        ID primaryId = hasPrimaryKey ? resolvePrimaryKey(rs) : null;
+
+        for (FieldData<?> field : repoInfo.getFields()) {
+            if (field.oneToMany() != null && hasPrimaryKey) {
+                handleOneToManyField(field, instance, primaryId);
+            } else if (field.oneToOne() != null && hasPrimaryKey) {
+                relationshipHandler.handleOneToOneRelationship(rs, field, instance);
+            } else if (field.manyToOne() != null) {
+                relationshipHandler.handleManyToOneRelationship(rs, field, instance);
+            } else if (isListField(field) && hasPrimaryKey) {
+                handleGenericListField(field, instance, primaryId);
+            } else {
+                populateFieldInternal(rs, field, instance);
+            }
         }
 
-        T instance = (T) repositoryInformation.newInstance();
-
-        for (FieldData<?> field : repositoryInformation.getFields()) {
-            if (field.oneToMany() != null) {
-                if (!hasPrimaryKey) continue;
-                Class<?> child = field.oneToMany().mappedBy();
-                RepositoryInformation relatedRepoInfo = RepositoryMetadata.getMetadata(child);
-
-                if (relatedRepoInfo == null) {
-                    throw new IllegalArgumentException("Could not find repository information for " + child);
-                }
-
-                FieldData<?> primaryKey = relatedRepoInfo.getPrimaryKey();
-                Class<?> primaryKeyType = getType(primaryKey, relatedRepoInfo, repositoryInformation);
-
-                SQLValueTypeResolver<ID> resolver = (SQLValueTypeResolver<ID>)
-                        ValueTypeResolverRegistry.INSTANCE.getResolver(primaryKeyType);
-
-                databaseRelationshipHandler.handleOneToManyRelationship(
-                        field, instance, primaryKeyValue, resolver, relatedRepoInfo
-                );
-                continue;
-            }
-
-            if (field.manyToOne() != null) {
-                databaseRelationshipHandler.handleManyToOneRelationship(resultSet, field, instance);
-                continue;
-            }
-
-            if (field.type() == List.class) {
-                Field rawField = field.rawField();
-                ParameterizedType type = (ParameterizedType) rawField.getGenericType();
-                Class<?> rawType = (Class<?>) type.getActualTypeArguments()[0];
-                if (hasPrimaryKey) {
-                    databaseRelationshipHandler.handleNormalLists(field, instance, primaryKeyValue, rawType);
-                }
-                continue;
-            }
-            populateFieldInternal(resultSet, field, instance, field.name());
-        }
-        System.out.println(instance);
         return instance;
     }
 
-    private static Class<?> getType(FieldData<?> primaryKey, RepositoryInformation repositoryInformation, RepositoryInformation parentInformation) {
-        if (primaryKey != null) return primaryKey.type();
-        for (FieldData<?> field : repositoryInformation.getManyToOneCache().values()) {
-            if (field.type() == parentInformation.getType()) {
-                return parentInformation.getPrimaryKey().type();
-            }
+    public void insertEntity(PreparedStatement stmt, T entity) throws Exception {
+        int paramIndex = 1;
+
+        for (FieldData<?> field : repoInfo.getFields()) {
+            if (field.autoIncrement() || isListField(field)) continue;
+
+            Object valueToInsert = resolveInsertValue(field, entity);
+            SQLValueTypeResolver<Object> resolver = getValueResolver(field);
+
+            Logging.deepInfo("Binding parameter " + paramIndex + ": " + valueToInsert);
+            resolver.insert(stmt, paramIndex++, valueToInsert);
         }
-        throw new IllegalArgumentException("Could not find primary key for " + repositoryInformation.getType());
     }
 
-    void populateFieldInternal(ResultSet resultSet, @NotNull FieldData<?> field, T instance, String alias) throws Exception {
-        Object value = getValue(resultSet, field, alias);
+    // Helpers
+
+    private static boolean isRelationshipField(FieldData<?> field) {
+        return field.oneToOne() != null || field.oneToMany() != null || field.manyToOne() != null;
+    }
+
+    private static boolean isListField(FieldData<?> field) {
+        return List.class.isAssignableFrom(field.type());
+    }
+
+    private void warnRelationshipInCreate(FieldData<?> field) {
+        Logging.error("`create` should not be used for relationships, use `createWithRelationships` instead.");
+        Logging.error("Offending Field: " + repoInfo.getType().getSimpleName() + "#" + field.name());
+    }
+
+    private void handleGenericListField(FieldData<?> field, T instance, ID id) {
+        Field rawField = field.rawField();
+        ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
+        Class<?> itemType = (Class<?>) paramType.getActualTypeArguments()[0];
+        relationshipHandler.handleNormalLists(field, instance, id, itemType);
+    }
+
+    private void handleOneToManyField(FieldData<?> field, T instance, ID primaryId) {
+        Class<?> childType = field.oneToMany().mappedBy();
+        RepositoryInformation childInfo = RepositoryMetadata.getMetadata(childType);
+        Objects.requireNonNull(childInfo, "Missing metadata for " + childType);
+
+        FieldData<?> childPK = childInfo.getPrimaryKey();
+        Class<?> pkType = resolveChildKeyType(childInfo, childPK);
+
+        SQLValueTypeResolver<ID> resolver = (SQLValueTypeResolver<ID>) ValueTypeResolverRegistry.INSTANCE.getResolver(pkType);
+        relationshipHandler.handleOneToManyRelationship(field, instance, primaryId, resolver, childInfo);
+    }
+
+    private Class<?> resolveChildKeyType(RepositoryInformation childInfo, FieldData<?> childPK) {
+        if (childPK != null) return childPK.type();
+
+        return childInfo.getManyToOneCache().values().stream()
+                .filter(f -> f.type() == repoInfo.getType())
+                .findFirst()
+                .map(f -> repoInfo.getPrimaryKey().type())
+                .orElseThrow(() -> new IllegalArgumentException("No PK found for " + childInfo.getType()));
+    }
+
+    private ID resolvePrimaryKey(ResultSet rs) throws Exception {
+        FieldData<?> pkField = repoInfo.getPrimaryKey();
+        SQLValueTypeResolver<ID> resolver = (SQLValueTypeResolver<ID>) ValueTypeResolverRegistry.INSTANCE.getResolver(pkField.type());
+        return resolver.resolve(rs, pkField.name());
+    }
+
+    static void populateFieldInternal(ResultSet rs, FieldData<?> field, Object instance) throws Exception {
+        Object value = resolveFieldValue(rs, field);
         if (value != null) field.setValue(instance, value);
     }
 
-    private static Object getValue(ResultSet resultSet, @NotNull FieldData<?> field, String alias) throws Exception {
+    private static Object resolveFieldValue(ResultSet rs, FieldData<?> field) throws Exception {
         SQLValueTypeResolver<Object> resolver = (SQLValueTypeResolver<Object>) ValueTypeResolverRegistry.INSTANCE.getResolver(field.type());
-        return resolver.resolve(resultSet, alias);
+        return resolver.resolve(rs, field.name());
     }
 
-    public void insertEntity(PreparedStatement statement, T entity) throws Exception {
-        int parameterIndex = 1;
-
-        for (FieldData<?> field : repositoryInformation.getFields()) {
-            if (field.autoIncrement() || List.class.isAssignableFrom(field.type())) continue;
-
-            Object value = field.getValue(entity);
-            Object fieldValue = (value == null) ? field.defaultValue() : value;
-            Logging.deepInfo("Binding parameter " + parameterIndex + ": " + fieldValue);
-
-            RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
-            if (relatedInfo != null) {
-                SQLValueTypeResolver<Object> resolver = (SQLValueTypeResolver<Object>) ValueTypeResolverRegistry.INSTANCE.getResolver(relatedInfo.getPrimaryKey().type());
-                Object key = (fieldValue != null) ? relatedInfo.getPrimaryKey().getValue(fieldValue) : null;
-                resolver.insert(statement, parameterIndex, key);
-                Logging.deepInfo("Inserted related primary key: " + key);
-                parameterIndex++;
-                continue;
-            }
-
-            SQLValueTypeResolver<Object> resolver = (SQLValueTypeResolver<Object>) ValueTypeResolverRegistry.INSTANCE.getResolver(field.type());
-            resolver.insert(statement, parameterIndex, fieldValue);
-            parameterIndex++;
+    private Object resolveInsertValue(FieldData<?> field, T entity) {
+        if (field.now()) {
+            Supplier<Object> nowSupplier = NOW_MAPPERS.get(field.type());
+            if (nowSupplier == null) throw new IllegalArgumentException("Unsupported @Now type: " + field.type());
+            return nowSupplier.get();
         }
+
+        Object rawValue = field.getValue(entity);
+        return rawValue != null ? rawValue : field.defaultValue();
+    }
+
+    private static SQLValueTypeResolver<Object> getValueResolver(FieldData<?> field) {
+        RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
+
+        if (relatedInfo != null) {
+            FieldData<?> pkField = relatedInfo.getPrimaryKey();
+            SQLValueTypeResolver<Object> resolver = (SQLValueTypeResolver<Object>)
+                    ValueTypeResolverRegistry.INSTANCE.getResolver(pkField.type());
+
+            return new SQLValueTypeResolver<>() {
+                @Override
+                public void insert(PreparedStatement ps, int index, Object related) throws Exception {
+                    Object relatedId = (related != null) ? pkField.getValue(related) : null;
+                    resolver.insert(ps, index, relatedId);
+                    Logging.deepInfo("Inserted related PK: " + relatedId);
+                }
+
+                @Override
+                public Class<?> encodedType() {
+                    return null;
+                }
+
+                @Override
+                public Object resolve(ResultSet rs, String columnLabel) throws Exception {
+                    return resolver.resolve(rs, columnLabel);
+                }
+            };
+        }
+
+        return (SQLValueTypeResolver<Object>) ValueTypeResolverRegistry.INSTANCE.getResolver(field.type());
     }
 }

@@ -6,8 +6,8 @@ import java.util.List;
 public record SelectQuery(List<String> columns, List<SelectOption> filters, List<SortOption> sortOptions, int limit) implements Query {
     public static class SelectQueryBuilder {
         private final List<String> columns;
-        private final List<SelectOption> filters = new ArrayList<>();
-        private final List<SortOption> sortOptions = new ArrayList<>();
+        private final List<SelectOption> filters = new ArrayList<>(2);
+        private final List<SortOption> sortOptions = new ArrayList<>(1);
         private int limit = -1;
 
         public SelectQueryBuilder(String... columns) {
@@ -21,6 +21,11 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
 
         public SelectQueryBuilder where(String key, Object value) {
             filters.add(new SelectOption(key, "=", value));
+            return this;
+        }
+
+        public SelectQueryBuilder whereIn(String key, List<?> values) {
+            filters.add(new SelectOption(key, "IN", values));
             return this;
         }
 

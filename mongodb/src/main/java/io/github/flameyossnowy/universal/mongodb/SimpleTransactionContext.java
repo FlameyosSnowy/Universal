@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.mongodb;
 
 import com.mongodb.client.ClientSession;
+import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 
 public class SimpleTransactionContext implements TransactionContext<ClientSession> {
@@ -18,9 +19,12 @@ public class SimpleTransactionContext implements TransactionContext<ClientSessio
     }
 
     @Override
-    public void commit() {
-        connection.commitTransaction();
+    public TransactionResult<Void> commit() {
+        if (!commited && connection.hasActiveTransaction()) {
+            connection.commitTransaction();
+        }
         commited = true;
+        return TransactionResult.success(null);
     }
 
     @Override

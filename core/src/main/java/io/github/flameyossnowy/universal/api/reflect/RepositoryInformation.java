@@ -1,12 +1,16 @@
 package io.github.flameyossnowy.universal.api.reflect;
 
 import io.github.flameyossnowy.universal.api.annotations.*;
+import io.github.flameyossnowy.universal.api.listener.AuditLogger;
+import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
 import me.sunlan.fastreflection.FastConstructor;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+@ApiStatus.Internal
 public class RepositoryInformation {
     private final String tableName;
     private boolean hasRelationships;
@@ -16,6 +20,8 @@ public class RepositoryInformation {
     private final Cacheable cacheable;
     private final Class<?> entityClass;
     private final Class<?>[] types;
+    private final AuditLogger<?> auditLogger;
+    private final EntityLifecycleListener<?> entityLifecycleListener;
 
     private final int fetchPageSize;
 
@@ -24,6 +30,7 @@ public class RepositoryInformation {
     private final Map<String, FieldData<?>> manyToOneFields;
 
     private static final Map<Class<?>, FastConstructor<?>> CACHE = new ConcurrentHashMap<>();
+    private final GlobalCacheable globalCacheable;
 
     public RepositoryInformation(String tableName,
                                  Constraint[] constraints, Index[] indexes, Cacheable cacheable,
@@ -31,7 +38,11 @@ public class RepositoryInformation {
                                  Map<String, FieldData<?>> fieldDataMap,
                                  Map<String, FieldData<?>> oneToManyCache,
                                  Map<String, FieldData<?>> manyToOneCache,
-                                 boolean hasRelationships) {
+                                 GlobalCacheable globalCacheable,
+                                 boolean hasRelationships,
+                                 AuditLogger<?> auditLogger,
+                                 EntityLifecycleListener<?> entityLifecycleListener) {
+        this.globalCacheable = globalCacheable;
         this.entityClass = entityClass;
         this.constraints = constraints;
         this.cacheable = cacheable;
@@ -46,6 +57,8 @@ public class RepositoryInformation {
         this.fieldDataMap = Collections.unmodifiableMap(fieldDataMap);
 
         this.hasRelationships = hasRelationships;
+        this.auditLogger = auditLogger;
+        this.entityLifecycleListener = entityLifecycleListener;
     }
 
     public String getRepositoryName() {
@@ -70,6 +83,10 @@ public class RepositoryInformation {
 
     public Cacheable getCacheable() {
         return cacheable;
+    }
+
+    public GlobalCacheable getGlobalCacheable() {
+        return globalCacheable;
     }
 
     public Class<?> getType() {
@@ -138,5 +155,13 @@ public class RepositoryInformation {
 
     public Map<String, FieldData<?>> getOneToManyCache() {
         return oneToManyFields;
+    }
+
+    public AuditLogger<?> getAuditLogger() {
+        return auditLogger;
+    }
+
+    public EntityLifecycleListener<?> getEntityLifecycleListener() {
+        return entityLifecycleListener;
     }
 }

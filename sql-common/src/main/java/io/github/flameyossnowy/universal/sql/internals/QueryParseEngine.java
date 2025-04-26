@@ -71,14 +71,14 @@ public class QueryParseEngine {
         return sql.toString();
     }
 
-    private void appendConditions(@NotNull SelectQuery query, StringBuilder sql) {
+    private static void appendConditions(@NotNull SelectQuery query, StringBuilder sql) {
         if (!query.filters().isEmpty()) {
             sql.append(" WHERE ");
             sql.append(buildConditions(query.filters()));
         }
     }
 
-    private void appendSortingAndLimit(@NotNull SelectQuery query, StringBuilder sql, boolean first) {
+    private static void appendSortingAndLimit(@NotNull SelectQuery query, StringBuilder sql, boolean first) {
         if (!query.sortOptions().isEmpty()) {
             sql.append(" ORDER BY ");
             sql.append(buildSortOptions(query.sortOptions()));
@@ -140,6 +140,25 @@ public class QueryParseEngine {
                 : String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, buildConditions(query.conditions()));
     }
 
+    public @NotNull String parseUpdateFromEntity() {
+        String tableName = repositoryInformation.getRepositoryName();
+        String setClause = generateSetClauseFromEntity();
+
+        return String.format("UPDATE %s SET %s WHERE %s = ?;", tableName, setClause, repositoryInformation.getPrimaryKey().name());
+    }
+
+    private String generateSetClauseFromEntity() {
+        StringJoiner joiner = new StringJoiner(", ");
+        for (FieldData<?> data : repositoryInformation.getFields()) {
+            if (Collection.class.isAssignableFrom(data.type())) continue;
+            if (Map.class.isAssignableFrom(data.type())) continue;
+            if (data.autoIncrement()) continue;
+            if (data.primary()) continue;
+            joiner.add(data.name() + " = ?");
+        }
+        return joiner.toString();
+    }
+
     /*
      * |--------------|
      * | Repositories |
@@ -153,7 +172,7 @@ public class QueryParseEngine {
         Set<String> constrainedFields = constraints.length > 0 ? new HashSet<>(constraints.length) : Collections.emptySet();
         if (constraints.length > 0) addConstraints(constrainedFields);
 
-        generateColumns(joiner, constrainedFields);
+        generateColumns(joiner);
 
         String classConstraints = processClassLevelConstraints();
         if (!classConstraints.isEmpty()) {
@@ -199,10 +218,8 @@ public class QueryParseEngine {
     }
 
     @Contract(pure = true)
-    private void generateColumns(final StringJoiner joiner, final Set<String> constrainedFields) {
+    private void generateColumns(final StringJoiner joiner) {
         StringJoiner primaryKeysJoiner = new StringJoiner(", ");
-        StringJoiner uniqueKeysJoiner = new StringJoiner(", ");
-
         StringJoiner relationshipsJoiner = new StringJoiner(", ");
 
         for (FieldData<?> data : repositoryInformation.getFields()) {
@@ -219,28 +236,12 @@ public class QueryParseEngine {
             String resolvedType = ValueTypeResolverRegistry.INSTANCE.getType(type);
             fieldBuilder.append(name).append(' ').append(resolvedType);
 
-            if (data.nonNull()) fieldBuilder.append(" NOT NULL");
-            if (data.autoIncrement()) fieldBuilder.append(" ").append(getAutoIncrementKeyword());
-            if (data.condition() != null) fieldBuilder.append(" CHECK (").append(data.condition().value()).append(")");
-            if (unique) fieldBuilder.append(" UNIQUE");
+            addColumnMetaData(data, fieldBuilder, unique);
 
             joiner.add(fieldBuilder.toString());
-            if (primaryKey) {
-                primaryKeysJoiner.add(name);
-            }
-            if (unique && constrainedFields.contains(name)) {
-                uniqueKeysJoiner.add(name);
-            }
+            if (primaryKey) primaryKeysJoiner.add(name);
 
-            if (data.manyToOne() != null) {
-                RepositoryInformation parent = RepositoryMetadata.getMetadata(data.type());
-                String table = parent.getRepositoryName();
-                StringBuilder fkBuilder = new StringBuilder();
-                fkBuilder.append("FOREIGN KEY (").append(name).append(") REFERENCES ").append(table).append("(").append(parent.getPrimaryKey().name()).append(")");
-                if (data.onDelete() != null) fkBuilder.append(" ON DELETE ").append(data.onDelete().value().name());
-                if (data.onUpdate() != null) fkBuilder.append(" ON UPDATE ").append(data.onUpdate().value().name());
-                relationshipsJoiner.add(fkBuilder);
-            }
+            addPotentialManyToOne(data, name, relationshipsJoiner);
         }
 
         String pkClause = primaryKeysJoiner.toString();
@@ -248,14 +249,28 @@ public class QueryParseEngine {
             joiner.add("PRIMARY KEY (" + pkClause + ")");
         }
 
-        String uniqueClause = uniqueKeysJoiner.toString();
-        if (!uniqueClause.isEmpty()) {
-            joiner.add("UNIQUE (" + uniqueClause + ")");
-        }
-
         String relationshipClause = relationshipsJoiner.toString();
         if (!relationshipClause.isEmpty()) {
             joiner.add(relationshipClause);
+        }
+    }
+
+    private void addColumnMetaData(FieldData<?> data, StringBuilder fieldBuilder, boolean unique) {
+        if (data.nonNull()) fieldBuilder.append(" NOT NULL");
+        if (data.autoIncrement()) fieldBuilder.append(" ").append(getAutoIncrementKeyword());
+        if (data.condition() != null) fieldBuilder.append(" CHECK (").append(data.condition().value()).append(")");
+        if (unique) fieldBuilder.append(" UNIQUE");
+    }
+
+    private static void addPotentialManyToOne(FieldData<?> data, String name, StringJoiner relationshipsJoiner) {
+        if (data.manyToOne() != null) {
+            RepositoryInformation parent = RepositoryMetadata.getMetadata(data.type());
+            String table = parent.getRepositoryName();
+            StringBuilder fkBuilder = new StringBuilder();
+            fkBuilder.append("FOREIGN KEY (").append(name).append(") REFERENCES ").append(table).append("(").append(parent.getPrimaryKey().name()).append(")");
+            if (data.onDelete() != null) fkBuilder.append(" ON DELETE ").append(data.onDelete().value().name());
+            if (data.onUpdate() != null) fkBuilder.append(" ON UPDATE ").append(data.onUpdate().value().name());
+            relationshipsJoiner.add(fkBuilder);
         }
     }
 
@@ -271,7 +286,9 @@ public class QueryParseEngine {
 
     private static String buildConditions(@NotNull Iterable<SelectOption> filters) {
         StringJoiner joiner = new StringJoiner(" AND ");
-        for (SelectOption filter : filters) joiner.add(filter.option() + " " + filter.operator() + " ?");
+        for (SelectOption filter : filters) {
+            joiner.add(filter.option() + " " + filter.operator() + " ?");
+        }
         return joiner.toString();
     }
 

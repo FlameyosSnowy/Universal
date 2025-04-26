@@ -1,8 +1,12 @@
 package io.github.flameyossnowy.universal.sql;
 
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
-import io.github.flameyossnowy.universal.api.cache.FetchedDataResult;
+import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
+import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.sql.internals.ObjectFactory;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
@@ -20,14 +24,16 @@ public interface RelationalRepositoryAdapter<T, ID> extends RepositoryAdapter<T,
         return executeRawQuery(query, params.toArray(new Object[0]));
     }
 
-    FetchedDataResult<T, ID> executeQuery(String query, Object... params);
+    List<T> executeQuery(String query, Object... params);
 
-    default FetchedDataResult<T, ID> executeQuery(String query, @NotNull List<Object> params) {
+    default List<T> executeQuery(String query, @NotNull List<Object> params) {
         return executeQuery(query, params.toArray(new Object[0]));
     }
 
-    FetchedDataResult<T, ID> executeQueryWithParams(String query, List<SelectOption> params);
+    List<T> executeQueryWithParams(String query, List<SelectOption> params);
 
-    FetchedDataResult<T, ID> executeQueryWithParams(String query, boolean first, List<SelectOption> params);
+    List<T> executeQueryWithParams(String query, boolean first, List<SelectOption> params);
 
+    @ApiStatus.Internal
+    ObjectFactory<T, ID> getObjectFactory();
 }
