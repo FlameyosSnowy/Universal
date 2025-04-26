@@ -3,10 +3,13 @@ package io.github.flameyossnowy.universal.api.reflect;
 import io.github.flameyossnowy.universal.api.annotations.*;
 
 import io.github.flameyossnowy.universal.api.utils.Logging;
+
 import me.sunlan.fastreflection.FastField;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.lang.reflect.Field;
 
+@ApiStatus.Internal
 @SuppressWarnings({"unchecked", "unused"})
 public class FieldData<T> {
     private RepositoryInformation declaringInformation;
@@ -19,18 +22,21 @@ public class FieldData<T> {
     private final boolean autoIncrement;
     private final boolean nonNull;
     private final boolean unique;
+    private final boolean now;
     private final Constraint constraint;
     private final Condition condition;
     private final OnUpdate onUpdate;
     private final OnDelete onDelete;
     private final OneToMany oneToMany;
     private final ManyToOne manyToOne;
+    private final OneToOne oneToOne;
     private final Object defaultValue;
 
     public FieldData(RepositoryInformation declaringInformation, String name, String fieldName, String tableName,
                      FastField field, Field rawField, Class<T> type, boolean primary, boolean autoIncrement,
-                     boolean nonNull, boolean unique, Constraint constraint, Condition condition,
+                     boolean nonNull, boolean unique, boolean now, Constraint constraint, Condition condition,
                      OnUpdate onUpdate, OnDelete onDelete, OneToMany oneToMany, ManyToOne manyToOne,
+                     OneToOne oneToOne,
                      Object defaultValue) {
         this.declaringInformation = declaringInformation;
         this.name = name;
@@ -42,6 +48,7 @@ public class FieldData<T> {
         this.autoIncrement = autoIncrement;
         this.nonNull = nonNull;
         this.unique = unique;
+        this.now = now;
         this.constraint = constraint;
         this.condition = condition;
         this.onUpdate = onUpdate;
@@ -49,6 +56,11 @@ public class FieldData<T> {
         this.oneToMany = oneToMany;
         this.manyToOne = manyToOne;
         this.defaultValue = defaultValue;
+        this.oneToOne = oneToOne;
+    }
+
+    public boolean now() {
+        return now;
     }
 
     public RepositoryInformation getDeclaringInformation() {
@@ -123,6 +135,10 @@ public class FieldData<T> {
         return manyToOne;
     }
 
+    public OneToOne oneToOne() {
+        return oneToOne;
+    }
+
     public <E> E getValue(Object obj) {
         try {
             Logging.deepInfo("Retrieving value from field: " + field.getName() + " of type: " + rawField.getType().getSimpleName() + " of object: " + declaringInformation.getType().getSimpleName());
@@ -141,6 +157,7 @@ public class FieldData<T> {
         }
     }
 
+    @Override
     public String toString() {
         return "FieldData{" +
                 "name='" + name + '\'' +
@@ -153,11 +170,13 @@ public class FieldData<T> {
                 ", nonNull=" + nonNull +
                 ", unique=" + unique +
                 ", constraint=" + constraint +
+                ", now=" + now +
                 ", condition=" + condition +
                 ", onUpdate=" + onUpdate +
                 ", onDelete=" + onDelete +
                 ", oneToMany=" + oneToMany +
                 ", manyToOne=" + manyToOne +
+                ", oneToOne=" + oneToOne +
                 ", defaultValue=" + defaultValue +
                 '}';
     }

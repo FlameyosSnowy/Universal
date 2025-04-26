@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.*;
 import java.util.function.Supplier;
 
+@SuppressWarnings("FieldNotUsedInToString")
 public class LazyArrayList<T> extends AbstractList<T> implements List<T> {
     private List<T> list;
     private final Supplier<List<T>> supplier;
@@ -140,5 +141,15 @@ public class LazyArrayList<T> extends AbstractList<T> implements List<T> {
     @Override
     public int hashCode() {
         return load().hashCode();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof LazyArrayList<?> that)) {
+            if (!(o instanceof List)) return false;
+            return load().equals(o);
+        }
+        if (this == that) return true;
+        return Objects.equals(load(), that.load());
     }
 }

@@ -25,7 +25,7 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
 
     public static class Builder {
         private IndexType type = IndexType.NORMAL;
-        private final List<FieldData<?>> fields = new ArrayList<>();
+        private final List<FieldData<?>> fields = new ArrayList<>(1);
 
         private RepositoryInformation information;
         private final Class<?> repositoryType;
