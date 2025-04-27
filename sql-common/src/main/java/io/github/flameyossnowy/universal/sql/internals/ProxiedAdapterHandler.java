@@ -49,6 +49,7 @@ public class ProxiedAdapterHandler<T, ID> implements InvocationHandler {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Object invoke(Object proxy, @NotNull Method method, Object[] args) throws Throwable {
         MethodData methodData = this.getMethodData(method);
 

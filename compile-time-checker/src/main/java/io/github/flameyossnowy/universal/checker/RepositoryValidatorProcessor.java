@@ -17,17 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@SupportedAnnotationTypes({
-        "io.github.flameyossnowy.universal.api.annotations.Repository",
-        "io.github.flameyossnowy.universal.api.annotations.Cacheable",
-        "io.github.flameyossnowy.universal.api.annotations.GlobalCacheable",
-        "io.github.flameyossnowy.universal.api.annotations.ManyToOne",
-        "io.github.flameyossnowy.universal.api.annotations.OneToMany",
-        "io.github.flameyossnowy.universal.api.annotations.OneToOne",
-        "io.github.flameyossnowy.universal.api.annotations.Constraint",
-        "io.github.flameyossnowy.universal.api.annotations.Index"
-})
-@SupportedSourceVersion(SourceVersion.RELEASE_17) // or your target version
 public class RepositoryValidatorProcessor extends AbstractProcessor {
     private Messager messager;
 
@@ -54,36 +43,36 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         this.messager = processingEnv.getMessager();
+
+        System.out.println("Started!");
     }
 
     @Override
-    public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
-        for (TypeElement element : set) {
-            Repository repository = element.getAnnotation(Repository.class);
-            if (repository == null) continue;
+    public Set<String> getSupportedAnnotationTypes() {
+        return Set.of("io.github.flameyossnowy.universal.api.annotations.Repository",
+                "io.github.flameyossnowy.universal.api.annotations.Cacheable",
+                "io.github.flameyossnowy.universal.api.annotations.GlobalCacheable",
+                "io.github.flameyossnowy.universal.api.annotations.ManyToOne",
+                "io.github.flameyossnowy.universal.api.annotations.OneToMany",
+                "io.github.flameyossnowy.universal.api.annotations.OneToOne",
+                "io.github.flameyossnowy.universal.api.annotations.Constraint",
+                "io.github.flameyossnowy.universal.api.annotations.Index");
+    }
 
-            if (element.getModifiers().contains(Modifier.ABSTRACT)) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be abstract", element);
-                continue;
-            }
+    @Override
+    public SourceVersion getSupportedSourceVersion() {
+        return SourceVersion.RELEASE_17;
+    }
 
+    @Override
+    public boolean process(@NotNull Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
+        for (Element element : roundEnvironment.getElementsAnnotatedWith(Repository.class)) {
+            if (!(element instanceof TypeElement typeElement)) continue;
             ElementKind kind = element.getKind();
-            if (kind == ElementKind.ENUM) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be an enum", element);
-                continue;
-            }
 
-            if (kind == ElementKind.INTERFACE) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be an interface", element);
-                continue;
-            }
-
-            if (repository.name().isBlank()) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " name cannot be empty", element);
-                continue;
-            }
-
-            checkIndexAndConstraintReferences(element);
+            // we check if it's interface so we don't continue
+            // just to slap the user when we tell it interfaces aren't allowed ;)
+            handleRepository(typeElement, kind);
 
             List<? extends Element> enclosedElements = element.getEnclosedElements();
             boolean hasNoArgConstructor = false;
@@ -98,22 +87,38 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             }
 
             if (!hasNoArgConstructor) messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " must have a no-arg constructor", element);
-
-            String name = repository.name();
-
-            // Check for duplicate
-            if (repositoryNames.containsKey(name)) {
-                Element existing = repositoryNames.get(name);
-                messager.printMessage(
-                        Diagnostic.Kind.ERROR,
-                        "Duplicate @Repository name: '" + name + "' already used by " + existing.getSimpleName(),
-                        element
-                );
-            } else {
-                repositoryNames.put(name, element);
-            }
         }
         return false;
+    }
+
+    private void handleRepository(TypeElement element, ElementKind kind) {
+        if (!kind.isClass() || !kind.isInterface()) return;
+
+        Repository repository = element.getAnnotation(Repository.class);
+        if (repository == null) return;
+
+        if (element.getModifiers().contains(Modifier.ABSTRACT)) {
+            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be abstract", element);
+            return;
+        }
+
+        if (kind == ElementKind.ENUM) {
+            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be an enum", element);
+            return;
+        }
+
+        if (kind == ElementKind.INTERFACE) {
+            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be an interface", element);
+            return;
+        }
+
+        if (repository.name().isBlank()) {
+            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " name cannot be empty", element);
+            return;
+        }
+
+        checkIndexAndConstraintReferences(element);
+        return;
     }
 
     private void checkIndexAndConstraintReferences(@NotNull TypeElement classElement) {
@@ -137,8 +142,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         for (String column : columns) {
             if (!validFields.contains(column)) {
                 messager.printMessage(Diagnostic.Kind.ERROR,
-                        "@" + kind + " on " + classElement.getSimpleName() +
-                                " refers to unknown field: '" + column + "'",
+                        "@" + kind + " on " + classElement.getSimpleName() + " refers to unknown field: '" + column + "'",
                         target);
             }
         }
@@ -166,7 +170,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             return;
         }
 
-        checkRawCollections(enclosedElement);
+        checkRawTypes(enclosedElement);
     }
 
     private void checkRelationshipFieldAnnotations(Element element, VariableElement enclosedElement) {
@@ -233,20 +237,26 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         }
     }
 
-    private void checkRawCollections(@NotNull VariableElement classElement) {
-        TypeMirror type = classElement.asType();
+    private void checkRawTypes(@NotNull VariableElement fieldElement) {
+        TypeMirror type = fieldElement.asType();
         if (type.getKind() != TypeKind.DECLARED) return;
 
-        if (!(type instanceof DeclaredType declaredType)) return;
-        if (!(declaredType.asElement() instanceof TypeElement)) return;
+        DeclaredType declaredType = (DeclaredType) type;
+        Element element = declaredType.asElement();
+        if (!(element instanceof TypeElement typeElement)) return;
 
+        // Only check types that declare type parameters (e.g., List<T>, Map<K, V>, etc.)
+        if (typeElement.getTypeParameters().isEmpty()) return;
+
+        // If the user didn't specify type arguments (it's raw), raise an error
         if (declaredType.getTypeArguments().isEmpty()) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + classElement.getSimpleName() + "' in " + classElement.getSimpleName()
-                            + " is a raw Collection. Use generics, e.g., List<String>.",
-                    classElement);
+                    "Field '" + fieldElement.getSimpleName() + "' is using a raw type '" + typeElement.getSimpleName() + "'. " +
+                            "You must specify type parameters (e.g., List<String>, Map<Key, Value>).",
+                    fieldElement);
         }
     }
+
 
     private void checkStaticFieldAnnotations(Element element, VariableElement enclosedElement) {
         for (Class<? extends Annotation> annotation : FIELD_ANNOTATIONS) {
