@@ -24,7 +24,7 @@ public class Warp {
     public String toString() {
         return "Warp{" +
                 "id=" + id +
-                "name='" + name + '\'' +
+                ", name='" + name + '\'' +
                 ", faction=" + (faction == null ? "None (error)" : String.valueOf(faction.id)) +
                 '}';
     }

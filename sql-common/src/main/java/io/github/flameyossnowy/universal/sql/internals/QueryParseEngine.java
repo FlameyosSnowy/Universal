@@ -117,7 +117,8 @@ public class QueryParseEngine {
 
         StringJoiner joiner = new StringJoiner(", ");
         for (FieldData<?> data : repositoryInformation.getFields()) {
-            if (List.class.isAssignableFrom(data.type())) continue;
+            if (Collection.class.isAssignableFrom(data.type())) continue;
+            if (Map.class.isAssignableFrom(data.type())) continue;
             if (data.autoIncrement()) {
                 joiner.add("default");
             } else {
@@ -233,6 +234,7 @@ public class QueryParseEngine {
             Logging.deepInfo("Field type: " + type);
 
             if (Collection.class.isAssignableFrom(type)) continue;
+            if (Map.class.isAssignableFrom(type)) continue;
             String resolvedType = ValueTypeResolverRegistry.INSTANCE.getType(type);
             fieldBuilder.append(name).append(' ').append(resolvedType);
 

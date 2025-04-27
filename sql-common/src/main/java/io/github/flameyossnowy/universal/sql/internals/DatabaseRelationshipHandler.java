@@ -7,9 +7,7 @@ import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.sql.RelationalRepositoryAdapter;
-import io.github.flameyossnowy.universal.sql.resolvers.NormalCollectionTypeResolver;
-import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
-import io.github.flameyossnowy.universal.sql.resolvers.ValueTypeResolverRegistry;
+import io.github.flameyossnowy.universal.sql.resolvers.*;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
@@ -157,7 +155,24 @@ public class DatabaseRelationshipHandler<T, ID> {
     }
 
     public void handleNormalLists(@NotNull FieldData<?> field, T instance, ID value, Class<?> rawType) {
-        NormalCollectionTypeResolver<T, ID> collectionTypeResolver = (NormalCollectionTypeResolver<T, ID>) SQLCollections.INSTANCE.getResolver(rawType, idClass, connectionProvider, repositoryInformation);
+        CollectionTypeResolver<Object, ID> collectionTypeResolver = (CollectionTypeResolver<Object, ID>) SQLCollections.INSTANCE.getResolver(rawType, idClass, connectionProvider, repositoryInformation);
+        field.setValue(instance, collectionTypeResolver.resolve(value));
+    }
+
+    public void handleNormalSets(@NotNull FieldData<?> field, T instance, ID value, Class<?> rawType) {
+        CollectionTypeResolver<Object, ID> collectionTypeResolver = (CollectionTypeResolver<Object, ID>) SQLCollections.INSTANCE.getResolver(rawType, idClass, connectionProvider, repositoryInformation);
+        field.setValue(instance, collectionTypeResolver.resolveSet(value));
+    }
+
+    public void handleNormalMap(@NotNull FieldData<?> field, T instance, ID value, Class<?> rawKeyType, Class<?> rawValueType) {
+        MapTypeResolver<Object, Object, ID> collectionTypeResolver =
+                (MapTypeResolver<Object, Object, ID>) SQLCollections.INSTANCE.getMapResolver(rawKeyType, rawValueType, idClass, connectionProvider, repositoryInformation);
+        field.setValue(instance, collectionTypeResolver.resolve(value));
+    }
+
+    public void handleMultiMap(@NotNull FieldData<?> field, T instance, ID value, Class<?> rawKeyType, Class<?> rawValueType) {
+        MultiMapTypeResolver<Object, Object, ID> collectionTypeResolver =
+                (MultiMapTypeResolver<Object, Object, ID>) SQLCollections.INSTANCE.getMultiMapResolver(rawKeyType, rawValueType, idClass, connectionProvider, repositoryInformation);
         field.setValue(instance, collectionTypeResolver.resolve(value));
     }
 }

@@ -3,13 +3,13 @@ package io.github.flameyossnowy.universal.sql.internals;
 import io.github.flameyossnowy.universal.api.reflect.*;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.RelationalRepositoryAdapter;
-import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
-import io.github.flameyossnowy.universal.sql.resolvers.ValueTypeResolverRegistry;
+import io.github.flameyossnowy.universal.sql.resolvers.*;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -23,6 +23,8 @@ public final class ObjectFactory<T, ID> {
 
     private final RepositoryInformation repoInfo;
     private final DatabaseRelationshipHandler<T, ID> relationshipHandler;
+    private final SQLConnectionProvider connectionProvider;
+    private final Class<ID> idClass;
     private final boolean hasPrimaryKey;
 
     private static final Map<Class<?>, Supplier<Object>> NOW_MAPPERS = Map.ofEntries(
@@ -46,6 +48,8 @@ public final class ObjectFactory<T, ID> {
                          SQLConnectionProvider connectionProvider,
                          @NotNull RelationalRepositoryAdapter<T, ID> adapter) {
         this.repoInfo = repoInfo;
+        this.idClass = adapter.getIdType();
+        this.connectionProvider = connectionProvider;
         this.relationshipHandler = new DatabaseRelationshipHandler<>(repoInfo, connectionProvider, adapter.getIdType());
         this.hasPrimaryKey = repoInfo.getPrimaryKey() != null;
     }
@@ -62,6 +66,16 @@ public final class ObjectFactory<T, ID> {
 
             if (isListField(field)) {
                 handleGenericListField(field, instance, id);
+                continue;
+            }
+
+            if (isSetField(field)) {
+                handleGenericSetField(field, instance, id);
+                continue;
+            }
+
+            if (isMapField(field)) {
+                handleGenericMapField(field, instance, id);
                 continue;
             }
 
@@ -92,6 +106,10 @@ public final class ObjectFactory<T, ID> {
                 relationshipHandler.handleManyToOneRelationship(rs, field, instance);
             } else if (isListField(field) && hasPrimaryKey) {
                 handleGenericListField(field, instance, primaryId);
+            } else if (isSetField(field) && hasPrimaryKey) {
+                handleGenericSetField(field, instance, primaryId);
+            } else if (isMapField(field) && hasPrimaryKey) {
+                handleGenericMapField(field, instance, primaryId);
             } else {
                 populateFieldInternal(rs, field, instance);
             }
@@ -103,15 +121,88 @@ public final class ObjectFactory<T, ID> {
     public void insertEntity(PreparedStatement stmt, T entity) throws Exception {
         int paramIndex = 1;
 
+        ID id = null;
+
+        // First pass: regular fields
         for (FieldData<?> field : repoInfo.getFields()) {
-            if (field.autoIncrement() || isListField(field)) continue;
+            if (field.autoIncrement()) continue;
+            if (isListField(field) || isMapField(field) || isSetField(field)) continue; // skip collections for now
 
             Object valueToInsert = resolveInsertValue(field, entity);
+            if (valueToInsert.getClass().isAssignableFrom(idClass)) id = (ID) valueToInsert;
+
             SQLValueTypeResolver<Object> resolver = getValueResolver(field);
 
             Logging.deepInfo("Binding parameter " + paramIndex + ": " + valueToInsert);
             resolver.insert(stmt, paramIndex++, valueToInsert);
         }
+    }
+
+    public void insertCollectionEntities(T entity, ID id) throws Exception {
+        for (FieldData<?> field : repoInfo.getFields()) {
+            if (isListField(field) || isSetField(field)) {
+                handleLists(entity, id, field);
+            } else if (isMapField(field)) {
+                handleMaps(entity, id, field);
+            }
+        }
+    }
+
+    private void handleMaps(T entity, ID id, FieldData<?> field) throws Exception {
+        Field rawField = field.rawField();
+        ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
+
+        Type[] types = paramType.getActualTypeArguments();
+
+        Type keyTypeRaw = types[0];
+        Type valueTypeRaw = types[1];
+
+        Class<Object> keyType = (Class<Object>) keyTypeRaw;
+        Class<Object> valueType;
+
+        boolean isMultiMap = false;
+
+        if (valueTypeRaw instanceof ParameterizedType parameterizedValueType) {
+            Type rawType = parameterizedValueType.getRawType();
+            if (rawType instanceof Class<?> rawClass && List.class.isAssignableFrom(rawClass)) {
+                isMultiMap = true;
+                valueType = (Class<Object>) parameterizedValueType.getActualTypeArguments()[0];
+            } else {
+                throw new IllegalArgumentException("Unsupported value type: " + valueTypeRaw);
+            }
+        } else if (valueTypeRaw instanceof Class<?> valueClass) {
+            valueType = (Class<Object>) valueClass;
+        } else {
+            throw new IllegalArgumentException("Unsupported value type: " + valueTypeRaw);
+        }
+
+        if (isMultiMap) {
+            MultiMapTypeResolver<Object, Object, ID> collectionTypeResolver =
+                    SQLCollections.INSTANCE.getMultiMapResolver(keyType, valueType, idClass, connectionProvider, repoInfo);
+
+            Map<Object, List<Object>> map = field.getValue(entity);
+            collectionTypeResolver.insert(id, map);
+        } else {
+            MapTypeResolver<Object, Object, ID> collectionTypeResolver =
+                    SQLCollections.INSTANCE.getMapResolver(keyType, valueType, idClass, connectionProvider, repoInfo);
+
+            Map<Object, Object> map = field.getValue(entity);
+            collectionTypeResolver.insert(id, map);
+        }
+    }
+
+
+    private void handleLists(T entity, ID id, FieldData<?> field) throws Exception {
+        Field rawField = field.rawField();
+        ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
+
+        Class<Object> type = (Class<Object>) paramType.getActualTypeArguments()[0];
+        CollectionTypeResolver<Object, ID> collectionTypeResolver =
+                SQLCollections.INSTANCE.getResolver(
+                        type, idClass, connectionProvider, repoInfo);
+
+        Collection<Object> collection = field.getValue(entity);
+        collectionTypeResolver.insert(id, collection);
     }
 
     // Helpers
@@ -124,6 +215,14 @@ public final class ObjectFactory<T, ID> {
         return List.class.isAssignableFrom(field.type());
     }
 
+    private static boolean isSetField(FieldData<?> field) {
+        return Set.class.isAssignableFrom(field.type());
+    }
+
+    private static boolean isMapField(FieldData<?> field) {
+        return Map.class.isAssignableFrom(field.type());
+    }
+
     private void warnRelationshipInCreate(FieldData<?> field) {
         Logging.error("`create` should not be used for relationships, use `createWithRelationships` instead.");
         Logging.error("Offending Field: " + repoInfo.getType().getSimpleName() + "#" + field.name());
@@ -134,6 +233,49 @@ public final class ObjectFactory<T, ID> {
         ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
         Class<?> itemType = (Class<?>) paramType.getActualTypeArguments()[0];
         relationshipHandler.handleNormalLists(field, instance, id, itemType);
+    }
+
+    private void handleGenericSetField(FieldData<?> field, T instance, ID id) {
+        Field rawField = field.rawField();
+        ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
+        Class<?> itemType = (Class<?>) paramType.getActualTypeArguments()[0];
+        relationshipHandler.handleNormalSets(field, instance, id, itemType);
+    }
+
+    private void handleGenericMapField(FieldData<?> field, T instance, ID id) {
+        Field rawField = field.rawField();
+        ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
+        Type[] types = paramType.getActualTypeArguments();
+
+        Type keyTypeRaw = types[0];
+        Type valueTypeRaw = types[1];
+
+        Class<Object> keyType = (Class<Object>) keyTypeRaw;
+        Class<Object> valueType;
+
+        boolean isMultiMap = false;
+
+        if (valueTypeRaw instanceof ParameterizedType parameterizedValueType) {
+            Type rawType = parameterizedValueType.getRawType();
+            if (rawType instanceof Class<?> rawClass && List.class.isAssignableFrom(rawClass)) {
+                isMultiMap = true;
+                valueType = (Class<Object>) parameterizedValueType.getActualTypeArguments()[0];
+            } else {
+                throw new IllegalArgumentException("Unsupported value type: " + valueTypeRaw);
+            }
+        } else if (valueTypeRaw instanceof Class<?> valueClass) {
+            valueType = (Class<Object>) valueClass;
+        } else {
+            throw new IllegalArgumentException("Unsupported value type: " + valueTypeRaw);
+        }
+
+        if (isMultiMap) {
+            // It’s a Map<K, List<V>> or Map<K, Set<V>>, use MultiMapTypeResolver
+            relationshipHandler.handleMultiMap(field, instance, id, keyType, valueType);
+        } else {
+            // It’s a normal Map<K, V>
+            relationshipHandler.handleNormalMap(field, instance, id, keyType, valueType);
+        }
     }
 
     private void handleOneToManyField(FieldData<?> field, T instance, ID primaryId) {

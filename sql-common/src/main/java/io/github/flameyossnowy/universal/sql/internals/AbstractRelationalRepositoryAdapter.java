@@ -114,10 +114,45 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     @Override
-    public void insertAll(@NotNull List<T> collection, TransactionContext<Connection> transactionContext) {
-        if (collection.isEmpty()) return;
-        executeBatch(transactionContext, engine.parseInsert(), collection);
+    public void insertAll(List<T> value, TransactionContext<Connection> transactionContext) {
+        if (value.isEmpty()) return;
+        executeBatch(transactionContext, engine.parseInsert(), value);
     }
+
+    @Override
+    public void insertAll(@NotNull List<T> collection) {
+        if (collection.isEmpty()) return;
+        executeBatch(null, engine.parseInsert(), collection);
+    }
+
+    private void executeBatch(TransactionContext<Connection> transactionContext, String sql, List<T> collection) {
+        try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
+             PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
+
+            connection.setAutoCommit(false);
+            try {
+                for (T entity : collection) {
+                    objectFactory.insertEntity(statement, entity);
+                    statement.addBatch();
+                }
+
+                statement.executeBatch();
+                connection.commit();
+
+                for (T entity : collection) {
+                    objectFactory.insertCollectionEntities(entity, repositoryInformation.getPrimaryKey().getValue(entity));
+                }
+
+                if (cache != null) cache.clear();
+            } catch (Exception e) {
+                connection.rollback();
+                throw new RuntimeException("Batch execution failed, rolled back.", e);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to execute batch insert.", e);
+        }
+    }
+
 
     @Override
     public boolean updateAll(@NotNull T entity, TransactionContext<Connection> transactionContext) {
@@ -235,11 +270,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     @Override
-    public void insertAll(@NotNull List<T> collection) {
-        if (!collection.isEmpty()) executeBatch(engine.parseInsert(), collection);
-    }
-
-    @Override
     public Class<ID> getIdType() {
         return idClass;
     }
@@ -265,7 +295,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = dataSource.prepareStatement(query, connection)) {
             int index = 1;
-            if (parameters.length == 0) addParameters(parameters, statement, index);
+            if (parameters.length > 0) addParameters(parameters, statement, index);
             return statement.executeQuery();
         } catch (Exception e) {
             Logging.error(e);
@@ -283,7 +313,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public ResultSet executeRawQueryWithParams(String query, @NotNull List<SelectOption> parameters) throws Exception {
-        System.out.println(query);
         try (Connection connection = dataSource.getConnection(); PreparedStatement statement = dataSource.prepareStatement(query, connection)) {
             int index = 1;
             for (SelectOption value : parameters) {
@@ -400,6 +429,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
                     return true;
                 }
                 if (!repositoryInformation.getPrimaryKey().autoIncrement()) {
+                    this.objectFactory.insertCollectionEntities(value, repositoryInformation.getPrimaryKey().getValue(value));
                     if (globalCache != null) globalCache.put(repositoryInformation.getPrimaryKey().getValue(value), value);
                     return true;
                 }
@@ -409,6 +439,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
                     ID generatedId = resolver.resolve(generatedKeys, repositoryInformation.getPrimaryKey().name());
                     repositoryInformation.getPrimaryKey().setValue(value, generatedId);
                     if (globalCache != null) globalCache.put(generatedId, value);
+
+                    this.objectFactory.insertCollectionEntities(value, generatedId);
                 }
                 if (cache != null) cache.clear();
                 return true;
@@ -417,42 +449,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private void executeBatch(TransactionContext<Connection> transactionContext, String sql, List<T> collection) {
-        try (var statement = dataSource.prepareStatement(sql, transactionContext.connection())) {
-            for (T value : collection) {
-                this.objectFactory.insertEntity(statement, value);
-                statement.addBatch();
-            }
-            statement.executeBatch();
-            if (cache != null) cache.clear();
-        } catch (Exception e) { 
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void executeBatch(String sql, List<T> collection) {
-        try (var connection = dataSource.getConnection();
-             var statement = dataSource.prepareStatement(sql, connection)) {
-            connection.setAutoCommit(false);
-            try {
-                for (T value : collection) {
-                    this.objectFactory.insertEntity(statement, value);
-                    statement.addBatch();
-                }
-                statement.executeBatch();
-                connection.commit(); // Commit if everything is successful
-
-                if (cache != null) cache.clear();
-            } catch (Exception e) {
-                connection.rollback();
-                throw new RuntimeException("Transaction rolled back due to an error", e);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to execute transaction", e);
-        }
-
     }
 
     private void setUpdateParameters(PreparedStatement statement, @NotNull T entity) throws Exception {

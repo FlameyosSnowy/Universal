@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @SuppressWarnings("unused")
-public class NormalMapTypeResolver<K, V, ID> {
+public class MapTypeResolver<K, V, ID> {
     private final String tableName;
 
     private final SQLValueTypeResolver<K> keyResolver;
@@ -21,9 +21,9 @@ public class NormalMapTypeResolver<K, V, ID> {
     private final SQLConnectionProvider connectionProvider;
     private final RepositoryInformation information;
 
-    public NormalMapTypeResolver(Class<ID> idType, Class<K> keyType, @NotNull Class<V> valueType,
-                                 final SQLConnectionProvider connectionProvider,
-                                 final @NotNull RepositoryInformation information) {
+    public MapTypeResolver(Class<ID> idType, Class<K> keyType, @NotNull Class<V> valueType,
+                           final SQLConnectionProvider connectionProvider,
+                           final @NotNull RepositoryInformation information) {
         this.connectionProvider = connectionProvider;
         this.information = information;
 

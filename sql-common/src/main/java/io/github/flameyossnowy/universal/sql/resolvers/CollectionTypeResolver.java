@@ -9,12 +9,10 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 @SuppressWarnings("unused")
-public class NormalCollectionTypeResolver<T, ID> {
+public class CollectionTypeResolver<T, ID> {
     private final Class<T> elementType;
     private final Class<ID> idType;
     private final String tableName;
@@ -25,9 +23,9 @@ public class NormalCollectionTypeResolver<T, ID> {
     private final SQLConnectionProvider connectionProvider;
     private final RepositoryInformation information;
 
-    public NormalCollectionTypeResolver(Class<ID> idType, Class<T> elementType,
-                                        final SQLConnectionProvider connectionProvider,
-                                        final RepositoryInformation information) {
+    public CollectionTypeResolver(Class<ID> idType, Class<T> elementType,
+                                  final SQLConnectionProvider connectionProvider,
+                                  final RepositoryInformation information) {
         this.idType = idType;
         this.elementType = elementType;
 
@@ -71,6 +69,25 @@ public class NormalCollectionTypeResolver<T, ID> {
             ResultSet resultSet = stmt.executeQuery();
 
             List<T> collection = new ArrayList<>(resultSet.getFetchSize());
+            while (resultSet.next()) {
+                collection.add(elementResolver.resolve(resultSet, "value"));
+            }
+
+            return collection;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Collection<T> resolveSet(ID id) {
+        try (Connection connection = connectionProvider.getConnection();
+             PreparedStatement stmt = connectionProvider.prepareStatement("SELECT * FROM " + tableName + " WHERE id = ?;", connection)) {
+
+            idResolver.insert(stmt, 1, id);
+
+            ResultSet resultSet = stmt.executeQuery();
+
+            Set<T> collection = new HashSet<>(resultSet.getFetchSize());
             while (resultSet.next()) {
                 collection.add(elementResolver.resolve(resultSet, "value"));
             }
