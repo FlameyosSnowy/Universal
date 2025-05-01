@@ -4,5 +4,5 @@ include "sqlite"
 include "mysql"
 include "mongodb"
 include 'sql-common'
-include 'compile-time-checker'
+//include 'compile-time-checker'
 

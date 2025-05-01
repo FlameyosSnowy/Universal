@@ -26,12 +26,10 @@ dependencies {
     testImplementation project(':sql-common')
     testImplementation project(':core')
 
-    testAnnotationProcessor project(":compile-time-checker")
+    //testAnnotationProcessor project(":compile-time-checker")
 
     testImplementation 'com.zaxxer:HikariCP:6.2.1'
     testImplementation 'mysql:mysql-connector-java:8.0.28'
-
-    //testAnnotationProcessor project(":compile-time-checker")
 
     compileOnly 'mysql:mysql-connector-java:8.0.28'
     // 'com.github.FlameyosSnowy:Velocis:1.1.0'
