@@ -9,7 +9,7 @@ Universal is a powerful and flexible Object-Relational Mapper (ORM) and Object-D
 - **Annotation-Based Configuration**: Define repositories, constraints, and conditions using a SQL-like syntax for both MongoDB and SQL.
 - **MongoDB & SQL Support**: Provides adapters for both MongoDB and SQL databases.
 - **Efficient Query Handling**: Uses built-in MongoDB methods and SQL functions without unnecessary query parsing.
-- **Lightweight**: Only ~250kb for one Platform + Core.
+- **Lightweight**: Only ~400kb for one Platform + Core.
 
 ## Installation
 
