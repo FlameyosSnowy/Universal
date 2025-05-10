@@ -1,8 +1,9 @@
 rootProject.name = "Universal"
+
 include "core"
 include "sqlite"
 include "mysql"
 include "mongodb"
 include 'sql-common'
 //include 'compile-time-checker'
-
+include 'postgresql'
