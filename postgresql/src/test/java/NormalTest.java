@@ -40,6 +40,49 @@ public class NormalTest {
     }
 
     @Test
+    public void postgresql_cache_test() {
+        Logging.ENABLED = true;
+
+        // host, port, database, username, password
+        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "test", "test");
+        PostgreSQLRepositoryAdapter<Faction, Long> adapter = PostgreSQLRepositoryAdapter.builder(Faction.class, Long.class)
+                .withCredentials(credentials)
+                .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
+                .build();
+
+        adapter.executeRawQuery("DROP TABLE IF EXISTS Factions CASCADE;");
+
+        adapter.createRepository(true)
+                .expect("Should have been able to create repository.");
+
+        Faction faction = new Faction();
+        faction.setName("Test");
+
+        Faction faction2 = new Faction();
+        faction2.setName("Test2");
+
+        Faction faction3 = new Faction();
+        faction3.setName("Test3");
+
+        Faction faction4 = new Faction();
+        faction4.setName("Test4");
+
+        Faction faction5 = new Faction();
+        faction5.setName("Test5");
+        adapter.insertAll(List.of(faction, faction2, faction3, faction4, faction5));
+
+        List<Faction> factions = adapter.find();
+
+        System.out.println(factions);
+        assertEquals(5, factions.size());
+
+        List<Faction> factions2 = adapter.find();
+
+        System.out.println(factions2);
+        assertEquals(5, factions2.size());
+    }
+
+    @Test
     public void postgresql_test_record() {
         Logging.ENABLED = true;
 
