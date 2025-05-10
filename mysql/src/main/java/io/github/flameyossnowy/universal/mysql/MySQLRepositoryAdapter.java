@@ -17,6 +17,14 @@ public class MySQLRepositoryAdapter<T, ID> extends AbstractRelationalRepositoryA
         super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.MYSQL, globalCache, sessionCacheLongFunction);
     }
 
+    /**
+     * Constructs a new {@link MySQLRepositoryAdapterBuilder} to create a
+     * {@link MySQLRepositoryAdapter} instance.
+     *
+     * @param repository the class of the repository.
+     * @param idClass    the class of the primary key.
+     * @return a new {@link MySQLRepositoryAdapterBuilder}.
+     */
     @NotNull
     @Contract("_, _ -> new")
     public static <T, ID> MySQLRepositoryAdapterBuilder<T, ID> builder(Class<T> repository, Class<ID> idClass) {

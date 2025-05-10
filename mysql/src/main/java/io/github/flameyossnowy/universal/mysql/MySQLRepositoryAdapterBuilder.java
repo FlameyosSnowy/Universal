@@ -12,6 +12,7 @@ import io.github.flameyossnowy.universal.mysql.connections.MySQLSimpleConnection
 import io.github.flameyossnowy.universal.mysql.credentials.MySQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sql.internals.SQLSession;
+import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
@@ -61,10 +62,11 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MySQLRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
+        RepositoryInformation information = Objects.requireNonNull(RepositoryMetadata.getMetadata(this.repository));
 
-        RepositoryInformation information = RepositoryMetadata.getMetadata(this.repository);
         Cacheable cacheable = information.getCacheable();
 
         GlobalCacheable globalCacheable = information.getGlobalCacheable();

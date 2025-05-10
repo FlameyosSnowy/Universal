@@ -1,4 +1,4 @@
-package io.github.flameyossnowy.universal.mongodb;
+package io.github.flameyossnowy.universal.mongodb.internals;
 
 import io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmType;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFRUCache;

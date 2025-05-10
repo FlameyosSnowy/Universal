@@ -22,8 +22,12 @@ public class MySQLHikariConnectionProvider extends MySQLSimpleConnectionProvider
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
-        return pool.getConnection();
+    public Connection getConnection() {
+        try {
+            return pool.getConnection();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

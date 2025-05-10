@@ -1,23 +1,25 @@
-package io.github.flameyossnowy.universal.mongodb;
+package io.github.flameyossnowy.universal.mongodb.internals;
 
 import io.github.flameyossnowy.universal.api.annotations.proxy.*;
 import io.github.flameyossnowy.universal.api.options.Query;
-import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApiStatus.Internal
 public class MongoProxiedAdapterHandler<T, ID> implements InvocationHandler {
     private final MongoRepositoryAdapter<T, ID> adapter;
-    private final Map<String, MethodData> methodCache = new ConcurrentHashMap<>();
+    private final Class<T> elementType;
+    private final Map<String, MethodData> methodCache = new ConcurrentHashMap<>(5);
 
-    MongoProxiedAdapterHandler(MongoRepositoryAdapter<T, ID> adapter) {
+    public MongoProxiedAdapterHandler(MongoRepositoryAdapter<T, ID> adapter) {
         this.adapter = adapter;
+        this.elementType = adapter.getElementType();
     }
 
     private MethodData getMethodData(@NotNull Method method) {
@@ -75,7 +77,22 @@ public class MongoProxiedAdapterHandler<T, ID> implements InvocationHandler {
             }
             if (methodData.limit != null) selectQuery = selectQuery.limit(methodData.limit.value());
             if (methodData.orderBy != null) selectQuery = selectQuery.orderBy(methodData.orderBy.value(), methodData.orderBy.order());
-            return adapter.find(selectQuery.build());
+            List<T> result = adapter.find(selectQuery.build());
+
+            Class<?> returnType = method.getReturnType();
+            if (returnType == List.class) {
+                return result;
+            } else if (returnType == Set.class) {
+                return new HashSet<>(result);
+            } else if (returnType == Iterable.class) {
+                return result;
+            } else if (returnType == elementType) {
+                return result.isEmpty() ? null : result.get(0);
+            } else if (returnType == Iterator.class) {
+                return result.iterator();
+            } else {
+                throw new IllegalStateException("Unsupported return type: " + returnType);
+            }
         }
 
         return null;
