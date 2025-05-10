@@ -25,7 +25,7 @@ public class Main {
 
     @Setup(Level.Trial)
     public void setup() {
-        MySQLCredentials credentials = new MySQLCredentials("localhost", 3306, "newtestdb", "flameyosflow", "eyad4056");
+        MySQLCredentials credentials = new MySQLCredentials("localhost", 3306, "newtestdb", "flameyosflow", "...");
         this.factions = MySQLRepositoryAdapter
                 .builder(Faction.class, Integer.class)
                 .withCredentials(credentials)
@@ -53,7 +53,6 @@ public class Main {
         factions.createRepository(true);
         warps.createRepository(true);
         users.createRepository(true);
-        System.out.println("Am i being executed");
     }
 
     @Warmup(iterations = 2, time = 1, timeUnit = TimeUnit.MILLISECONDS)

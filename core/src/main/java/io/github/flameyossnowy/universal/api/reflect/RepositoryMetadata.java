@@ -2,7 +2,10 @@ package io.github.flameyossnowy.universal.api.reflect;
 
 import io.github.flameyossnowy.universal.api.annotations.*;
 import io.github.flameyossnowy.universal.api.defvalues.DefaultTypeProvider;
+import io.github.flameyossnowy.universal.api.exceptions.ConstructorThrewException;
+
 import me.sunlan.fastreflection.FastField;
+
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -10,78 +13,33 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.URI;
-import java.net.URL;
-import java.time.*;
+import java.lang.reflect.RecordComponent;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+@SuppressWarnings("unchecked")
 @ApiStatus.Internal
 public class RepositoryMetadata {
-    private static final Map<Class<?>, RepositoryInformation> cache = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, RepositoryInformation> cache = new ConcurrentHashMap<>(3);
 
-    // will continue collections.
-    private static final Set<Class<?>> DISALLOWED_REPOSITORIES = new HashSet<>(Set.of(
-            List.class,
-            Set.class,
-            Map.class,
-            UUID.class,
-            Integer.class,
-            Double.class,
-            Long.class,
-            Float.class,
-            Short.class,
-            Byte.class,
-            Character.class,
-            Boolean.class,
-            String.class,
-            Date.class,
-            Instant.class,
-            java.sql.Date.class,
-            java.sql.Time.class,
-            java.sql.Timestamp.class,
-            LocalDate.class,
-            LocalTime.class,
-            LocalDateTime.class,
-            ZonedDateTime.class,
-            OffsetDateTime.class,
-            OffsetTime.class,
-            Year.class,
-            YearMonth.class,
-            MonthDay.class,
-            BigDecimal.class,
-            BigInteger.class,
-            Class.class,
-            URI.class,
-            URL.class,
-            InetAddress.class,
-            Enum.class,
-            int.class,
-            long.class,
-            double.class,
-            float.class,
-            short.class,
-            byte.class,
-            char.class,
-            boolean.class
-    ));
+    private static final Set<Class<?>> ALLOWED_ID_TYPES = Set.of(String.class, Long.class, Integer.class, UUID.class);
+    private static final Set<Class<?>> NUMERIC_ID_TYPES = Set.of(Long.class, Integer.class);
 
     private RepositoryMetadata() {}
 
+    /**
+     * Retrieves the metadata information for a given entity class.
+     *
+     * <p>This method returns a {@link RepositoryInformation} instance corresponding
+     * to the specified entity class. If the metadata for the entity class is not
+     * already cached, it will be built and stored in the cache for future access.
+     *
+     * @param entityClass the class for which to retrieve repository metadata
+     * @return the {@link RepositoryInformation} instance for the entity class,
+     *         or {@code null} if the class is not annotated as a repository.
+     */
     public static @Nullable RepositoryInformation getMetadata(Class<?> entityClass) {
-        // optimization
-        if (DISALLOWED_REPOSITORIES.contains(entityClass)) return null;
-
-        RepositoryInformation information = cache.get(entityClass);
-        if (information == null) {
-            information = buildMetadata(entityClass);
-            if (information != null) cache.put(entityClass, information);
-            else DISALLOWED_REPOSITORIES.add(entityClass);
-        }
-        return information;
+        return cache.computeIfAbsent(entityClass, RepositoryMetadata::buildMetadata);
     }
 
     private static @Nullable RepositoryInformation buildMetadata(@NotNull Class<?> entityClass) {
@@ -93,8 +51,10 @@ public class RepositoryMetadata {
         }
 
         Field[] fields = entityClass.getDeclaredFields();
-        if (fields.length == 0) {
-            throw new IllegalArgumentException("Class " + entityClass.getSimpleName() + " is annotated with @Repository but has no fields");
+        RecordComponent[] recordComponents = entityClass.isRecord() ? entityClass.getRecordComponents() : new RecordComponent[0];
+
+        if (fields.length == 0 && recordComponents.length == 0) {
+            throw new IllegalArgumentException("Class " + entityClass.getSimpleName() + " is annotated with @Repository but has no fields or record components");
         }
 
         String tableName = repositoryAnnotation.name();
@@ -104,37 +64,33 @@ public class RepositoryMetadata {
         GlobalCacheable globalCacheable = entityClass.getAnnotation(GlobalCacheable.class);
         FetchPageSize fetchPageSize = entityClass.getAnnotation(FetchPageSize.class);
         RepositoryAuditLogger repositoryAuditLogger = entityClass.getAnnotation(RepositoryAuditLogger.class);
+        RepositoryExceptionHandler repositoryExceptionHandler = entityClass.getAnnotation(RepositoryExceptionHandler.class);
         RepositoryEventLifecycleListener repositoryEventLifecycleListener = entityClass.getAnnotation(RepositoryEventLifecycleListener.class);
 
-        int length = fields.length;
+        int length = fields.length + recordComponents.length;
         Map<String, FieldData<?>> data = new LinkedHashMap<>(length);
         Map<String, FieldData<?>> oneToManyCache = new LinkedHashMap<>(length);
         Map<String, FieldData<?>> manyToOneCache = new LinkedHashMap<>(length);
-
-        Class<?>[] types = new Class<?>[length];
+        Map<String, FieldData<?>> oneToOneCache = new LinkedHashMap<>(length);
 
         RepositoryInformation information = getInformation(
                 entityClass, tableName, constraints,
-                indexes, cacheable, types, fetchPageSize, data,
-                oneToManyCache, manyToOneCache, repositoryAuditLogger,
-                repositoryEventLifecycleListener, globalCacheable
+                indexes, cacheable, fetchPageSize, data,
+                oneToManyCache, manyToOneCache, oneToOneCache, repositoryAuditLogger,
+                repositoryEventLifecycleListener, repositoryExceptionHandler, globalCacheable
         );
 
-        for (int index = 0; index < length; index++) {
-            Field field = fields[index];
+        if (recordComponents.length == 0) processFields(fields, information, tableName, data);
 
-            if (Modifier.isStatic(field.getModifiers())) continue;
-            if (Modifier.isFinal(field.getModifiers())) continue;
+        if (recordComponents.length > 0) processRecordComponents(recordComponents, information, tableName, data);
 
-            String name = field.getName();
-
-            FieldData<?> fieldData = createFieldData(information, field, tableName, name);
-            data.put(field.getName(), fieldData);
-            types[index] = fieldData.type();
-
+        for (FieldData<?> fieldData : data.values()) {
             if (fieldData.primary()) {
-                if (information.getPrimaryKey() != null) throw new IllegalArgumentException("Class " + entityClass.getName() + " has multiple primary keys");
                 information.setPrimaryKey(fieldData);
+            }
+
+            if (fieldData.oneToOne() != null) {
+                oneToOneCache.put(fieldData.name(), fieldData);
             }
 
             if (fieldData.oneToMany() != null) {
@@ -149,27 +105,58 @@ public class RepositoryMetadata {
         return information;
     }
 
+    private static void processRecordComponents(RecordComponent[] recordComponents, RepositoryInformation information, String tableName, Map<String, FieldData<?>> data) {
+        for (RecordComponent recordComponent : recordComponents) {
+            processRecordComponent(information, recordComponent, tableName, data);
+        }
+    }
+
+    private static void processFields(Field[] fields, RepositoryInformation information, String tableName, Map<String, FieldData<?>> data) {
+        for (Field field : fields) {
+            processField(information, field, tableName, data);
+        }
+    }
+
+    private static void processField(@NotNull RepositoryInformation information, Field field, String tableName, Map<String, FieldData<?>> data) {
+        int mods = field.getModifiers();
+        if (Modifier.isStatic(mods) || Modifier.isFinal(mods) || Modifier.isTransient(mods)) return;
+
+        String name = field.getName();
+        FieldData<?> fieldData = createFieldData(information, field, tableName, name);
+        data.put(name, fieldData);
+    }
+
+    private static void processRecordComponent(@NotNull RepositoryInformation information, RecordComponent recordComponent, String tableName, Map<String, FieldData<?>> data) {
+        String name = recordComponent.getName();
+        FieldData<?> fieldData = createFieldData(information, recordComponent, tableName, name);
+        data.put(name, fieldData);
+    }
+
     private static @NotNull RepositoryInformation getInformation(
             @NotNull Class<?> entityClass,
             String tableName,
             Constraint[] constraints,
             Index[] indexes,
             Cacheable cacheable,
-            Class<?>[] types,
             FetchPageSize fetchPageSize,
             Map<String, FieldData<?>> data,
             Map<String, FieldData<?>> oneToManyCache,
             Map<String, FieldData<?>> manyToOneCache,
+            Map<String, FieldData<?>> oneToOneCache,
             RepositoryAuditLogger repositoryAuditLogger,
             RepositoryEventLifecycleListener repositoryEventLifecycleListener,
+            RepositoryExceptionHandler repositoryExceptionHandler,
             GlobalCacheable globalCacheable) {
         try {
             return new RepositoryInformation(
-                    tableName, constraints, indexes, cacheable, entityClass, types,
+                    tableName, constraints, indexes, cacheable, entityClass,
                     fetchPageSize == null ? -1 : fetchPageSize.value(), data, oneToManyCache, manyToOneCache, globalCacheable, false,
 
                     repositoryAuditLogger == null ? null : repositoryAuditLogger.value().getDeclaredConstructor().newInstance(),
-                    repositoryEventLifecycleListener == null ? null : repositoryEventLifecycleListener.value().getDeclaredConstructor().newInstance()
+                    repositoryEventLifecycleListener == null ? null : repositoryEventLifecycleListener.value().getDeclaredConstructor().newInstance(),
+                    repositoryExceptionHandler == null ? null : repositoryExceptionHandler.value().getDeclaredConstructor().newInstance(),
+
+                    oneToOneCache
             );
         } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
             throw new RuntimeException(e);
@@ -177,20 +164,26 @@ public class RepositoryMetadata {
     }
 
     @NotNull
-    @SuppressWarnings("unchecked")
-    private static <T> FieldData<T> createFieldData(RepositoryInformation information, @NotNull Field field, String tableName, String fieldName) {
-        Named name = field.getAnnotation(Named.class);
+    private static <T> FieldData<T> createFieldData(@NotNull RepositoryInformation information, Object fieldOrRecordComponent, String tableName, String fieldName) {
+        if (fieldOrRecordComponent instanceof Field field) {
+            return createFieldDataFromField(information, field, tableName, fieldName);
+        } else if (fieldOrRecordComponent instanceof RecordComponent recordComponent) {
+            return createFieldDataFromRecordComponent(information, recordComponent, tableName, fieldName);
+        } else {
+            throw new IllegalArgumentException("Unsupported field or record component: " + fieldOrRecordComponent);
+        }
+    }
 
+    private static <T> @NotNull FieldData<T> createFieldDataFromField(@NotNull RepositoryInformation information, @NotNull Field field, String tableName, String fieldName) {
+        Named name = field.getAnnotation(Named.class);
         DefaultValue defaultValue = field.getAnnotation(DefaultValue.class);
         DefaultValueProvider defaultValueProvider = field.getAnnotation(DefaultValueProvider.class);
-
         OneToMany oneToMany = field.getAnnotation(OneToMany.class);
         ManyToOne manyToOne = field.getAnnotation(ManyToOne.class);
         OneToOne oneToOne = field.getAnnotation(OneToOne.class);
-        if (oneToMany != null || manyToOne != null || oneToOne != null) {
-            information.setHasRelationships(true);
-        }
 
+        boolean id = field.isAnnotationPresent(Id.class);
+        boolean autoIncrement = isAutoIncrement(field.getType(), field.getAnnotation(AutoIncrement.class), id);
         return new FieldData<>(
                 information,
                 name == null ? fieldName : name.value(),
@@ -199,8 +192,7 @@ public class RepositoryMetadata {
                 FastField.create(field, true),
                 field,
                 (Class<T>) field.getType(),
-                field.isAnnotationPresent(Id.class),
-                field.isAnnotationPresent(AutoIncrement.class),
+                id, autoIncrement,
                 field.isAnnotationPresent(NonNull.class),
                 field.isAnnotationPresent(Unique.class),
                 field.isAnnotationPresent(Now.class),
@@ -208,6 +200,55 @@ public class RepositoryMetadata {
                 field.getAnnotation(Condition.class),
                 field.getAnnotation(OnUpdate.class),
                 field.getAnnotation(OnDelete.class),
+                oneToMany, manyToOne, oneToOne,
+                resolveDefaultValue(defaultValue, defaultValueProvider)
+        );
+    }
+
+    private static boolean isAutoIncrement(Class<?> type, AutoIncrement autoIncrement, boolean id) {
+        if (id && !ALLOWED_ID_TYPES.contains(type)) throw new IllegalArgumentException("Unsupported id type: " + type.getName());
+        if (autoIncrement != null && !NUMERIC_ID_TYPES.contains(type)) throw new IllegalArgumentException("Unsupported auto increment type: " + type.getName());
+        return NUMERIC_ID_TYPES.contains(type) || autoIncrement != null;
+    }
+
+    private static <T> FieldData<T> createFieldDataFromRecordComponent(@NotNull RepositoryInformation information, RecordComponent recordComponent, String tableName, String fieldName) {
+        Named name = recordComponent.getAnnotation(Named.class);
+        DefaultValue defaultValue = recordComponent.getAnnotation(DefaultValue.class);
+        DefaultValueProvider defaultValueProvider = recordComponent.getAnnotation(DefaultValueProvider.class);
+        OneToMany oneToMany = recordComponent.getAnnotation(OneToMany.class);
+        ManyToOne manyToOne = recordComponent.getAnnotation(ManyToOne.class);
+        OneToOne oneToOne = recordComponent.getAnnotation(OneToOne.class);
+
+        if (oneToMany != null) {
+            throw new IllegalArgumentException("Unsupported @OneToMany annotation on record component: " + recordComponent);
+        }
+
+        if (manyToOne != null) {
+            throw new IllegalArgumentException("Unsupported @ManyToOne annotation on record component: " + recordComponent);
+        }
+
+        if (oneToOne != null) {
+            throw new IllegalArgumentException("Unsupported @OneToOne annotation on record component: " + recordComponent);
+        }
+
+        boolean id = recordComponent.isAnnotationPresent(Id.class);
+        boolean autoIncrement = RepositoryMetadata.isAutoIncrement(
+                recordComponent.getType(),
+                recordComponent.getAnnotation(AutoIncrement.class),
+                id
+        );
+
+        return new FieldData<>(
+                information, name == null ? fieldName : name.value(), fieldName, tableName, recordComponent,
+                (Class<T>) recordComponent.getType(),
+                id, autoIncrement,
+                recordComponent.isAnnotationPresent(NonNull.class),
+                recordComponent.isAnnotationPresent(Unique.class),
+                recordComponent.isAnnotationPresent(Now.class),
+                recordComponent.getAnnotation(Constraint.class),
+                recordComponent.getAnnotation(Condition.class),
+                recordComponent.getAnnotation(OnUpdate.class),
+                recordComponent.getAnnotation(OnDelete.class),
                 oneToMany, manyToOne, oneToOne,
                 resolveDefaultValue(defaultValue, defaultValueProvider)
         );
@@ -224,12 +265,10 @@ public class RepositoryMetadata {
                 throw new IllegalArgumentException("Class " + clazz.getSimpleName() + " does not implement DefaultTypeProvider");
             }
             return typeProvider.supply();
+        } catch (InvocationTargetException e) {
+            throw new ConstructorThrewException(e.getMessage());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public static <T> boolean isRepository(Class<T> elementType) {
-        return getMetadata(elementType) != null;
     }
 }

@@ -1,16 +1,22 @@
 package io.github.flameyossnowy.universal.api.reflect;
 
 import io.github.flameyossnowy.universal.api.annotations.*;
+import io.github.flameyossnowy.universal.api.exceptions.ConstructorThrewException;
+import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
+import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
+
 import me.sunlan.fastreflection.FastConstructor;
-import org.jetbrains.annotations.ApiStatus;
+
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.RecordComponent;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@ApiStatus.Internal
 public class RepositoryInformation {
     private final String tableName;
     private boolean hasRelationships;
@@ -19,36 +25,42 @@ public class RepositoryInformation {
     private final Index[] indexes;
     private final Cacheable cacheable;
     private final Class<?> entityClass;
-    private final Class<?>[] types;
     private final AuditLogger<?> auditLogger;
     private final EntityLifecycleListener<?> entityLifecycleListener;
+    private final ExceptionHandler<?, ?, ?> exceptionHandler;
 
     private final int fetchPageSize;
 
     private final Map<String, FieldData<?>> fieldDataMap;
     private final Map<String, FieldData<?>> oneToManyFields;
     private final Map<String, FieldData<?>> manyToOneFields;
+    private final Map<String, FieldData<?>> oneToOneFields;
 
-    private static final Map<Class<?>, FastConstructor<?>> CACHE = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, FastConstructor<?>> CACHE = new ConcurrentHashMap<>(5);
     private final GlobalCacheable globalCacheable;
+
+    private final boolean isRecord;
+    private final Constructor<?> recordConstructor;
+    private final RecordComponent[] recordComponents;
 
     public RepositoryInformation(String tableName,
                                  Constraint[] constraints, Index[] indexes, Cacheable cacheable,
-                                 Class<?> entityClass, Class<?>[] types, int fetchPageSize,
+                                 Class<?> entityClass, int fetchPageSize,
                                  Map<String, FieldData<?>> fieldDataMap,
                                  Map<String, FieldData<?>> oneToManyCache,
                                  Map<String, FieldData<?>> manyToOneCache,
                                  GlobalCacheable globalCacheable,
                                  boolean hasRelationships,
                                  AuditLogger<?> auditLogger,
-                                 EntityLifecycleListener<?> entityLifecycleListener) {
+                                 EntityLifecycleListener<?> entityLifecycleListener,
+                                 ExceptionHandler<?, ?, ?> exceptionHandler,
+                                 Map<String, FieldData<?>> oneToOneFields) {
         this.globalCacheable = globalCacheable;
         this.entityClass = entityClass;
         this.constraints = constraints;
         this.cacheable = cacheable;
         this.tableName = tableName;
         this.indexes = indexes;
-        this.types = types;
         this.fetchPageSize = fetchPageSize;
 
         this.oneToManyFields = oneToManyCache;
@@ -59,6 +71,24 @@ public class RepositoryInformation {
         this.hasRelationships = hasRelationships;
         this.auditLogger = auditLogger;
         this.entityLifecycleListener = entityLifecycleListener;
+        this.exceptionHandler = exceptionHandler;
+
+        this.isRecord = entityClass.isRecord();
+        this.oneToOneFields = oneToOneFields;
+
+        if (isRecord) {
+            try {
+                this.recordComponents = entityClass.getRecordComponents();
+                this.recordConstructor = entityClass.getDeclaredConstructor(
+                        Arrays.stream(recordComponents).map(RecordComponent::getType).toArray(Class[]::new)
+                );
+            } catch (Exception e) {
+                throw new RepositoryException("Failed to cache record constructor.", e);
+            }
+        } else {
+            this.recordComponents = null;
+            this.recordConstructor = null;
+        }
     }
 
     public String getRepositoryName() {
@@ -89,12 +119,25 @@ public class RepositoryInformation {
         return globalCacheable;
     }
 
+    public Map<String, FieldData<?>> getOneToOneCache() {
+        return oneToOneFields;
+    }
+
     public Class<?> getType() {
         return entityClass;
     }
 
-    public Class<?>[] getTypes() {
-        return types;
+    public boolean isRecord() {
+        return isRecord;
+    }
+
+    public Constructor<?> getRecordConstructor() {
+        return recordConstructor;
+    }
+
+
+    public RecordComponent[] getRecordComponents() {
+        return recordComponents;
     }
 
     public Collection<FieldData<?>> getFields() {
@@ -125,7 +168,6 @@ public class RepositoryInformation {
                 ", indexes=" + (indexes.equals("null") ? "[]" : indexes) +
                 ", cacheable=" + cacheable +
                 ", entityClass=" + entityClass +
-                ", types=" + Arrays.toString(types) +
                 ", fieldDataMap=" + fieldDataMap +
                 '}';
     }
@@ -138,12 +180,14 @@ public class RepositoryInformation {
         try {
             FastConstructor<?> constructor = CACHE.computeIfAbsent(entityClass, key -> {
                 try {
-                    return FastConstructor.create(entityClass.getDeclaredConstructor(), true);
+                    return FastConstructor.create(entityClass.getDeclaredConstructor());
                 } catch (NoSuchMethodException e) {
                     throw new RuntimeException(e);
                 }
             });
             return constructor.invoke();
+        } catch (InvocationTargetException e) {
+            throw new ConstructorThrewException(e.getMessage());
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -163,5 +207,9 @@ public class RepositoryInformation {
 
     public EntityLifecycleListener<?> getEntityLifecycleListener() {
         return entityLifecycleListener;
+    }
+
+    public ExceptionHandler<?, ?, ?> getExceptionHandler() {
+        return exceptionHandler;
     }
 }

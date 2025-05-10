@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.mongodb;
 
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Filters;
+import io.github.flameyossnowy.universal.api.exceptions.ConstructorThrewException;
 import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
@@ -11,6 +12,8 @@ import org.bson.conversions.Bson;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.RecordComponent;
 import java.util.*;
 
 import static io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter.ADAPTERS;
@@ -20,16 +23,29 @@ import static io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter.A
 public class ObjectFactory<T, ID> {
 
     private final RepositoryInformation repoInfo;
+    private final boolean isRecord;
+    private final RecordComponent[] recordComponents;
 
-    public ObjectFactory(RepositoryInformation repoInfo, Class<T> ignored, Class<ID> ignored2) {
+    @SuppressWarnings("unused")
+    public ObjectFactory(@NotNull RepositoryInformation repoInfo, Class<T> type, Class<ID> idClass) {
         this.repoInfo = repoInfo;
+        this.isRecord = repoInfo.isRecord();
+        this.recordComponents = isRecord ? repoInfo.getRecordComponents() : null;
+
+        if (isRecord) {
+            for (FieldData<?> field : repoInfo.getFields()) {
+                if (field.oneToOne() != null || field.oneToMany() != null || field.manyToOne() != null) {
+                    throw new UnsupportedOperationException("Records cannot contain relationships like oneToOne, oneToMany, or manyToOne: " + field.name());
+                }
+            }
+        }
     }
 
     public Document toDocument(Object entity) {
         Document doc = new Document();
 
         for (FieldData<?> field : repoInfo.getFields()) {
-            if (field.manyToOne() != null || field.oneToMany() != null) continue;
+            if (field.manyToOne() != null || field.oneToMany() != null || field.oneToOne() != null) continue;
             Object value = field.getValue(entity);
             doc.put(field.name(), value);
         }
@@ -38,6 +54,23 @@ public class ObjectFactory<T, ID> {
     }
 
     public T fromDocument(Document doc) {
+        if (isRecord) {
+            int length = recordComponents.length;
+            Object[] args = new Object[length];
+            for (int index = 0; index < length; index++) {
+                RecordComponent rc = recordComponents[index];
+                String fieldName = rc.getName();
+                args[index] = doc.get(fieldName);
+            }
+            try {
+                return (T) repoInfo.getRecordConstructor().newInstance(args);
+            } catch (InstantiationException | IllegalAccessException e) {
+                throw new RuntimeException(e);
+            } catch (InvocationTargetException e) {
+                throw new ConstructorThrewException(e.getMessage());
+            }
+        }
+
         T entity = (T) repoInfo.newInstance();
         ID entityId = null;
 
@@ -80,13 +113,12 @@ public class ObjectFactory<T, ID> {
         if (result != null) field.setValue(entity, result);
     }
 
-
     private void loadOneToOne(@NotNull FieldData<?> field, Object entity, ID id) {
         var adapter = ADAPTERS.get(field.type());
         if (adapter == null) return;
 
         Bson filter = createOneToManyFilter(adapter.getInformation(), id);
-        Document document = adapter.collection.find(filter).first();
+        Document document = adapter.getCollection().find(filter).first();
         Object child = instantiateChildOneToOne(document, adapter.getInformation(), entity);
         field.setValue(entity, child);
     }
@@ -101,7 +133,7 @@ public class ObjectFactory<T, ID> {
 
         Bson filter = createOneToManyFilter(childInfo, parentId);
 
-        try (MongoCursor<Document> iterable = adapter.collection.find(filter).iterator()) {
+        try (MongoCursor<Document> iterable = adapter.getCollection().find(filter).iterator()) {
             int available = iterable.available();
             List<Object> children = new ArrayList<>(available);
 

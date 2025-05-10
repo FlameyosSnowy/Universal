@@ -23,9 +23,9 @@ public class CollectionTypeResolver<T, ID> {
     private final SQLConnectionProvider connectionProvider;
     private final RepositoryInformation information;
 
-    public CollectionTypeResolver(Class<ID> idType, Class<T> elementType,
+    public CollectionTypeResolver(Class<ID> idType, @NotNull Class<T> elementType,
                                   final SQLConnectionProvider connectionProvider,
-                                  final RepositoryInformation information) {
+                                  final @NotNull RepositoryInformation information) {
         this.idType = idType;
         this.elementType = elementType;
 
@@ -35,7 +35,7 @@ public class CollectionTypeResolver<T, ID> {
         this.tableName = information.getRepositoryName() + '_' + elementType.getSimpleName().toLowerCase() + 's';
         this.elementResolver = ValueTypeResolverRegistry.INSTANCE.getResolver(elementType);
         if (elementResolver == null)
-            throw new IllegalStateException("No resolver for " + elementType.getSimpleName() + ".");
+            throw new IllegalStateException("No resolver for " + elementType.getSimpleName() + '.');
 
         this.idResolver = ValueTypeResolverRegistry.INSTANCE.getResolver(idType);
         if (idResolver == null)
@@ -74,6 +74,32 @@ public class CollectionTypeResolver<T, ID> {
             }
 
             return collection;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public T[] resolveArray(ID id) {
+        try (Connection connection = connectionProvider.getConnection();
+             PreparedStatement stmt = connectionProvider.prepareStatement("SELECT * FROM " + tableName + " WHERE id = ?;", connection)) {
+
+            idResolver.insert(stmt, 1, id);
+
+            ResultSet resultSet = stmt.executeQuery();
+
+            resultSet.last();
+            int size = resultSet.getRow();
+            resultSet.beforeFirst();
+
+            @SuppressWarnings("unchecked")
+            T[] array = (T[]) new Object[size];
+
+            while (resultSet.next()) {
+                int index = resultSet.getRow() - 1;
+                array[index] = elementResolver.resolve(resultSet, "value");
+            }
+
+            return array;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
