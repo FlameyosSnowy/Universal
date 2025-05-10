@@ -1,5 +1,6 @@
 import io.github.flameyossnowy.universal.api.annotations.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,11 +26,11 @@ public class Warp {
         return "Warp{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
-                ", faction=" + (faction == null ? "None (error)" : String.valueOf(faction.id)) +
+                //", faction=" + (faction == null ? "None (error)" : String.valueOf(faction.id)) +
                 '}';
     }
 
-    public String factionToString() {
-        return faction.toString();
-    }
+    //public String factionToString() {
+    //    return faction.toString();
+    //}
 }

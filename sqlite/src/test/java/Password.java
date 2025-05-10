@@ -1,3 +1,1 @@
-public record Password(String password) {
-
-}
+public record Password(String password) {}

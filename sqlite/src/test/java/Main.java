@@ -23,12 +23,11 @@ public class Main {
 
         adapter.insert(new User(UUID.randomUUID(), "Flameyos", 17, Instant.now(), List.of("Coding", "Sleeping")));
         System.out.println("Finding users");
-        List<User> users = adapter.find().list();
+        List<User> users = adapter.find();
 
         for (User user : users) {
             System.out.println(user);
         }
-
         System.out.println("Found users");
     }
 

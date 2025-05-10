@@ -52,7 +52,7 @@ public class Main {
             User user = session.findById(uuid);
             session.delete(user);
 
-            TransactionResult<Void> result = session.commit();
+            TransactionResult<Boolean> result = session.commit();
             result.getError().ifPresent((error) -> session.rollback());
         });
 

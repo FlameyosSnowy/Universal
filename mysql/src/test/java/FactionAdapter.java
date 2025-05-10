@@ -5,6 +5,7 @@ import io.github.flameyossnowy.universal.api.annotations.proxy.Select;
 import java.time.Instant;
 import java.util.List;
 
+// proxy test
 public interface FactionAdapter {
     @Select
     List<Faction> findAll();

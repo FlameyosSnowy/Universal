@@ -1,5 +1,4 @@
 import io.github.flameyossnowy.universal.api.annotations.*;
-import org.slf4j.event.Level;
 
 import java.util.*;
 
@@ -13,8 +12,6 @@ public class Faction {
     @OneToOne
     public Warp warp;
 
-    public Map<Level, List<String>> banned = new HashMap<>(5);
-
     public Faction() {}
 
     public Faction(String name, UUID id) {
@@ -26,8 +23,6 @@ public class Faction {
         return "Faction{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
-                ", warp=" + (warp == null ? "None (Error)" : warp) +
-                ", banned=" + banned +
                 '}';
     }
 }

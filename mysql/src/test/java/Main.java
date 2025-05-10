@@ -3,10 +3,9 @@ import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.mysql.MySQLRepositoryAdapter;
 import io.github.flameyossnowy.universal.mysql.connections.MySQLHikariConnectionProvider;
 import io.github.flameyossnowy.universal.mysql.credentials.MySQLCredentials;
-import org.slf4j.event.Level;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,7 +38,6 @@ public class Main {
 
         //users.executeRawQuery("DROP TABLE IF EXISTS factionUsers;");
         warps.executeRawQuery("DROP TABLE IF EXISTS warps;");
-        factions.executeRawQuery("DROP TABLE IF EXISTS factions_string_map;");
         factions.executeRawQuery("DROP TABLE IF EXISTS factions;");
         factions.createRepository(true);
         warps.createRepository(true);
@@ -48,15 +46,21 @@ public class Main {
         FactionAdapter adapter = factions.createDynamicProxy(FactionAdapter.class);
 
         Faction faction = new Faction("TestFaction", UUID.randomUUID());
+        Faction faction2 = new Faction("TestFaction2", UUID.randomUUID());
         Warp warp = new Warp("Test", UUID.randomUUID());
-
-        faction.banned.put(Level.ERROR, List.of("Worldy", "World"));
-        faction.banned.put(Level.INFO, List.of("Backy", "Back"));
+        Warp warp2 = new Warp("Test2", UUID.randomUUID());
 
         faction.warp = warp;
         warp.faction = faction;
-        factions.insert(faction);
-        warps.insert(warp);
+
+        faction2.warp = warp2;
+        warp2.faction = faction2;
+
+        factions.insert(faction)
+                .and(factions.insert(faction2))
+                .and(warps.insert(warp))
+                .and(warps.insert(warp2))
+                .ifError(e -> System.out.println("error"));
 
         System.out.println("Finding factions");
         System.out.println(factions.find());

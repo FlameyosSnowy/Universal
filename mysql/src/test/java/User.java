@@ -4,11 +4,7 @@ import io.github.flameyossnowy.universal.api.annotations.Repository;
 import java.time.Instant;
 
 @Repository(name = "factionUsers")
-public class User {/*
-    @Id
-    @AutoIncrement
-    public int id;*/
-
+public class User {
     public String username;
 
     public int age;
