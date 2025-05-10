@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MongoSessionCache<ID, T> implements SessionCache<ID, T> {
-    private final Map<ID, T> internalCache = new ConcurrentHashMap<>();
+    private final Map<ID, T> internalCache = new ConcurrentHashMap<>(16);
 
     @Override
     public Map<ID, T> getInternalCache() {
