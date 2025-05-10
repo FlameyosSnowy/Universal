@@ -10,7 +10,6 @@ version = '3.0.0b1'
 
 repositories {
     mavenCentral()
-    //maven { url 'https://repo.foxikle.dev/flameyos' }
     maven {
         name = "jitpack"
         url = "https://jitpack.io"

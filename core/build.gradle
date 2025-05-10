@@ -22,5 +22,10 @@ dependencies {
 
     api "org.slf4j:slf4j-api:2.1.0-alpha1"
 
+    api "com.github.FlameyosSnowy:Velocis:1.1.2"
+
     implementation "me.sunlan:fast-reflection:1.0.3"
+
+    // error prone
+    compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"
 }
