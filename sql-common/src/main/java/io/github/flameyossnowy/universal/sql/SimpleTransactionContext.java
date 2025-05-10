@@ -21,15 +21,15 @@ public class SimpleTransactionContext implements TransactionContext<Connection> 
     }
 
     @Override
-    public TransactionResult<Void> commit() {
-        if (commited) return null;
+    public TransactionResult<Boolean> commit() {
+        if (commited) return TransactionResult.success(false);
         try {
             connection.commit();
         } catch (SQLException e) {
             return TransactionResult.failure(e);
         }
         commited = true;
-        return TransactionResult.success(null);
+        return TransactionResult.success(true);
     }
 
     @Override

@@ -19,12 +19,12 @@ public class SimpleTransactionContext implements TransactionContext<ClientSessio
     }
 
     @Override
-    public TransactionResult<Void> commit() {
+    public TransactionResult<Boolean> commit() {
         if (!commited && connection.hasActiveTransaction()) {
             connection.commitTransaction();
         }
         commited = true;
-        return TransactionResult.success(null);
+        return TransactionResult.success(true);
     }
 
     @Override

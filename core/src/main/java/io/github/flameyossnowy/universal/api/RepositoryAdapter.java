@@ -1,16 +1,17 @@
 package io.github.flameyossnowy.universal.api;
 
+import com.google.errorprone.annotations.CheckReturnValue;
 import io.github.flameyossnowy.universal.api.cache.Session;
+import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
 
-import java.sql.Connection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -23,8 +24,10 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * This method is a convenience wrapper for {@link #createRepository(boolean)} with the argument
      * set to {@code false}.
      */
-    default void createRepository() {
-        this.createRepository(false);
+    @Contract(pure = true)
+    
+    default TransactionResult<Boolean> createRepository() {
+        return this.createRepository(false);
     }
 
     /**
@@ -38,7 +41,9 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * exists.</b>
      * @param ifNotExists Whether to create the table if it exists or not.
      */
-    void createRepository(boolean ifNotExists);
+    @Contract(pure = true)
+    
+    TransactionResult<Boolean> createRepository(boolean ifNotExists);
 
     /**
      * Starts a transaction on the underlying storage.
@@ -52,6 +57,8 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @return A transaction context that will be used to commit or roll back the
      * transaction.
      */
+    @Contract(pure = true)
+    @CheckReturnValue
     TransactionContext<C> beginTransaction();
 
     /**
@@ -68,6 +75,8 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @return A session that can be used to perform operations on the
      * underlying storage.
      */
+    @Contract(pure = true)
+    @CheckReturnValue
     Session<ID, T, C> createSession();
 
     /**
@@ -84,12 +93,10 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param sessionConsumer A consumer that performs operations with the
      *                        provided session.
      */
-    default void withSession(@NotNull Consumer<Session<ID, T, C>> sessionConsumer) {
+    default TransactionResult<Boolean> withSession(@NotNull Consumer<Session<ID, T, C>> sessionConsumer) {
         try (Session<ID, T, C> session = this.createSession()) {
             sessionConsumer.accept(session);
-            session.commit();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            return session.commit();
         }
     }
 
@@ -104,18 +111,17 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param query The query to execute.
      * @return A {@link List<T>} containing the results of the query.
      */
+    @CheckReturnValue
     List<T> find(SelectQuery query);
 
     /**
-     * Executes a select query on the underlying storage with no filters.
+     * Executes a select query on the underlying storage with no filters (which essentially returns all items in the database).
      * <p>
      * This method fetches the results of the query and returns them as a
      * {@link List<T>}.
-     * <p>
-     * This method is the same as calling {@link #find(SelectQuery)} with a
-     * null query.
      * @return A {@link List<T>} containing the results of the query.
      */
+    @CheckReturnValue
     List<T> find();
 
     /**
@@ -127,6 +133,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param key The primary key of the item to find.
      * @return The item with the specified key, or null if no such item exists.
      */
+    @CheckReturnValue
     T findById(ID key);
 
     /**
@@ -137,6 +144,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param query The query to execute. If null, all items will be fetched.
      * @return The first item that matches the query, or null if no such item exists.
      */
+    @CheckReturnValue
     T first(SelectQuery query);
 
     /**
@@ -147,6 +155,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *
      * @return The first item in the repository, or null if no items exist.
      */
+    @CheckReturnValue
     default T first() {
         return first(null);
     }
@@ -161,7 +170,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param transactionContext The transaction context within which the operation is performed.
      * @return {@code true} if the insertion was successful, {@code false} otherwise.
      */
-    boolean insert(T value, TransactionContext<C> transactionContext);
+    TransactionResult<Boolean> insert(T value, TransactionContext<C> transactionContext);
 
     /**
      * Inserts the specified values into the repository within the given transaction context.
@@ -172,7 +181,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param value The items to be inserted into the repository.
      * @param transactionContext The transaction context within which the operation is performed.
      */
-    void insertAll(List<T> value, TransactionContext<C> transactionContext);
+    TransactionResult<Boolean> insertAll(List<T> value, TransactionContext<C> transactionContext);
 
     /**
      * Updates all items in the repository that match the given query within the given transaction context.
@@ -184,7 +193,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param transactionContext The transaction context within which the operation is performed.
      * @return {@code true} if the update was successful, {@code false} otherwise.
      */
-    boolean updateAll(T entity, TransactionContext<C> transactionContext);
+    TransactionResult<Boolean> updateAll(T entity, TransactionContext<C> transactionContext);
 
     /**
      * Deletes items from the repository that match the given query within the provided transaction context.
@@ -196,8 +205,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param transactionContext The transaction context within which the operation is performed.
      * @return {@code true} if the deletion was successful, {@code false} otherwise.
      */
-    boolean delete(T entity, TransactionContext<C> transactionContext);
-
+    TransactionResult<Boolean> delete(T entity, TransactionContext<C> transactionContext);
 
     /**
      * Deletes the specified value from the repository.
@@ -207,19 +215,75 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param value The item to be deleted from the repository.
      * @return {@code true} if the deletion was successful, {@code false} otherwise.
      */
-    boolean delete(T value);
+    TransactionResult<Boolean> delete(T value);
 
-    boolean deleteById(ID entity, TransactionContext<C> transactionContext);
+    /**
+     * Deletes the item with the specified ID from the repository within the provided transaction context.
+     * <p>
+     * This method is used to remove a single item identified by its ID from the underlying storage.
+     * The transaction context ensures that the operation is atomic and can be committed or rolled back as needed.
+     *
+     * @param entity The ID of the item to be deleted from the repository.
+     * @param transactionContext The transaction context within which the operation is performed.
+     * @return {@code true} if the deletion was successful, {@code false} otherwise.
+     */
+    TransactionResult<Boolean> deleteById(ID entity, TransactionContext<C> transactionContext);
 
-    boolean deleteById(ID value);
+    /**
+     * Deletes the item with the specified ID from the repository.
+     * <p>
+     * This method is used to remove a single item identified by its ID from the underlying storage.
+     * @param value The ID of the item to be deleted from the repository.
+     * @return {@code true} if the deletion was successful, {@code false} otherwise.
+     */
+    TransactionResult<Boolean> deleteById(ID value);
 
-    boolean updateAll(@NotNull UpdateQuery query, TransactionContext<C> transactionContext);
+    /**
+     * Updates all items in the repository that match the given query within the provided transaction context.
+     * <p>
+     * This method modifies multiple items in the underlying storage based on the specified criteria
+     * in the {@link UpdateQuery}. The transaction context ensures that the update operation is atomic and
+     * can be committed or rolled back as needed.
+     *
+     * @param query The query specifying the items to be updated.
+     * @param transactionContext The transaction context within which the operation is performed.
+     *
+     * @return {@code true} if the update was successful, {@code false} otherwise.
+     */
+    TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query, TransactionContext<C> transactionContext);
 
-    boolean updateAll(@NotNull UpdateQuery query);
+    /**
+     * Updates all items in the repository that match the given query.
+     * <p>
+     * This method modifies multiple items in the underlying storage based on the specified criteria
+     * in the {@link UpdateQuery}.
+     *
+     * @param query The query specifying the items to be updated.
+     * @return {@code true} if the update was successful, {@code false} otherwise.
+     */
+    TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query);
 
-    boolean delete(DeleteQuery query, TransactionContext<C> tx);
+    /**
+     * Deletes items from the repository that match the given query within the provided transaction context.
+     * <p>
+     * This method is used to remove multiple items from the underlying storage. The transaction
+     * context ensures that the operation is atomic and can be committed or rolled back as needed.
+     *
+     * @param query The query specifying the items to be deleted.
+     * @param tx The transaction context within which the operation is performed.
+     * @return {@code true} if the deletion was successful, {@code false} otherwise.
+     */
+    TransactionResult<Boolean> delete(DeleteQuery query, TransactionContext<C> tx);
 
-    boolean delete(@NotNull DeleteQuery query);
+    /**
+     * Deletes items from the repository that match the given query.
+     * <p>
+     * This method is used to remove multiple items from the underlying storage.
+     *
+     * @param query The query specifying the items to be deleted.
+     * @return {@code true} if the deletion was successful, {@code false} otherwise.
+     */
+    TransactionResult<Boolean> delete(@NotNull DeleteQuery query);
 
     /**
      * Inserts the specified value into the repository.
@@ -229,7 +293,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param value The item to be inserted into the repository.
      * @return {@code true} if the insertion was successful, {@code false} otherwise.
      */
-    boolean insert(T value);
+    TransactionResult<Boolean> insert(T value);
 
     /**
      * Updates all items in the repository that match the given query.
@@ -239,7 +303,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param entity The entity to update.
      * @return {@code true} if the update was successful, {@code false} otherwise.
      */
-    boolean updateAll(T entity);
+    TransactionResult<Boolean> updateAll(T entity);
 
     /**
      * Inserts the specified list of values into the repository.
@@ -251,7 +315,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *
      * @param query The list of items to be inserted into the repository.
      */
-    void insertAll(List<T> query);
+    TransactionResult<Boolean> insertAll(List<T> query);
 
     /**
      * Removes all items from the repository.
@@ -260,7 +324,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * not recommended to use this method unless you have a specific reason for
      * doing so, as it is a potentially expensive operation.
      */
-    void clear();
+    TransactionResult<Boolean> clear();
 
     /**
      * Creates an index on the repository based on the provided index options.
@@ -277,7 +341,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *              the fields and type of index.
      * @throws IllegalArgumentException If the index options do not specify any fields.
      */
-    void createIndex(IndexOptions index);
+    TransactionResult<Boolean> createIndex(IndexOptions index);
 
     /**
      * Creates multiple indexes on the repository based on the provided index options.
@@ -290,14 +354,20 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * If any of the index options specify a unique index, it will enforce uniqueness
      * across the indexed fields.
      *
+     * @return a TransactionResult of {@code true} if the indexes were created successfully, {@code false} otherwise or if no indexes were created.
      * @param indexes The options defining the indexes to be created, including
      *                the fields and type of each index.
      * @throws IllegalArgumentException If any of the index options do not specify any fields.
      */
-    default void createIndexes(IndexOptions... indexes) {
+    default TransactionResult<Boolean> createIndexes(IndexOptions... indexes) {
+        if (indexes.length == 0) return TransactionResult.success(false);
+
         for (IndexOptions elements : indexes) {
-            this.createIndex(elements);
+            TransactionResult<Boolean> result = this.createIndex(elements);
+            if (result.isError()) return result;
         }
+
+        return TransactionResult.success(true);
     }
 
     /**
@@ -339,6 +409,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @return A {@link CompletableFuture} that completes with a {@link List<T>}
      *         containing the results of the query.
      */
+    @CheckReturnValue
     default CompletableFuture<List<T>> findAsync(SelectQuery query) {
         return CompletableFuture.supplyAsync(() -> find(query));
     }
@@ -355,6 +426,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @return A {@link CompletableFuture} that completes with a {@link List<T>}
      *         containing all items in the repository.
      */
+    @CheckReturnValue
     default CompletableFuture<List<T>> findAsync() {
         return CompletableFuture.supplyAsync(this::find);
     }
@@ -368,7 +440,8 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param value The entity to insert into the repository.
      * @return a future that completes with {@code true} if the insertion was successful, {@code false} otherwise.
      */
-    default CompletableFuture<Boolean> insertAsync(T value) {
+    @CheckReturnValue
+    default CompletableFuture<TransactionResult<Boolean>> insertAsync(T value) {
         return CompletableFuture.supplyAsync(() -> insert(value));
     }
 
@@ -381,7 +454,8 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param entity The entity to update in the repository.
      * @return a future that completes with {@code true} if the update was successful, {@code false} otherwise.
      */
-    default CompletableFuture<Boolean> updateAllAsync(T entity) {
+    @CheckReturnValue
+    default CompletableFuture<TransactionResult<Boolean>> updateAllAsync(T entity) {
         return CompletableFuture.supplyAsync(() -> updateAll(entity));
     }
 
@@ -396,7 +470,8 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param entity The entity to be deleted from the repository.
      * @return a future that completes with {@code true} if the entity was successfully deleted, {@code false} otherwise.
      */
-    default CompletableFuture<Boolean> deleteAsync(T entity) {
+    @CheckReturnValue
+    default CompletableFuture<TransactionResult<Boolean>> deleteAsync(T entity) {
         return CompletableFuture.supplyAsync(() -> delete(entity));
     }
 
@@ -411,8 +486,9 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *
      * @return a future that completes with a {@link Void} result when the operation is complete.
      */
-    default CompletableFuture<Void> createRepositoryAsync() {
-        return CompletableFuture.runAsync(this::createRepository);
+    @CheckReturnValue
+    default CompletableFuture<TransactionResult<Boolean>> createRepositoryAsync() {
+        return CompletableFuture.supplyAsync(this::createRepository);
     }
 
     /**
@@ -426,8 +502,9 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *
      * @return a future that completes with a {@link Void} result when the operation is complete.
      */
-    default CompletableFuture<Void> clearAsync() {
-        return CompletableFuture.runAsync(this::clear);
+    @CheckReturnValue
+    default CompletableFuture<TransactionResult<Boolean>> clearAsync() {
+        return CompletableFuture.supplyAsync(this::clear);
     }
 
     /**
@@ -447,8 +524,9 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *         operation is complete.
      * @throws IllegalArgumentException If the index options do not specify any fields.
      */
-    default CompletableFuture<Void> createIndexAsync(IndexOptions index) {
-        return CompletableFuture.runAsync(() -> createIndex(index));
+    @CheckReturnValue
+    default CompletableFuture<TransactionResult<Boolean>> createIndexAsync(IndexOptions index) {
+        return CompletableFuture.supplyAsync(() -> createIndex(index));
     }
 
     /**
@@ -468,8 +546,9 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *         operation is complete.
      * @throws IllegalArgumentException If any of the index options do not specify any fields.
      */
-    default CompletableFuture<Void> createIndexesAsync(IndexOptions... indexes) {
-        return CompletableFuture.runAsync(() -> createIndexes(indexes));
+    @CheckReturnValue
+    default CompletableFuture<TransactionResult<Boolean>> createIndexesAsync(IndexOptions... indexes) {
+        return CompletableFuture.supplyAsync(() -> createIndexes(indexes));
     }
 
     /**
@@ -484,4 +563,6 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      */
     @ApiStatus.Internal
     RepositoryInformation getInformation();
+
+    Class<T> getElementType();
 }
