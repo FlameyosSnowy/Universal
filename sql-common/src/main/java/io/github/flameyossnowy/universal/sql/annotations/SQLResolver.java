@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
  * @author FlameyosFlow
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
+@Target(ElementType.FIELD)
 public @interface SQLResolver {
     Class<?> value();
 }
