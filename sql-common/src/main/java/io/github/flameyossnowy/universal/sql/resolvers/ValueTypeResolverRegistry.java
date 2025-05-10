@@ -2,15 +2,10 @@ package io.github.flameyossnowy.universal.sql.resolvers;
 
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
-import io.github.flameyossnowy.universal.api.utils.FastUUID;
-import io.github.flameyossnowy.universal.sql.annotations.SQLResolver;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Path;
 import java.sql.*;
 import java.sql.Date;
 import java.time.*;
@@ -21,62 +16,59 @@ import java.math.BigDecimal;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApiStatus.Internal
-@SuppressWarnings({"unused", "unchecked", "rawtypes", "UnnecessaryBoxing", "MethodMayBeStatic"})
+@SuppressWarnings({"unused", "unchecked", "UnnecessaryBoxing"})
 public class ValueTypeResolverRegistry {
-    private final Map<Class<?>, SQLValueTypeResolver<?>> resolvers = new HashMap<>(36);
+    private final Map<Class<?>, SQLValueTypeResolver<?>> resolvers = new ConcurrentHashMap<>(36);
 
     private final Map<String, URL> urlPool = new ConcurrentHashMap<>(5);
     private final Map<String, URI> uriPool = new ConcurrentHashMap<>(5);
     private final Map<String, InetAddress> addressPool = new ConcurrentHashMap<>(5);
     private final Map<Integer, NetworkInterface> networkPool = new ConcurrentHashMap<>(5);
 
-    public static boolean URL_CACHING_ENABLED = false;
-    public static boolean URI_CACHING_ENABLED = false;
-    public static boolean INET_ADDRESS_CACHING_ENABLED = false;
-    public static boolean NETWORK_INTERFACE_CACHING_ENABLED = false;
+    public static boolean URL_CACHING_ENABLED = false, URI_CACHING_ENABLED = false, INET_ADDRESS_CACHING_ENABLED = false, NETWORK_INTERFACE_CACHING_ENABLED = false;
 
-    private static final Map<Class<?>, EncodedTypeInfo> ENCODED_TYPE_MAPPERS = Map.ofEntries(
-            Map.entry(String.class, new EncodedTypeInfo("VARCHAR(255)", Types.VARCHAR)),
+    private final Map<Class<?>, String> encodedTypeMappers = new ConcurrentHashMap<>(Map.ofEntries(
+            Map.entry(String.class, "VARCHAR(255)"),
 
-            Map.entry(Integer.class, new EncodedTypeInfo("INT", Types.INTEGER)),
-            Map.entry(int.class, new EncodedTypeInfo("INT", Types.INTEGER)),
-            Map.entry(Long.class, new EncodedTypeInfo("BIGINT", Types.BIGINT)),
-            Map.entry(long.class, new EncodedTypeInfo("BIGINT", Types.BIGINT)),
-            Map.entry(Double.class, new EncodedTypeInfo("DOUBLE", Types.DOUBLE)),
-            Map.entry(double.class, new EncodedTypeInfo("DOUBLE", Types.DOUBLE)),
-            Map.entry(Float.class, new EncodedTypeInfo("FLOAT", Types.FLOAT)),
-            Map.entry(byte[].class, new EncodedTypeInfo("BLOB", Types.BLOB)),
+            Map.entry(Integer.class, "INT"),
+            Map.entry(int.class, "INT"),
+            Map.entry(Long.class, "BIGINT"),
+            Map.entry(long.class, "BIGINT"),
+            Map.entry(Double.class, "DOUBLE"),
+            Map.entry(double.class, "DOUBLE"),
+            Map.entry(Float.class, "FLOAT"),
+            Map.entry(byte[].class, "BLOB"),
 
-            Map.entry(Timestamp.class, new EncodedTypeInfo("TIMESTAMP", Types.TIMESTAMP)),
-            Map.entry(Time.class, new EncodedTypeInfo("TIME", Types.TIME)),
-            Map.entry(Date.class, new EncodedTypeInfo("DATE", Types.DATE)),
+            Map.entry(Timestamp.class, "TIMESTAMP"),
+            Map.entry(Time.class, "TIME"),
+            Map.entry(Date.class, "DATE"),
 
-            Map.entry(Boolean.class, new EncodedTypeInfo("BOOLEAN", Types.BOOLEAN)),
-            Map.entry(boolean.class, new EncodedTypeInfo("BOOLEAN", Types.BOOLEAN)),
-            Map.entry(Short.class, new EncodedTypeInfo("SMALLINT", Types.SMALLINT)),
-            Map.entry(short.class, new EncodedTypeInfo("SMALLINT", Types.SMALLINT)),
-            Map.entry(Byte.class, new EncodedTypeInfo("TINYINT", Types.TINYINT)),
-            Map.entry(byte.class, new EncodedTypeInfo("TINYINT", Types.TINYINT)),
-            Map.entry(BigDecimal.class, new EncodedTypeInfo("DECIMAL", Types.DECIMAL)),
-            Map.entry(BigInteger.class, new EncodedTypeInfo("NUMERIC", Types.NUMERIC)),
+            Map.entry(Boolean.class, "BOOLEAN"),
+            Map.entry(boolean.class, "BOOLEAN"),
+            Map.entry(Short.class, "SMALLINT"),
+            Map.entry(short.class, "SMALLINT"),
+            Map.entry(Byte.class, "TINYINT"),
+            Map.entry(byte.class, "TINYINT"),
+            Map.entry(BigDecimal.class, "DECIMAL"),
+            Map.entry(BigInteger.class, "NUMERIC"),
 
-            Map.entry(LocalDate.class, new EncodedTypeInfo("DATE", Types.DATE)),
-            Map.entry(LocalTime.class, new EncodedTypeInfo("TIME", Types.TIME)),
-            Map.entry(LocalDateTime.class, new EncodedTypeInfo("TIMESTAMP", Types.TIMESTAMP)),
-            Map.entry(OffsetDateTime.class, new EncodedTypeInfo("VARCHAR(64)", Types.VARCHAR)),
-            Map.entry(ZonedDateTime.class, new EncodedTypeInfo("VARCHAR(64)", Types.VARCHAR)),
-            Map.entry(Duration.class, new EncodedTypeInfo("BIGINT", Types.BIGINT)),
-            Map.entry(Period.class, new EncodedTypeInfo("VARCHAR(32)", Types.VARCHAR)),
+            Map.entry(LocalDate.class, "DATE"),
+            Map.entry(LocalTime.class, "TIME"),
+            Map.entry(LocalDateTime.class, "TIMESTAMP"),
+            Map.entry(OffsetDateTime.class, "VARCHAR(64)"),
+            Map.entry(ZonedDateTime.class, "VARCHAR(64)"),
+            Map.entry(Duration.class, "BIGINT"),
+            Map.entry(Period.class, "VARCHAR(32)"),
 
-            Map.entry(URI.class, new EncodedTypeInfo("VARCHAR(255)", Types.VARCHAR)),
-            Map.entry(URL.class, new EncodedTypeInfo("VARCHAR(255)", Types.VARCHAR)),
-            Map.entry(InetAddress.class, new EncodedTypeInfo("VARCHAR(255)", Types.VARCHAR)),
-            Map.entry(NetworkInterface.class, new EncodedTypeInfo("INT", Types.INTEGER)),
+            Map.entry(URI.class, "VARCHAR(255)"),
+            Map.entry(URL.class, "VARCHAR(255)"),
+            Map.entry(InetAddress.class, "VARCHAR(255)"),
+            Map.entry(NetworkInterface.class, "INT"),
 
-            Map.entry(Class.class, new EncodedTypeInfo("VARCHAR(255)", Types.VARCHAR)),
-            Map.entry(Locale.class, new EncodedTypeInfo("VARCHAR(255)", Types.VARCHAR)),
-            Map.entry(Currency.class, new EncodedTypeInfo("VARCHAR(255)", Types.VARCHAR))
-    );
+            Map.entry(Class.class, "VARCHAR(255)"),
+            Map.entry(Locale.class, "VARCHAR(255)"),
+            Map.entry(Currency.class, "VARCHAR(255)")
+    ));
 
     private static final Map<Class<?>, Class<?>> PRIMITIVE_TO_BOXED_MAPPER = Map.ofEntries(
         Map.entry(int.class, Integer.class),
@@ -126,7 +118,7 @@ public class ValueTypeResolverRegistry {
                 (stmt, index) -> {
                     String value = stmt.getString(index);
                     if (value == null) return null;
-                    return FastUUID.parseUUID(value);
+                    return UUID.fromString(value);
                 },
                 (stmt, index, value) -> stmt.setString(index, value == null ? null : value.toString())
         );
@@ -377,16 +369,31 @@ public class ValueTypeResolverRegistry {
         }
     }
 
-    public <T> void register(Class<T> type, Class<?> encodedType, ResolverFactory<T> resolver, InsertFactory<T> inserter) {
-        resolvers.put(type, new DefaultSQLValueTypeResolver<>(encodedType, resolver, inserter));
+    public <T> void registerEncodedTypeMapper(Class<T> type, String name) {
+        this.encodedTypeMappers.put(type, name);
     }
 
-    public <T> void register(Class<T> type, SQLValueTypeResolver<T> resolver) {
+    public <T> SQLValueTypeResolver<T> register(Class<T> type, Class<?> encodedType, ResolverFactory<T> resolver, InsertFactory<T> inserter) {
+        Objects.requireNonNull(type, "Type cannot be null");
+        Objects.requireNonNull(encodedType, "Encoded type cannot be null");
+        Objects.requireNonNull(resolver, "Resolver cannot be null");
+        Objects.requireNonNull(inserter, "Inserter cannot be null");
+
+        SQLValueTypeResolver<T> resolverType = new DefaultSQLValueTypeResolver<>(encodedType, resolver, inserter);
+        resolvers.put(type, resolverType);
+        return resolverType;
+    }
+
+    public <T> SQLValueTypeResolver<T> register(Class<T> type, SQLValueTypeResolver<T> resolver) {
+        Objects.requireNonNull(type, "Type cannot be null");
+        Objects.requireNonNull(resolver, "Resolver cannot be null");
+
         resolvers.put(type, resolver);
+        return resolver;
     }
 
-    public <E extends Enum<E>> void registerEnum(Class<E> enumType) {
-        register(enumType,
+    public <E extends Enum<E>> SQLValueTypeResolver<E> registerEnum(Class<E> enumType) {
+        return register(enumType,
                 String.class,
                 (resultSet, columnLabel) -> {
                     String value = resultSet.getString(columnLabel);
@@ -413,45 +420,13 @@ public class ValueTypeResolverRegistry {
             return (SQLValueTypeResolver<T>) resolvers.get(Object.class);
         }
 
-        return createResolver(type);
-    }
-
-    private <T> @Nullable SQLValueTypeResolver<T> createResolver(final @NotNull Class<?> data) {
-        SQLValueTypeResolver<?> resolver;
-        if (Enum.class.isAssignableFrom(data)) {
-            Class<? extends Enum> enumClass = (Class<? extends Enum<?>>) data;
-
-            registerEnum(enumClass);
-            resolver = getResolver(enumClass);
-        } else {
-            resolver = parseResolver(data);
-        }
-        return (SQLValueTypeResolver<T>) resolver;
-    }
-
-    private @Nullable SQLValueTypeResolver<Object> parseResolver(final @NotNull Class<?> data) {
-        SQLResolver annotation = data.getAnnotation(SQLResolver.class);
-        if (annotation == null) {
-            return null;
-        }
-        if (!SQLValueTypeResolver.class.isAssignableFrom(annotation.value())) {
-            throw new IllegalArgumentException("Annotation value must be an SQLValueTypeResolver: " + annotation.value());
-        }
-        try {
-            SQLValueTypeResolver<Object> newResolver = (SQLValueTypeResolver<Object>) annotation.value().getDeclaredConstructor().newInstance();
-            register((Class<Object>) data, newResolver);
-            return newResolver;
-        } catch (InstantiationException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
+        return null;
     }
 
     public String getType(@NotNull SQLValueTypeResolver<?> resolver) {
-        EncodedTypeInfo type = ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
-        if (type == null) {
-            throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
-        }
-        return type.sqlTypeName;
+        String type = encodedTypeMappers.get(resolver.encodedType());
+        if (type == null) throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
+        return type;
     }
 
     public String getType(Class<?> type) {
@@ -460,9 +435,9 @@ public class ValueTypeResolverRegistry {
 
         SQLValueTypeResolver<?> resolver = this.getResolver(type);
         if (resolver != null) {
-            EncodedTypeInfo info = ENCODED_TYPE_MAPPERS.get(resolver.encodedType());
+            String info = encodedTypeMappers.get(resolver.encodedType());
             if (info == null) throw new IllegalArgumentException("Unknown type: " + resolver.encodedType());
-            return info.sqlTypeName;
+            return info;
         }
 
         return null;
@@ -489,12 +464,6 @@ public class ValueTypeResolverRegistry {
         @Override
         public void insert(PreparedStatement preparedStatement, int parameter, T value) throws SQLException {
             insertInt.insert(preparedStatement, parameter, value);
-        }
-    }
-
-    public record EncodedTypeInfo(String sqlTypeName, int sqlType) {
-        public boolean isDigit() {
-            return sqlType == Types.BIGINT || sqlType == Types.INTEGER;
         }
     }
 }
