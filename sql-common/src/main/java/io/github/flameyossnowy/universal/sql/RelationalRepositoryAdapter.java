@@ -1,17 +1,13 @@
 package io.github.flameyossnowy.universal.sql;
 
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
-import io.github.flameyossnowy.universal.api.connection.TransactionContext;
-import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
-import io.github.flameyossnowy.universal.api.options.UpdateQuery;
-import io.github.flameyossnowy.universal.sql.internals.ObjectFactory;
 import io.github.flameyossnowy.universal.sql.internals.SQLObjectFactory;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.util.List;
 
 public interface RelationalRepositoryAdapter<T, ID> extends RepositoryAdapter<T, ID, Connection> {
@@ -20,8 +16,9 @@ public interface RelationalRepositoryAdapter<T, ID> extends RepositoryAdapter<T,
      * executing DDL statements such as {@code CREATE TABLE} or {@code ALTER TABLE}.
      *
      * @param query The raw SQL query to execute.
+     * @return
      */
-    void executeRawQuery(String query);
+    TransactionResult<Boolean> executeRawQuery(String query);
 
     /**
      * Executes a raw SQL query and returns the result set as a list of objects.

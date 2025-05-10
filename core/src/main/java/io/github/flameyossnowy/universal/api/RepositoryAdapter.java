@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.api;
 
 import com.google.errorprone.annotations.CheckReturnValue;
 import io.github.flameyossnowy.universal.api.cache.Session;
+import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
@@ -15,6 +16,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+
+import java.util.EnumSet;
 
 @SuppressWarnings("unused")
 public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
@@ -78,6 +81,31 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
     @Contract(pure = true)
     @CheckReturnValue
     Session<ID, T, C> createSession();
+
+
+    /**
+     * Creates a new session.
+     * <p>
+     * A session is a transaction-scoped object that can be used to
+     * perform operations on the underlying storage. It allows you to
+     * group multiple operations together into a single transaction,
+     * and then commit or roll back the transaction.
+     * <p>
+     * This method allows you to customize the session with additional
+     * options, such as {@link SessionOption#BUFFERED_WRITE} to enable
+     * buffered writes, or {@link SessionOption#LOG_OPERATIONS} to log
+     * operations performed on the session.
+     * <p>
+     * You can use this method to create a session, perform your operations,
+     * and then call either {@link Session#commit()} to commit the
+     * changes or {@link Session#close()} to roll back the changes.
+     * @param options A set of options to use when creating the session.
+     *                May be empty for default options.
+     * @return A session that can be used to perform operations on the
+     */
+    @Contract(pure = true)
+    @CheckReturnValue
+    Session<ID, T, C> createSession(EnumSet<SessionOption> options);
 
     /**
      * Executes a series of operations within a session.

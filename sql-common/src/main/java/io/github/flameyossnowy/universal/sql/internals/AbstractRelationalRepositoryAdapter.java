@@ -4,6 +4,7 @@ import io.github.flameyossnowy.universal.api.IndexOptions;
 import io.github.flameyossnowy.universal.api.annotations.Index;
 import io.github.flameyossnowy.universal.api.cache.Session;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
+import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
@@ -139,19 +140,17 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public TransactionResult<Boolean> insertAll(List<T> value, TransactionContext<Connection> transactionContext) {
-        if (value.isEmpty()) return null;
-        executeBatch(transactionContext, engine.parseInsert(), value);
-        return null;
+        if (value.isEmpty()) return TransactionResult.success(false);
+        return executeBatch(transactionContext, engine.parseInsert(), value);
     }
 
     @Override
     public TransactionResult<Boolean> insertAll(@NotNull List<T> collection) {
-        if (collection.isEmpty()) return null;
-        executeBatch(null, engine.parseInsert(), collection);
-        return null;
+        if (collection.isEmpty()) return TransactionResult.success(false);
+        return executeBatch(null, engine.parseInsert(), collection);
     }
 
-    private void executeBatch(TransactionContext<Connection> transactionContext, String sql, List<T> collection) {
+    private TransactionResult<Boolean> executeBatch(TransactionContext<Connection> transactionContext, String sql, List<T> collection) {
         try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
              PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
 
@@ -170,12 +169,14 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
                 }
 
                 if (cache != null) cache.clear();
+
+                return TransactionResult.success(true);
             } catch (Exception e) {
                 connection.rollback();
-                this.exceptionHandler.handleInsert(e, repositoryInformation, this);
+                return this.exceptionHandler.handleInsert(e, repositoryInformation, this);
             }
         } catch (Exception e) {
-            this.exceptionHandler.handleInsert(e, repositoryInformation, this);
+            return this.exceptionHandler.handleInsert(e, repositoryInformation, this);
         }
     }
 
@@ -278,6 +279,12 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     @Override
+    public Session<ID, T, Connection> createSession(EnumSet<SessionOption> options) {
+        openedSessions++;
+        return new SQLSession<>(this, sessionCacheSupplier.apply(openedSessions), openedSessions, options);
+    }
+
+    @Override
     public TransactionResult<Boolean> clear() {
         executeRawQuery("DELETE FROM " + repositoryInformation.getRepositoryName());
         return null;
@@ -314,13 +321,13 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     @Override
-    public void executeRawQuery(final String query) {
+    public TransactionResult<Boolean> executeRawQuery(final String query) {
         Logging.info("Parsed query: " + query);
         try (var connection = dataSource.getConnection();
              PreparedStatement statement = dataSource.prepareStatement(query, connection)) {
-            statement.execute();
+            return TransactionResult.success(statement.execute());
         } catch (Exception e) {
-            this.exceptionHandler.handleInsert(e, repositoryInformation, this);
+            return this.exceptionHandler.handleUpdate(e, repositoryInformation, this);
         }
     }
 

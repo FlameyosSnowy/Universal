@@ -504,6 +504,12 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
+    public Session<ID, T, ClientSession> createSession(EnumSet<SessionOption> options) {
+        openSessions++;
+        return new MongoSession<>(this, sessionCacheSupplier.apply(openSessions), openSessions, options);
+    }
+
+    @Override
     public TransactionResult<Boolean> clear() {
         try {
             DeleteResult result = collection.deleteMany(new Document());
