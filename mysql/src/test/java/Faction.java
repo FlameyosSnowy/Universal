@@ -2,6 +2,7 @@ import io.github.flameyossnowy.universal.api.annotations.*;
 
 import java.util.*;
 
+@Cacheable
 @Repository(name = "factions")
 public class Faction {
     @Id
