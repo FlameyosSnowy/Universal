@@ -9,7 +9,7 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Repeatable(value = Constraints.class)
 public @interface Constraint {
-    String name(); // Name of the constraint
+    String name();
 
-    String[] fields() default {}; // Fields involved (used at the class level)
+    String[] fields() default {};
 }

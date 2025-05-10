@@ -8,8 +8,8 @@ import java.util.Map;
 @SuppressWarnings("unused")
 public record UpdateQuery(Map<String, Object> updates, List<SelectOption> conditions) implements Query {
     public static class UpdateQueryBuilder {
-        private final Map<String, Object> updates = new HashMap<>();
-        private final List<SelectOption> conditions = new ArrayList<>();
+        private final Map<String, Object> updates = new HashMap<>(3);
+        private final List<SelectOption> conditions = new ArrayList<>(3);
 
         public UpdateQueryBuilder set(String field, Object value) {
             updates.put(field, value);

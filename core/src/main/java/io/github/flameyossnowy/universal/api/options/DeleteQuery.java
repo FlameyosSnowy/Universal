@@ -5,7 +5,7 @@ import java.util.List;
 
 public record DeleteQuery(List<SelectOption> filters, boolean cache) implements Query {
     public static class DeleteQueryBuilder {
-        private final List<SelectOption> filters = new ArrayList<>();
+        private final List<SelectOption> filters = new ArrayList<>(3);
         private boolean cache = true;
 
         public DeleteQueryBuilder where(String option, String operator, Object value) {

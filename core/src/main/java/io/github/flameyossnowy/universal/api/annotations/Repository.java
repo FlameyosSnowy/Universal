@@ -5,6 +5,14 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * The annotation used to mark a class as a repository.
+ * <p>
+ * When applied to a class, this annotation indicates that the class is a repository, which can be used to interact with a database or other storage system.
+ * <p>
+ * Whether as a SQL Table, MongoDB Collection, etc.
+ * @author FlameyosFlow
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface Repository {

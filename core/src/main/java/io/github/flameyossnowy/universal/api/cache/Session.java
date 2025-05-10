@@ -1,9 +1,11 @@
 package io.github.flameyossnowy.universal.api.cache;
 
+import com.google.errorprone.annotations.CheckReturnValue;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 
 import java.util.concurrent.CompletableFuture;
 
+@SuppressWarnings("unused")
 public interface Session<ID, T, C> extends TransactionContext<C>, AutoCloseable {
     /**
      * Retrieves the cache associated with this session.
@@ -124,8 +126,6 @@ public interface Session<ID, T, C> extends TransactionContext<C>, AutoCloseable 
      * <p>
      * After this method is called, the session should not be used for any
      * further operations.
-     *
-     * @throws Exception if an error occurs during closing of the session.
      */
     void close();
 
@@ -150,5 +150,20 @@ public interface Session<ID, T, C> extends TransactionContext<C>, AutoCloseable 
      * @return a result object that can be used to find out if the commit was
      * successful or not.
      */
-    TransactionResult<Void> commit();
+    @CheckReturnValue
+    TransactionResult<Boolean> commit();
+
+    /**
+     * Commits all changes in the current session asynchronously.
+     * <p>
+     * This method should be called when all operations in the session are complete
+     * and the results should be persisted. If the commit is successful, all
+     * changes will be persisted.
+     *
+     * @return a result object that can be used to find out if the commit was
+     * successful or not.
+     */
+    default CompletableFuture<TransactionResult<Boolean>> commitAsync() {
+        return CompletableFuture.supplyAsync(this::commit);
+    }
 }

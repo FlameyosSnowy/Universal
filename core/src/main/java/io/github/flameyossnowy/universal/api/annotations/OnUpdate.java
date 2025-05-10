@@ -7,8 +7,12 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * Sets the behavior when an entity is updated.
+ * @author FlameyosFlow
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface OnUpdate {
-    OnModify value() default OnModify.CASCADE;
+    OnModify value();
 }

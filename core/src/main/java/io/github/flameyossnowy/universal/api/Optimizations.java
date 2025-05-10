@@ -4,7 +4,7 @@ public enum Optimizations {
     /**
      * Caches prepared statements to improve performance and minimize database calls.
      * <p>
-     * Redundant on MySQL.
+     * Usually redundant when using the recommended settings constant.
      */
     CACHE_PREPARED_STATEMENTS,
 
