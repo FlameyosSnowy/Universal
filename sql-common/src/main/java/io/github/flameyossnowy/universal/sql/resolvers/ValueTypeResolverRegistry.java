@@ -1,5 +1,7 @@
 package io.github.flameyossnowy.universal.sql.resolvers;
 
+import io.github.flameyossnowy.universal.api.annotations.EnumAsOrdinal;
+import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import org.jetbrains.annotations.ApiStatus;
@@ -392,14 +394,34 @@ public class ValueTypeResolverRegistry {
         return resolver;
     }
 
-    public <E extends Enum<E>> SQLValueTypeResolver<E> registerEnum(Class<E> enumType) {
+    public <E extends Enum<E>> SQLValueTypeResolver<E> registerEnum(FieldData<?> data, Class<E> enumType) {
+        boolean asOrdinal = data.getAnnotation(EnumAsOrdinal.class) != null;
+        E[] enumConstants = enumType.getEnumConstants();
+
         return register(enumType,
-                String.class,
+                asOrdinal ? Integer.class : String.class, // JDBC type used in result set
                 (resultSet, columnLabel) -> {
-                    String value = resultSet.getString(columnLabel);
-                    return value != null ? Enum.valueOf(enumType, value) : null;
+                    if (asOrdinal) {
+                        int ordinal = resultSet.getInt(columnLabel);
+                        if (resultSet.wasNull()) return null;
+                        if (ordinal < 0 || ordinal >= enumConstants.length) {
+                            throw new IllegalArgumentException("Invalid ordinal " + ordinal + " for enum " + enumType.getName());
+                        }
+                        return enumConstants[ordinal];
+                    } else {
+                        String value = resultSet.getString(columnLabel);
+                        return value != null ? Enum.valueOf(enumType, value) : null;
+                    }
                 },
-                (preparedStatement, parameterIndex, value) -> preparedStatement.setString(parameterIndex, value.name())
+                (preparedStatement, parameterIndex, value) -> {
+                    if (value == null) {
+                        if (asOrdinal) preparedStatement.setNull(parameterIndex, java.sql.Types.INTEGER);
+                        else preparedStatement.setNull(parameterIndex, java.sql.Types.VARCHAR);
+                    } else {
+                        if (asOrdinal) preparedStatement.setInt(parameterIndex, value.ordinal());
+                        else preparedStatement.setString(parameterIndex, value.name());
+                    }
+                }
         );
     }
 

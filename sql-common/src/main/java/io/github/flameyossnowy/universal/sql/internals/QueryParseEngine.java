@@ -290,7 +290,7 @@ public class QueryParseEngine {
         if (Enum.class.isAssignableFrom(data.type())) {
             Class<? extends Enum> enumClass = (Class<? extends Enum<?>>) data.type();
 
-            ValueTypeResolverRegistry.INSTANCE.registerEnum(enumClass);
+            ValueTypeResolverRegistry.INSTANCE.registerEnum(data, enumClass);
             resolver = ValueTypeResolverRegistry.INSTANCE.getResolver(enumClass);
         } else {
             resolver = parseResolver(data);
