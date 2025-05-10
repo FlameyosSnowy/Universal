@@ -37,8 +37,12 @@ public class SQLiteHikariConnectionProvider extends SQLiteSimpleConnectionProvid
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
-        return hikariDataSource.getConnection();
+    public Connection getConnection() {
+        try {
+            return hikariDataSource.getConnection();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

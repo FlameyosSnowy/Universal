@@ -15,8 +15,16 @@ public class SQLiteRepositoryAdapter<T, ID> extends AbstractRelationalRepository
         super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.SQLITE, globalCache, sessionCacheLongFunction);
     }
 
+    /**
+     * Constructs a new {@link SQLiteRepositoryAdapterBuilder} to create a
+     * {@link SQLiteRepositoryAdapter} instance.
+     *
+     * @param repository the class of the repository.
+     * @param idClass    the class of the primary key.
+     * @return a new {@link SQLiteRepositoryAdapterBuilder}.
+     */
     @Contract("_, _ -> new")
-    public static <T, ID> @NotNull SQLiteRepositoryAdapterBuilder<T, ID> builder(Class<T> repository, Class<ID> id) {
-        return new SQLiteRepositoryAdapterBuilder<>(repository, id);
+    public static <T, ID> @NotNull SQLiteRepositoryAdapterBuilder<T, ID> builder(Class<T> repository, Class<ID> idClass) {
+        return new SQLiteRepositoryAdapterBuilder<>(repository, idClass);
     }
 }

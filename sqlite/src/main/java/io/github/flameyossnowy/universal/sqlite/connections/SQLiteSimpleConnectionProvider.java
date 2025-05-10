@@ -46,8 +46,12 @@ public class SQLiteSimpleConnectionProvider implements SQLConnectionProvider {
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
+    public Connection getConnection() {
+        try {
+            return dataSource.getConnection();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

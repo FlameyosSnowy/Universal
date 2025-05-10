@@ -10,7 +10,7 @@ import java.util.Map;
 public class SQLiteCredentials {
     private final String directory;
     private int poolSize = 2;
-    private final Map<String, String> dataSourceProperties = new HashMap<>();
+    private final Map<String, String> dataSourceProperties = new HashMap<>(3);
     private int minimumIdle = 2;
     private long idleTimeout = 30000;
     private long connectionTimeout = 30000;
