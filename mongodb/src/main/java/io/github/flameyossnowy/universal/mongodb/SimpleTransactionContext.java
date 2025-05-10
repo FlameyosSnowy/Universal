@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.mongodb;
 import com.mongodb.client.ClientSession;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.exceptions.TransactionClosedException;
 
 public class SimpleTransactionContext implements TransactionContext<ClientSession> {
     private final ClientSession connection;
@@ -20,8 +21,9 @@ public class SimpleTransactionContext implements TransactionContext<ClientSessio
 
     @Override
     public TransactionResult<Boolean> commit() {
-        if (!commited && connection.hasActiveTransaction()) {
-            connection.commitTransaction();
+        if (!commited) {
+            if (connection.hasActiveTransaction()) connection.commitTransaction();
+            else return TransactionResult.failure(new TransactionClosedException("Transaction was closed."));
         }
         commited = true;
         return TransactionResult.success(true);
@@ -29,7 +31,8 @@ public class SimpleTransactionContext implements TransactionContext<ClientSessio
 
     @Override
     public void rollback() {
-        if (!commited) connection.abortTransaction();
+        if (!commited) return;
+        connection.abortTransaction();
     }
 
     @Override
