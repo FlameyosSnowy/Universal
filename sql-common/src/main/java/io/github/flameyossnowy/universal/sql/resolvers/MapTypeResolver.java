@@ -65,7 +65,7 @@ public class MapTypeResolver<K, V, ID> {
             idResolver.insert(stmt, 1, id);
             ResultSet resultSet = stmt.executeQuery();
 
-            Map<K, V> map = new HashMap<>();
+            Map<K, V> map = new HashMap<>(stmt.getFetchSize());
             while (resultSet.next()) {
                 K key = keyResolver.resolve(resultSet, "map_key");
                 V value = valueResolver.resolve(resultSet, "map_value");

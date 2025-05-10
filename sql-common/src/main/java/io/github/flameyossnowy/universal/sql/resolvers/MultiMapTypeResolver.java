@@ -63,12 +63,13 @@ public class MultiMapTypeResolver<K, V, ID> {
             idResolver.insert(stmt, 1, id);
             ResultSet resultSet = stmt.executeQuery();
 
-            Map<K, List<V>> map = new HashMap<>();
+            int fetchSize = stmt.getFetchSize();
+            Map<K, List<V>> map = new HashMap<>(fetchSize);
             while (resultSet.next()) {
                 K key = keyResolver.resolve(resultSet, "map_key");
                 V value = valueResolver.resolve(resultSet, "map_value");
 
-                map.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
+                map.computeIfAbsent(key, k -> new ArrayList<>(fetchSize)).add(value);
             }
             return map;
         } catch (Exception e) {

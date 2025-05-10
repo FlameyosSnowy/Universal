@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SQLCollections {
-    private final Map<Class<?>, CollectionTypeResolver<?, ?>> resolvers = new ConcurrentHashMap<>();
+    private final Map<Class<?>, CollectionTypeResolver<?, ?>> resolvers = new ConcurrentHashMap<>(5);
     private final Table<Class<?>, Class<?>, MapTypeResolver<?, ?, ?>> mapResolvers = new HashTable<>();
     private final Table<Class<?>, Class<?>, MultiMapTypeResolver<?, ?, ?>> multiMapResolvers = new HashTable<>();
 
