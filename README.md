@@ -1,11 +1,12 @@
 # Universal ORM/ODM
 
-Universal is a powerful and flexible Object-Relational Mapper (ORM) and Object-Document Mapper (ODM) designed to work seamlessly with both SQL and NoSQL databases. It provides a unified API to handle database interactions efficiently, making it easier to manage data persistence across different database types.
+Universal is a powerful and fully featured Object-Relational Mapper (ORM) and Object-Document Mapper (ODM) designed to work seamlessly with both SQL and NoSQL databases. It provides a unified API to handle database interactions efficiently, making it easier to manage data persistence across different database types.
 
 ## Features
 
 - **Cross-Database Compatibility**: Supports both relational (SQL) and document-based (NoSQL) databases.
 - **Type Resolution System**: Handles type conversions seamlessly between Java objects and database representations.
+- **Caching and Lazy loading**: Allows for automatic lazy loading and automatic caching.
 - **Annotation-Based Configuration**: Define repositories, constraints, and conditions using a SQL-like syntax for both MongoDB and SQL.
 - **MongoDB & SQL Support**: Provides adapters for both MongoDB and SQL databases.
 - **Efficient Query Handling**: Uses built-in MongoDB methods and SQL functions without unnecessary query parsing.
@@ -36,7 +37,7 @@ To include Universal in your project, add it as a dependency in your `pom.xml` (
 
 ```gradle
 repositories {
-    maven("https://repo.foxikle.dev/flameyos")
+    maven("https://jitpack.io")
 }
 
 dependencies {
@@ -108,7 +109,7 @@ for (User user : minors) {
 ```
 
 ## Supported Databases
-- **SQL Databases**: MySQL and, SQLite.
+- **SQL Databases**: MySQL, PostgreSQL, SQLite
 - **NoSQL Databases**: MongoDB.
 
 ## Contributing
