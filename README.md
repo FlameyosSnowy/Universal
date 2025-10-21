@@ -19,7 +19,6 @@ import java.net.*;
 import java.sql.*;
 import java.time.*;
 import java.util.*;
-import jakarta.persistence.*;
 
 @Repository(name = "example")
 public class Example {
