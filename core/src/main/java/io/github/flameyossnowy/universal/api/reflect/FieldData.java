@@ -24,9 +24,7 @@ public class FieldData<T> {
     private final Field rawField;
     private final RecordComponent rawComponentField;
     private final FastMethod componentFieldGetter;
-
-
-
+    
     private final Class<T> type;
     private final boolean primary;
     private final boolean autoIncrement;
