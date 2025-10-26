@@ -7,11 +7,12 @@ import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.DatabaseImplementation;
 import io.github.flameyossnowy.universal.sql.annotations.SQLResolver;
 import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
-import io.github.flameyossnowy.universal.sql.resolvers.ValueTypeResolverRegistry;
 
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -20,18 +21,21 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class QueryParseEngine {
     private final DatabaseImplementation sqlType;
     private final RepositoryInformation repositoryInformation;
     private final Map<String, String> queryMap;
+    private final TypeResolverRegistry resolverRegistry;
 
     private final String insert;
 
-    public QueryParseEngine(DatabaseImplementation sqlType, final RepositoryInformation repositoryInformation) {
+    public QueryParseEngine(DatabaseImplementation sqlType, final RepositoryInformation repositoryInformation, TypeResolverRegistry resolverRegistry) {
         this.sqlType = sqlType;
         this.repositoryInformation = repositoryInformation;
-        this.queryMap = new HashMap<>(5);
+        this.resolverRegistry = resolverRegistry;
+        this.queryMap = new ConcurrentHashMap<>(5);
         this.insert = parseInsert0();
     }
 
@@ -44,7 +48,7 @@ public class QueryParseEngine {
 
     public String parseIndex(final @NotNull IndexOptions index) {
         String type = index.type() == IndexType.NORMAL ? "" : index.type().name() + " ";
-        return String.format("CREATE %sINDEX %s ON %s (%s);", type, index.indexName(), repositoryInformation.getRepositoryName(), index.getJoinedFields());
+        return String.format("CREATE %sINDEX `%s` ON `%s` (%s);", type, index.indexName(), repositoryInformation.getRepositoryName(), index.getJoinedFields());
     }
 
     public @NotNull String parseSelect(SelectQuery query, boolean first) {
@@ -67,9 +71,11 @@ public class QueryParseEngine {
         String tableName = repositoryInformation.getRepositoryName();
 
         if (query == null) {
-            return "SELECT * FROM " + tableName + (first ? " LIMIT 1" : "");
+            return "SELECT * FROM `" + tableName + "`" + (first ? " LIMIT 1" : "");
         }
-        StringBuilder sql = new StringBuilder("SELECT * FROM ").append(tableName);
+        StringBuilder sql = new StringBuilder("SELECT * FROM `")
+                .append(tableName)
+                .append('`');
 
         appendConditions(query, sql);
         appendSortingAndLimit(query, sql, first);
@@ -98,16 +104,34 @@ public class QueryParseEngine {
     }
 
     public @NotNull String parseDelete(DeleteQuery query) {
-        return query == null || query.filters().isEmpty()
-                ? "DELETE FROM " + repositoryInformation.getRepositoryName()
-                : "DELETE FROM " + repositoryInformation.getRepositoryName() + " WHERE " + buildConditions(query.filters());
+        if (query == null || query.filters().isEmpty()) {
+            return "DELETE FROM " + repositoryInformation.getRepositoryName();
+        }
+        
+        String key = "DELETE:" + query.hashCode();
+        return queryMap.computeIfAbsent(key, k -> 
+            "DELETE FROM " + repositoryInformation.getRepositoryName() + " WHERE " + buildConditions(query.filters())
+        );
     }
 
     public @NotNull String parseDelete(Object value) {
         if (value.getClass() != repositoryInformation.getType())
             throw new IllegalArgumentException("Value must be of type " + repositoryInformation.getType());
 
-        return "DELETE FROM " + repositoryInformation.getRepositoryName() + " WHERE " + repositoryInformation.getPrimaryKey().name() + " = ?";
+        String key = "DELETE:ENTITY:" + repositoryInformation.getType().getName();
+        return queryMap.computeIfAbsent(key, k -> {
+            if (repositoryInformation.hasCompositeKey()) {
+                // For composite keys, we need to include all primary key fields in the WHERE clause
+                StringJoiner whereClause = new StringJoiner(" AND ");
+                for (FieldData<?> keyField : repositoryInformation.getPrimaryKeys()) {
+                    whereClause.add(keyField.name() + " = ?");
+                }
+                return "DELETE FROM " + repositoryInformation.getRepositoryName() + " WHERE " + whereClause;
+            } else {
+                // For single primary key
+                return "DELETE FROM " + repositoryInformation.getRepositoryName() + " WHERE " + repositoryInformation.getPrimaryKey().name() + " = ?";
+            }
+        });
     }
 
     public @NotNull String parseInsert() {
@@ -138,19 +162,35 @@ public class QueryParseEngine {
     }
 
     public @NotNull String parseUpdate(UpdateQuery query) {
-        String tableName = repositoryInformation.getRepositoryName();
-        String setClause = generateSetClause(query);
+        String key = "UPDATE:" + query.hashCode();
+        return queryMap.computeIfAbsent(key, k -> {
+            String tableName = repositoryInformation.getRepositoryName();
+            String setClause = generateSetClause(query);
 
-        return query.conditions().isEmpty()
-                ? String.format("UPDATE %s SET %s;", tableName, setClause)
-                : String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, buildConditions(query.conditions()));
+            return query.conditions().isEmpty()
+                    ? String.format("UPDATE %s SET %s;", tableName, setClause)
+                    : String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, buildConditions(query.conditions()));
+        });
     }
 
     public @NotNull String parseUpdateFromEntity() {
-        String tableName = repositoryInformation.getRepositoryName();
-        String setClause = generateSetClauseFromEntity();
+        String key = "UPDATE:ENTITY:" + repositoryInformation.getType().getName();
+        return queryMap.computeIfAbsent(key, k -> {
+            String tableName = repositoryInformation.getRepositoryName();
+            String setClause = generateSetClauseFromEntity();
 
-        return String.format("UPDATE %s SET %s WHERE %s = ?;", tableName, setClause, repositoryInformation.getPrimaryKey().name());
+            if (repositoryInformation.hasCompositeKey()) {
+                // For composite keys, include all primary key fields in the WHERE clause
+                StringJoiner whereClause = new StringJoiner(" AND ");
+                for (FieldData<?> keyField : repositoryInformation.getPrimaryKeys()) {
+                    whereClause.add(keyField.name() + " = ?");
+                }
+                return String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, whereClause);
+            } else {
+                // For single primary key
+                return String.format("UPDATE %s SET %s WHERE %s = ?;", tableName, setClause, repositoryInformation.getPrimaryKey().name());
+            }
+        });
     }
 
     private String generateSetClauseFromEntity() {
@@ -259,7 +299,7 @@ public class QueryParseEngine {
             // get the generic type
             Class<?> genericType = (Class<?>) ((ParameterizedType) type.getGenericSuperclass()).getActualTypeArguments()[0];
 
-            String resolvedType = ValueTypeResolverRegistry.INSTANCE.getType(genericType.arrayType());
+            String resolvedType = resolverRegistry.getType(genericType.arrayType());
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
@@ -267,53 +307,21 @@ public class QueryParseEngine {
         if (type.isArray()) {
             if (!sqlType.supportsArrays()) return; // not ignored, just handled differently and somewhere else, likely in DatabaseRelationshipHandler
 
-            String resolvedType = ValueTypeResolverRegistry.INSTANCE.getType(type.getComponentType()) + "[]";
+            String resolvedType = resolverRegistry.getType(type.getComponentType()) + "[]";
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
 
-        String resolvedType = ValueTypeResolverRegistry.INSTANCE.getType(type);
+        String resolvedType = resolverRegistry.getType(type);
         if (resolvedType == null) {
-            SQLValueTypeResolver<?> resolver = createResolver(data);
+            TypeResolver<?> resolver = createResolver(data);
             if (resolver == null)
                 throw new IllegalArgumentException("Unsupported type: " + type);
 
-            resolvedType = ValueTypeResolverRegistry.INSTANCE.getType(resolver);
+            resolvedType = resolverRegistry.getType(resolver);
         }
 
         appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private static <T> @Nullable SQLValueTypeResolver<T> createResolver(final @NotNull FieldData<?> data) {
-        SQLValueTypeResolver<?> resolver;
-        if (Enum.class.isAssignableFrom(data.type())) {
-            Class<? extends Enum> enumClass = (Class<? extends Enum<?>>) data.type();
-
-            ValueTypeResolverRegistry.INSTANCE.registerEnum(data, enumClass);
-            resolver = ValueTypeResolverRegistry.INSTANCE.getResolver(enumClass);
-        } else {
-            resolver = parseResolver(data);
-        }
-        return (SQLValueTypeResolver<T>) resolver;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static @Nullable SQLValueTypeResolver<Object> parseResolver(final @NotNull FieldData<?> data) {
-        SQLResolver annotation = data.getAnnotation(SQLResolver.class);
-        if (annotation == null) {
-            return null;
-        }
-        if (!SQLValueTypeResolver.class.isAssignableFrom(annotation.value())) {
-            throw new IllegalArgumentException("Annotation value must be an SQLValueTypeResolver: " + annotation.value());
-        }
-        try {
-            SQLValueTypeResolver<Object> newResolver = (SQLValueTypeResolver<Object>) annotation.value().getDeclaredConstructor().newInstance();
-            ValueTypeResolverRegistry.INSTANCE.register((Class<Object>) data.type(), newResolver);
-            return newResolver;
-        } catch (InstantiationException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private void appendColumn(StringJoiner joiner, FieldData<?> data, StringBuilder fieldBuilder, String name, boolean unique, boolean primaryKey, StringJoiner primaryKeysJoiner, StringJoiner relationshipsJoiner, String resolvedType) {
@@ -335,25 +343,48 @@ public class QueryParseEngine {
         if (unique) fieldBuilder.append(" UNIQUE");
     }
 
-    private static void addPotentialManyToOne(FieldData<?> data, String name, StringJoiner relationshipsJoiner) {
-        if (data.manyToOne() != null) {
-            RepositoryInformation parent = RepositoryMetadata.getMetadata(data.type());
-            Objects.requireNonNull(parent, "Parent should not be null");
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private <T> @Nullable TypeResolver<T> createResolver(final @NotNull FieldData<?> data) {
+        TypeResolver<?> resolver = parseResolver(data);
+        return (TypeResolver<T>) resolver;
+    }
 
-            String table = parent.getRepositoryName();
-
-            String primaryKeyName = parent.getPrimaryKey().name();
-            String onDelete = data.onDelete() != null ? data.onDelete().value().name() : "";
-            String onUpdate = data.onUpdate() != null ? data.onUpdate().value().name() : "";
-
-            // optimization: we counted 38 chars in the string builder, and we added the lengths of the unknown strings.
-            // this should be enough to avoid array copies.
-            StringBuilder fkBuilder = new StringBuilder(38 + name.length() + table.length() + primaryKeyName.length() + onDelete.length() + onUpdate.length());
-            fkBuilder.append("FOREIGN KEY (").append(name).append(") REFERENCES ").append(table).append('(').append(primaryKeyName).append(')');
-            if (data.onDelete() != null) fkBuilder.append(" ON DELETE ").append(onDelete);
-            if (data.onUpdate() != null) fkBuilder.append(" ON UPDATE ").append(onUpdate);
-            relationshipsJoiner.add(fkBuilder);
+    @SuppressWarnings("unchecked")
+    private @Nullable TypeResolver<Object> parseResolver(final @NotNull FieldData<?> data) {
+        SQLResolver annotation = data.getAnnotation(SQLResolver.class);
+        if (annotation == null) {
+            return null;
         }
+        if (!SQLValueTypeResolver.class.isAssignableFrom(annotation.value())) {
+            throw new IllegalArgumentException("Annotation value must be an SQLValueTypeResolver: " + annotation.value());
+        }
+        try {
+            TypeResolver<Object> newResolver = (TypeResolver<Object>) annotation.value().getDeclaredConstructor().newInstance();
+            resolverRegistry.register(newResolver);
+            return newResolver;
+        } catch (InstantiationException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void addPotentialManyToOne(@NotNull FieldData<?> data, String name, StringJoiner relationshipsJoiner) {
+        if (data.manyToOne() == null) return;
+        RepositoryInformation parent = RepositoryMetadata.getMetadata(data.type());
+        Objects.requireNonNull(parent, "Parent should not be null");
+
+        String table = parent.getRepositoryName();
+
+        String primaryKeyName = parent.getPrimaryKey().name();
+        String onDelete = data.onDelete() != null ? data.onDelete().value().name() : "";
+        String onUpdate = data.onUpdate() != null ? data.onUpdate().value().name() : "";
+
+        // optimization: we counted 38 chars in the string builder, and we added the lengths of the unknown strings.
+        // this should be enough to avoid array copies.
+        StringBuilder fkBuilder = new StringBuilder(38 + name.length() + table.length() + primaryKeyName.length() + onDelete.length() + onUpdate.length());
+        fkBuilder.append("FOREIGN KEY (").append(name).append(") REFERENCES ").append(table).append('(').append(primaryKeyName).append(')');
+        if (data.onDelete() != null) fkBuilder.append(" ON DELETE ").append(onDelete);
+        if (data.onUpdate() != null) fkBuilder.append(" ON UPDATE ").append(onUpdate);
+        relationshipsJoiner.add(fkBuilder);
     }
 
     private static @NotNull String generateSetClause(@NotNull UpdateQuery query) {
@@ -365,7 +396,18 @@ public class QueryParseEngine {
     private static String buildConditions(@NotNull Iterable<SelectOption> filters) {
         StringJoiner joiner = new StringJoiner(" AND ");
         for (SelectOption filter : filters) {
-            joiner.add(filter.option() + " " + filter.operator() + " ?");
+            // Handle IN clause specially
+            if ("IN".equalsIgnoreCase(filter.operator())) {
+                Object value = filter.value();
+                if (value instanceof List<?> list) {
+                    String placeholders = String.join(", ", Collections.nCopies(list.size(), "?"));
+                    joiner.add(filter.option() + " IN (" + placeholders + ")");
+                } else {
+                    joiner.add(filter.option() + " IN (?)");
+                }
+            } else {
+                joiner.add(filter.option() + " " + filter.operator() + " ?");
+            }
         }
         return joiner.toString();
     }
