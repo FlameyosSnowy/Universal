@@ -1,9 +1,7 @@
-package io.github.flameyossnowy.universal.sql;
+package io.github.flameyossnowy.universal.api;
 
-import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
-import io.github.flameyossnowy.universal.sql.internals.SQLObjectFactory;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
@@ -78,15 +76,15 @@ public interface RelationalRepositoryAdapter<T, ID> extends RepositoryAdapter<T,
     /**
      * Retrieves the object factory associated with this repository adapter.
      * <p>
-     * This method provides access to the {@link io.github.flameyossnowy.universal.sql.internals.SQLObjectFactory} instance
+     * This method provides access to the {@link RelationalObjectFactory} instance
      * used for creating entity objects from the result sets.
      * <p>
      * The object factory is responsible for instantiating and populating
      * entity objects based on the metadata and mappings defined in the
      * repository.
      *
-     * @return the {@link SQLObjectFactory} associated with this adapter.
+     * @return the {@link RelationalObjectFactory} associated with this adapter.
      */
     @ApiStatus.Internal
-    SQLObjectFactory<T, ID> getObjectFactory();
+    RelationalObjectFactory<T, ID> getObjectFactory();
 }

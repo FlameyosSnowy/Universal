@@ -117,9 +117,9 @@ public class ObjectFactory<T, ID> {
         var adapter = ADAPTERS.get(field.type());
         if (adapter == null) return;
 
-        Bson filter = createOneToManyFilter(adapter.getInformation(), id);
+        Bson filter = createOneToManyFilter(adapter.getRepositoryInformation(), id);
         Document document = adapter.getCollection().find(filter).first();
-        Object child = instantiateChildOneToOne(document, adapter.getInformation(), entity);
+        Object child = instantiateChildOneToOne(document, adapter.getRepositoryInformation(), entity);
         field.setValue(entity, child);
     }
 

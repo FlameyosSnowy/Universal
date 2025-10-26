@@ -1,4 +1,4 @@
-package io.github.flameyossnowy.universal.sql.internals;
+package io.github.flameyossnowy.universal.api;
 
 import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
 
@@ -10,7 +10,7 @@ import java.sql.ResultSet;
  * @param <T> the element class
  * @param <ID> the id class
  */
-public interface SQLObjectFactory<T, ID> extends DatabaseObjectFactory<T, ID, ResultSet> {
+public interface RelationalObjectFactory<T, ID> extends DatabaseObjectFactory<T, ID, ResultSet> {
     /**
      * Inserts a single entity into the database using the given PreparedStatement.
      *
