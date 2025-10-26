@@ -86,7 +86,7 @@ public class RepositoryMetadata {
 
         for (FieldData<?> fieldData : data.values()) {
             if (fieldData.primary()) {
-                information.setPrimaryKey(fieldData);
+                information.addPrimaryKey(fieldData);
             }
 
             if (fieldData.oneToOne() != null) {
@@ -150,13 +150,13 @@ public class RepositoryMetadata {
         try {
             return new RepositoryInformation(
                     tableName, constraints, indexes, cacheable, entityClass,
-                    fetchPageSize == null ? -1 : fetchPageSize.value(), data, oneToManyCache, manyToOneCache, globalCacheable, false,
+                    fetchPageSize == null ? -1 : fetchPageSize.value(), data, oneToManyCache, manyToOneCache, oneToOneCache,
 
                     repositoryAuditLogger == null ? null : repositoryAuditLogger.value().getDeclaredConstructor().newInstance(),
                     repositoryEventLifecycleListener == null ? null : repositoryEventLifecycleListener.value().getDeclaredConstructor().newInstance(),
                     repositoryExceptionHandler == null ? null : repositoryExceptionHandler.value().getDeclaredConstructor().newInstance(),
 
-                    oneToOneCache
+                    globalCacheable
             );
         } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
             throw new RuntimeException(e);

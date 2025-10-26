@@ -12,6 +12,7 @@ import me.sunlan.fastreflection.FastConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.util.*;
@@ -20,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RepositoryInformation {
     private final String tableName;
     private boolean hasRelationships;
-    private FieldData<?> primaryKey;
+    private final List<FieldData<?>> primaryKeys = new ArrayList<>();
     private final Constraint[] constraints;
     private final Index[] indexes;
     private final Cacheable cacheable;
@@ -42,22 +43,20 @@ public class RepositoryInformation {
     private final boolean isRecord;
     private final Constructor<?> recordConstructor;
     private final RecordComponent[] recordComponents;
-
     public RepositoryInformation(String tableName,
                                  Constraint[] constraints, Index[] indexes, Cacheable cacheable,
                                  Class<?> entityClass, int fetchPageSize,
                                  Map<String, FieldData<?>> fieldDataMap,
                                  Map<String, FieldData<?>> oneToManyCache,
                                  Map<String, FieldData<?>> manyToOneCache,
-                                 GlobalCacheable globalCacheable,
-                                 boolean hasRelationships,
+                                 Map<String, FieldData<?>> oneToOneCache,
                                  AuditLogger<?> auditLogger,
                                  EntityLifecycleListener<?> entityLifecycleListener,
                                  ExceptionHandler<?, ?, ?> exceptionHandler,
-                                 Map<String, FieldData<?>> oneToOneFields) {
-        this.globalCacheable = globalCacheable;
-        this.entityClass = entityClass;
+                                 GlobalCacheable globalCacheable) {
         this.constraints = constraints;
+        this.entityClass = entityClass;
+        this.globalCacheable = globalCacheable;
         this.cacheable = cacheable;
         this.tableName = tableName;
         this.indexes = indexes;
@@ -65,17 +64,27 @@ public class RepositoryInformation {
 
         this.oneToManyFields = oneToManyCache;
         this.manyToOneFields = manyToOneCache;
+        this.oneToOneFields = oneToOneCache;
 
         this.fieldDataMap = Collections.unmodifiableMap(fieldDataMap);
 
-        this.hasRelationships = hasRelationships;
         this.auditLogger = auditLogger;
         this.entityLifecycleListener = entityLifecycleListener;
         this.exceptionHandler = exceptionHandler;
 
         this.isRecord = entityClass.isRecord();
-        this.oneToOneFields = oneToOneFields;
-
+        
+        List<FieldData<?>> keys = fieldDataMap.values().stream()
+                .filter(FieldData::primary)
+                .sorted(Comparator.comparing(FieldData::name))
+                .toList();
+        
+        if (keys.isEmpty()) {
+            throw new IllegalArgumentException("No primary key found for entity " + entityClass.getSimpleName());
+        }
+        
+        this.primaryKeys.addAll(keys);
+        
         if (isRecord) {
             try {
                 this.recordComponents = entityClass.getRecordComponents();
@@ -96,12 +105,21 @@ public class RepositoryInformation {
     }
 
     public FieldData<?> getPrimaryKey() {
-        return primaryKey;
+        if (primaryKeys.isEmpty()) {
+            return null;
+        }
+        return primaryKeys.get(0);
+    }
+    
+    public List<FieldData<?>> getPrimaryKeys() {
+        return Collections.unmodifiableList(primaryKeys);
+    }
+    
+    public boolean hasCompositeKey() {
+        return primaryKeys.size() > 1;
     }
 
-    public void setPrimaryKey(FieldData<?> primaryKey) {
-        this.primaryKey = primaryKey;
-    }
+    // Primary key is set during construction and cannot be modified
 
     public Constraint[] getConstraints() {
         return constraints;
@@ -163,7 +181,7 @@ public class RepositoryInformation {
 
         return "RepositoryInformation{" +
                 "tableName='" + tableName + '\'' +
-                ", primaryKey=" + primaryKey +
+                ", primaryKeys=" + primaryKeys +
                 ", constraints=" + (constraints.equals("null") ? "[]" : constraints) +
                 ", indexes=" + (indexes.equals("null") ? "[]" : indexes) +
                 ", cacheable=" + cacheable +
@@ -211,5 +229,9 @@ public class RepositoryInformation {
 
     public ExceptionHandler<?, ?, ?> getExceptionHandler() {
         return exceptionHandler;
+    }
+
+    public void addPrimaryKey(FieldData<?> fieldData) {
+        primaryKeys.add(fieldData);
     }
 }
