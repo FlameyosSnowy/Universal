@@ -1,0 +1,22 @@
+name: AI Commit Summary
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [ main, master ]  # adjust if needed
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: start-jitpack
+        uses: js6pak/start-jitpack@v1.0.0
+          
+
+      - name: AI Commit Summary
+        uses: dirtycajunrice/ai-commit-summary@1.0.0
+        with:
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
