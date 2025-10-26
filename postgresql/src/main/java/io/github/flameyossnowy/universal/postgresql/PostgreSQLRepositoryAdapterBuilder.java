@@ -3,13 +3,14 @@ package io.github.flameyossnowy.universal.postgresql;
 import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.annotations.Cacheable;
 import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
+import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
+import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
+import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.postgresql.connections.PostgreSQLSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
-import io.github.flameyossnowy.universal.sql.SQLSessionCache;
-import io.github.flameyossnowy.universal.sql.internals.ResultCache;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 
 import java.lang.reflect.InvocationTargetException;
@@ -27,8 +28,9 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
     private final EnumSet<Optimizations> optimizations = EnumSet.noneOf(Optimizations.class);
     private final Class<T> repository;
     private final Class<ID> idClass;
+    private CacheWarmer<T, ID> cacheWarmer;
 
-    private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new SQLSessionCache<>();
+    private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
 
     public PostgreSQLRepositoryAdapterBuilder(Class<T> repository, Class<ID> idClass) {
         this.repository = Objects.requireNonNull(repository, "Repository cannot be null");
@@ -37,6 +39,11 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
 
     public PostgreSQLRepositoryAdapterBuilder<T, ID> withConnectionProvider(BiFunction<PostgreSQLCredentials, EnumSet<Optimizations>, SQLConnectionProvider> connectionProvider) {
         this.connectionProvider = connectionProvider;
+        return this;
+    }
+
+    public PostgreSQLRepositoryAdapterBuilder<T, ID> withCacheWarmer(CacheWarmer<T, ID> cacheWarmer) {
+        this.cacheWarmer = cacheWarmer;
         return this;
     }
 
@@ -69,7 +76,7 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
 
         GlobalCacheable globalCacheable = information.getGlobalCacheable();
 
-        ResultCache<T, ID> resultCache = cacheable != null ? new ResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null;
+        DefaultResultCache<String, T, ID> resultCache = cacheable != null ? new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null;
 
         if (globalCacheable != null) {
             try {
@@ -79,7 +86,8 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
                         this.repository,
                         this.idClass,
                         (SessionCache<ID, T>) globalCacheable.sessionCache().getDeclaredConstructor().newInstance(),
-                        sessionCacheSupplier
+                        sessionCacheSupplier,
+                        cacheWarmer
                 );
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
                      NoSuchMethodException e) {
@@ -90,11 +98,12 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
                 this.connectionProvider != null
                 ? this.connectionProvider.apply(credentials, this.optimizations)
                 : new PostgreSQLSimpleConnectionProvider(this.credentials, this.optimizations),
-                cacheable != null ? new ResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null,
+                resultCache,
                 this.repository,
                 this.idClass,
                 null,
-                sessionCacheSupplier
+                sessionCacheSupplier,
+                cacheWarmer
         );
     }
 }

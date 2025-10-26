@@ -3,16 +3,15 @@ package io.github.flameyossnowy.universal.mysql;
 import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.annotations.Cacheable;
 import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
+import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
+import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
+import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
-import io.github.flameyossnowy.universal.sql.SQLSessionCache;
-import io.github.flameyossnowy.universal.sql.internals.ResultCache;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.mysql.connections.MySQLSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.mysql.credentials.MySQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
-import io.github.flameyossnowy.universal.sql.internals.SQLSession;
-import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
@@ -30,11 +29,17 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
     private final Class<T> repository;
     private final Class<ID> idClass;
 
-    private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new SQLSessionCache<>();
+    private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
+    private CacheWarmer<T, ID> cacheWarmer;
 
     public MySQLRepositoryAdapterBuilder(Class<T> repository, Class<ID> idClass) {
         this.repository = Objects.requireNonNull(repository, "Repository cannot be null");
         this.idClass = Objects.requireNonNull(idClass, "Repository cannot be null");
+    }
+
+    public MySQLRepositoryAdapterBuilder<T, ID> withCacheWarmer(CacheWarmer<T, ID> cacheWarmer) {
+        this.cacheWarmer = cacheWarmer;
+        return this;
     }
 
     public MySQLRepositoryAdapterBuilder<T, ID> withConnectionProvider(BiFunction<MySQLCredentials, EnumSet<Optimizations>, SQLConnectionProvider> connectionProvider) {
@@ -71,7 +76,7 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
 
         GlobalCacheable globalCacheable = information.getGlobalCacheable();
 
-        ResultCache<T, ID> resultCache = cacheable != null ? new ResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null;
+        DefaultResultCache<String, T, ID> resultCache = cacheable != null ? new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null;
 
         if (globalCacheable != null) {
             try {
@@ -81,7 +86,8 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
                         this.repository,
                         this.idClass,
                         (SessionCache<ID, T>) globalCacheable.sessionCache().getDeclaredConstructor().newInstance(),
-                        sessionCacheSupplier
+                        sessionCacheSupplier,
+                        cacheWarmer
                 );
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
                      NoSuchMethodException e) {
@@ -92,11 +98,12 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
                 this.connectionProvider != null
                 ? this.connectionProvider.apply(credentials, this.optimizations)
                 : new MySQLSimpleConnectionProvider(this.credentials, this.optimizations),
-                cacheable != null ? new ResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null,
+                cacheable != null ? new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null,
                 this.repository,
                 this.idClass,
                 null,
-                sessionCacheSupplier
+                sessionCacheSupplier,
+                cacheWarmer
         );
     }
 }

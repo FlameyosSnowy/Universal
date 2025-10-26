@@ -2,8 +2,9 @@ package io.github.flameyossnowy.universal.mongodb;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
-import io.github.flameyossnowy.universal.api.annotations.Cacheable;
 import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
+import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
+import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 
@@ -17,7 +18,8 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
     private final Class<ID> idType;
     private String database;
 
-    private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new MongoSessionCache<>();
+    private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
+    private CacheWarmer<T, ID> cacheWarmer;
 
     MongoRepositoryAdapterBuilder(Class<T> repository, Class<ID> idType) {
         this.repository = repository;
@@ -97,6 +99,11 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
         return credentialsBuilder == null ? MongoClientSettings.builder() : credentialsBuilder;
     }
 
+    public MongoRepositoryAdapterBuilder<T, ID> withCacheWarmer(CacheWarmer<T, ID> cacheWarmer) {
+        this.cacheWarmer = cacheWarmer;
+        return this;
+    }
+
     /**
      * Builds the {@link MongoRepositoryAdapter} instance.
      *
@@ -111,12 +118,18 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
     public MongoRepositoryAdapter<T, ID> build() {
         GlobalCacheable cacheable = Objects.requireNonNull(RepositoryMetadata.getMetadata(repository)).getGlobalCacheable();
         if (cacheable == null)
-            return new MongoRepositoryAdapter<>(this.credentialsBuilder, database, repository, idType, null, sessionCacheSupplier);
+            return new MongoRepositoryAdapter<>(
+                    this.credentialsBuilder, database, repository,
+                    idType, null, sessionCacheSupplier, cacheWarmer
+            );
 
         Class<?> cacheableClass = cacheable.sessionCache();
 
         if (cacheableClass == SessionCache.class) {
-            return new MongoRepositoryAdapter<>(this.credentialsBuilder, database, repository, idType, new MongoSessionCache<>(), sessionCacheSupplier);
+            return new MongoRepositoryAdapter<>(
+                    this.credentialsBuilder, database, repository,
+                    idType, new DefaultSessionCache<>(), sessionCacheSupplier, cacheWarmer
+            );
         }
 
         if (!SessionCache.class.isAssignableFrom(cacheableClass)) {
@@ -124,7 +137,10 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
         }
 
         try {
-            return new MongoRepositoryAdapter<>(this.credentialsBuilder, database, repository, idType, (SessionCache<ID, T>) cacheableClass.getDeclaredConstructor().newInstance(), sessionCacheSupplier);
+            return new MongoRepositoryAdapter<>(
+                    this.credentialsBuilder, database, repository, idType,
+                    (SessionCache<ID, T>) cacheableClass.getDeclaredConstructor().newInstance(), sessionCacheSupplier, cacheWarmer
+            );
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         } catch (NoSuchMethodException e) {

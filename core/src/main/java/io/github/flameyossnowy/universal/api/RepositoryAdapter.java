@@ -1,22 +1,23 @@
 package io.github.flameyossnowy.universal.api;
 
 import com.google.errorprone.annotations.CheckReturnValue;
-import io.github.flameyossnowy.universal.api.cache.Session;
+import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.api.proxy.ProxiedAdapterHandler;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
 import java.util.EnumSet;
 
 @SuppressWarnings("unused")
@@ -28,7 +29,6 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * set to {@code false}.
      */
     @Contract(pure = true)
-    
     default TransactionResult<Boolean> createRepository() {
         return this.createRepository(false);
     }
@@ -45,7 +45,6 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param ifNotExists Whether to create the table if it exists or not.
      */
     @Contract(pure = true)
-    
     TransactionResult<Boolean> createRepository(boolean ifNotExists);
 
     /**
@@ -73,15 +72,14 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * and then commit or roll back the transaction.
      * <p>
      * You can use this method to create a session, perform your operations,
-     * and then call either {@link Session#commit()} to commit the
-     * changes or {@link Session#close()} to roll back the changes.
+     * and then call either {@link DatabaseSession#commit()} to commit the
+     * changes or {@link DatabaseSession#close()} to roll back the changes.
      * @return A session that can be used to perform operations on the
      * underlying storage.
      */
     @Contract(pure = true)
     @CheckReturnValue
-    Session<ID, T, C> createSession();
-
+    DatabaseSession<ID, T, C> createSession();
 
     /**
      * Creates a new session.
@@ -97,15 +95,15 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * operations performed on the session.
      * <p>
      * You can use this method to create a session, perform your operations,
-     * and then call either {@link Session#commit()} to commit the
-     * changes or {@link Session#close()} to roll back the changes.
+     * and then call either {@link DatabaseSession#commit()} to commit the
+     * changes or {@link DatabaseSession#close()} to roll back the changes.
      * @param options A set of options to use when creating the session.
      *                May be empty for default options.
      * @return A session that can be used to perform operations on the
      */
     @Contract(pure = true)
     @CheckReturnValue
-    Session<ID, T, C> createSession(EnumSet<SessionOption> options);
+    DatabaseSession<ID, T, C> createSession(EnumSet<SessionOption> options);
 
     /**
      * Executes a series of operations within a session.
@@ -121,10 +119,11 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param sessionConsumer A consumer that performs operations with the
      *                        provided session.
      */
-    default TransactionResult<Boolean> withSession(@NotNull Consumer<Session<ID, T, C>> sessionConsumer) {
-        try (Session<ID, T, C> session = this.createSession()) {
-            sessionConsumer.accept(session);
-            return session.commit();
+    @SuppressWarnings("UnusedReturnValue")
+    default TransactionResult<Boolean> withSession(@NotNull Consumer<DatabaseSession<ID, T, C>> sessionConsumer) {
+        try (DatabaseSession<ID, T, C> databaseSession = this.createSession()) {
+            sessionConsumer.accept(databaseSession);
+            return databaseSession.commit();
         }
     }
 
@@ -343,6 +342,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *
      * @param query The list of items to be inserted into the repository.
      */
+    @SuppressWarnings("UnusedReturnValue")
     TransactionResult<Boolean> insertAll(List<T> query);
 
     /**
@@ -412,7 +412,14 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param adapter The interface to be proxied.
      * @return A dynamic proxy object that implements the specified interface.
      */
-    <A> A createDynamicProxy(Class<A> adapter);
+    @SuppressWarnings("unchecked")
+    default <A> A createDynamicProxy(Class<A> adapter) {
+        return (A) Proxy.newProxyInstance(
+                adapter.getClassLoader(),
+                new Class[]{ adapter },
+                new ProxiedAdapterHandler<>(this)
+        );
+    }
 
     /**
      * Retrieves the class type of the identifier used by the repository.
@@ -590,7 +597,8 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *         metadata about the repository.
      */
     @ApiStatus.Internal
-    RepositoryInformation getInformation();
+    @NotNull
+    RepositoryInformation getRepositoryInformation();
 
     Class<T> getElementType();
 }

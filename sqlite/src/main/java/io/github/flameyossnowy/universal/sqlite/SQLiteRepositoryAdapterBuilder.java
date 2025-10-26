@@ -3,10 +3,11 @@ package io.github.flameyossnowy.universal.sqlite;
 import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.annotations.Cacheable;
 import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
+import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
+import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
+import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
-import io.github.flameyossnowy.universal.sql.SQLSessionCache;
-import io.github.flameyossnowy.universal.sql.internals.ResultCache;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.connections.SQLiteSimpleConnectionProvider;
@@ -28,8 +29,9 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
     private final EnumSet<Optimizations> optimizations = EnumSet.noneOf(Optimizations.class);
     private final Class<T> repository;
     private final Class<ID> idClass;
+    private CacheWarmer<T, ID> cacheWarmer;
 
-    private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new SQLSessionCache<>();
+    private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
 
     public SQLiteRepositoryAdapterBuilder(Class<T> repository, Class<ID> id) {
         this.repository = Objects.requireNonNull(repository, "Repository cannot be null");
@@ -70,6 +72,11 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
      */
     public SQLiteRepositoryAdapterBuilder<T, ID> withConnectionProvider(BiFunction<SQLiteCredentials, EnumSet<Optimizations>, SQLConnectionProvider> connectionProvider) {
         this.connectionProvider = connectionProvider;
+        return this;
+    }
+
+    public SQLiteRepositoryAdapterBuilder<T, ID> withCacheWarmer(CacheWarmer<T, ID> cacheWarmer) {
+        this.cacheWarmer = cacheWarmer;
         return this;
     }
 
@@ -134,7 +141,7 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
      *
      * <p>This method will check if the repository is annotated with {@link Cacheable} and
      * {@link GlobalCacheable} annotations. If it is, it will create an instance of the
-     * {@link ResultCache} and {@link SessionCache} using the provided algorithms and
+     * {@link io.github.flameyossnowy.universal.api.cache.DefaultResultCache} and {@link SessionCache} using the provided algorithms and
      * maximum cache sizes. If not, it will return a new instance of the
      * {@link SQLiteRepositoryAdapter} with null caches.
      *
@@ -144,32 +151,21 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
     public SQLiteRepositoryAdapter<T, ID> build() {
         RepositoryInformation information = Objects.requireNonNull(RepositoryMetadata.getMetadata(this.repository));
         Cacheable cacheable = information.getCacheable();
-        ResultCache<T, ID> cache = cacheable != null ? new ResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null;
+        DefaultResultCache<String, T, ID> cache = cacheable != null ? new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null;
 
         GlobalCacheable globalCacheable = information.getGlobalCacheable();
         if (globalCacheable == null)
             return new SQLiteRepositoryAdapter<>(
                     connectionProvider != null ? this.connectionProvider.apply(credentials, optimizations) : new SQLiteSimpleConnectionProvider(this.credentials, optimizations),
-                    cache, this.repository, this.idClass, null, sessionCacheSupplier
+                    cache, this.repository, this.idClass, null, sessionCacheSupplier, cacheWarmer
             );
 
         Class<?> cacheableClass = globalCacheable.sessionCache();
 
-        if (cacheableClass == SessionCache.class) {
-            return new SQLiteRepositoryAdapter<>(
-                    connectionProvider != null ? this.connectionProvider.apply(credentials, optimizations) : new SQLiteSimpleConnectionProvider(this.credentials, optimizations),
-                    cache, this.repository, this.idClass, new SQLSessionCache<>(), sessionCacheSupplier
-            );
-        }
-
-        if (!SessionCache.class.isAssignableFrom(cacheableClass)) {
-            throw new IllegalArgumentException("Session cache must implement SessionCache interface.");
-        }
-
         try {
             return new SQLiteRepositoryAdapter<>(
                     connectionProvider != null ? this.connectionProvider.apply(credentials, optimizations) : new SQLiteSimpleConnectionProvider(this.credentials, optimizations),
-                    cache, this.repository, this.idClass, (SessionCache<ID, T>) cacheableClass.getDeclaredConstructor().newInstance(), sessionCacheSupplier
+                    cache, this.repository, this.idClass, (SessionCache<ID, T>) cacheableClass.getDeclaredConstructor().newInstance(), sessionCacheSupplier, cacheWarmer
             );
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
