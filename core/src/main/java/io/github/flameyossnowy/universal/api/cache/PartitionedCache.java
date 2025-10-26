@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param <K> the key type
  * @param <V> the value type
  */
+@SuppressWarnings("unused")
 public class PartitionedCache<K, V> {
     private final Map<K, V>[] partitions;
     private final int partitionCount;

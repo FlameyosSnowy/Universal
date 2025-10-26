@@ -8,7 +8,6 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 
 import java.util.Map;
 
-@SuppressWarnings("unchecked")
 public class CassandraRelationshipHandler<T, ID> extends AbstractRelationshipHandler<T, ID, Row> {
     public CassandraRelationshipHandler(
             RepositoryInformation repositoryInformation,

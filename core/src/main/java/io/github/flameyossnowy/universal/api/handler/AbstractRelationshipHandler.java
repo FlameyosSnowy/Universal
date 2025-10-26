@@ -20,7 +20,7 @@ import static io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata.g
  * Concrete classes only need to implement collection handling methods.
  */
 @SuppressWarnings("unchecked")
-public abstract class AbstractRelationshipHandler<T, ID, R> implements RelationshipHandler<T, ID, R> {
+public abstract class AbstractRelationshipHandler<T, ID, R> implements RelationshipHandler<ID> {
     protected final RepositoryInformation repositoryInformation;
     protected final Class<ID> idClass;
     protected final Map<Class<?>, RepositoryAdapter<?, ?, ?>> repositories;

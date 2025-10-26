@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param <ID> the type of the entity identifier
  * @param <T> the type of the entity
  */
+@SuppressWarnings("unused")
 public class SecondLevelCache<ID, T> {
     private final Map<ID, CachedEntity<T>> cache;
     private final long ttlMillis;

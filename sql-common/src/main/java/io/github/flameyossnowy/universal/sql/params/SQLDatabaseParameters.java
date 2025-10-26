@@ -16,9 +16,10 @@ import java.util.Map;
 /**
  * SQL implementation of DatabaseParameters that wraps a JDBC PreparedStatement
  * and uses DataHandlers for type conversion.
- *
+ * <p>
  * Supports both index-based and name-based parameters.
  */
+@SuppressWarnings("unchecked")
 public class SQLDatabaseParameters implements DatabaseParameters {
     private final PreparedStatement statement;
     private final TypeResolverRegistry typeRegistry;
@@ -94,45 +95,5 @@ public class SQLDatabaseParameters implements DatabaseParameters {
     @Override
     public boolean contains(@NotNull String name) {
         return nameToIndexMap.containsKey(name);
-    }
-
-    public boolean contains(int index) {
-        return index > 0 && index <= size();
-    }
-
-    /**
-     * Gets the underlying JDBC PreparedStatement.
-     */
-    public PreparedStatement getStatement() {
-        return statement;
-    }
-
-    /**
-     * Sets a parameter to NULL and automatically increments the parameter index.
-     */
-    public SQLDatabaseParameters addNull(Class<?> type) {
-        setNull(parameterIndex++, type);
-        return this;
-    }
-
-    /**
-     * Adds all parameters from another DatabaseParameters instance.
-     */
-    public SQLDatabaseParameters addAll(DatabaseParameters other) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    /**
-     * Gets the parameter index for a given name, or -1 if not found.
-     */
-    public int getIndexForName(@NotNull String name) {
-        return nameToIndexMap.getOrDefault(name, -1);
-    }
-
-    /**
-     * Returns the current name-to-index map (for debugging or introspection).
-     */
-    public Map<String, Integer> getNameToIndexMap() {
-        return nameToIndexMap;
     }
 }

@@ -34,16 +34,6 @@ public record SQLDatabaseResult(ResultSet resultSet, TypeResolverRegistry typeRe
         }
     }
 
-    /**
-     * Gets the underlying JDBC ResultSet.
-     *
-     * @return the JDBC ResultSet
-     */
-    @Override
-    public ResultSet resultSet() {
-        return resultSet;
-    }
-
     @Override
     public boolean hasColumn(String columnName) {
         try {

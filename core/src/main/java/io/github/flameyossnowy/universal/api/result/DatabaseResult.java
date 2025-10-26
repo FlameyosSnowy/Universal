@@ -4,6 +4,7 @@ package io.github.flameyossnowy.universal.api.result;
  * Represents a database-agnostic result set that can be used to retrieve values
  * from a query result without depending on any specific database implementation.
  */
+@SuppressWarnings("unused")
 public interface DatabaseResult {
     /**
      * Gets a value from the result by column name.

@@ -7,6 +7,7 @@ import org.jetbrains.annotations.Nullable;
  * Represents a database-agnostic way to set parameters for a query
  * without depending on any specific database implementation.
  */
+@SuppressWarnings("unused")
 public interface DatabaseParameters {
     /**
      * Sets a parameter value by name.

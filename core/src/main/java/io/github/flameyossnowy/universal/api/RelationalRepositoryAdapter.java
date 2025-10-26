@@ -14,7 +14,7 @@ public interface RelationalRepositoryAdapter<T, ID> extends RepositoryAdapter<T,
      * executing DDL statements such as {@code CREATE TABLE} or {@code ALTER TABLE}.
      *
      * @param query The raw SQL query to execute.
-     * @return
+     * @return {@code true} if the query was executed successfully, {@code false} otherwise.
      */
     TransactionResult<Boolean> executeRawQuery(String query);
 
@@ -72,19 +72,4 @@ public interface RelationalRepositoryAdapter<T, ID> extends RepositoryAdapter<T,
      * @return The result set as a list of objects.
      */
     List<T> executeQueryWithParams(String query, boolean first, List<SelectOption> params);
-
-    /**
-     * Retrieves the object factory associated with this repository adapter.
-     * <p>
-     * This method provides access to the {@link RelationalObjectFactory} instance
-     * used for creating entity objects from the result sets.
-     * <p>
-     * The object factory is responsible for instantiating and populating
-     * entity objects based on the metadata and mappings defined in the
-     * repository.
-     *
-     * @return the {@link RelationalObjectFactory} associated with this adapter.
-     */
-    @ApiStatus.Internal
-    RelationalObjectFactory<T, ID> getObjectFactory();
 }

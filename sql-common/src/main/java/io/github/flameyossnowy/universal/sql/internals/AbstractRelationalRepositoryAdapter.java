@@ -474,11 +474,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         }
     }
 
-    @Override
-    public RelationalObjectFactory<T, ID> getObjectFactory() {
-        return objectFactory;
-    }
-
     private TransactionResult<Boolean> executeUpdate(TransactionContext<Connection> transactionContext, String sql, StatementSetter setter, T entity, ID id) {
         if (entityLifecycleListener != null) entityLifecycleListener.onPreUpdate(entity);
         try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {

@@ -1,24 +1,17 @@
 package io.github.flameyossnowy.universal.mongodb.result;
 
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
-import org.bson.BsonDocument;
-import org.bson.BsonValue;
 import org.bson.Document;
-
-import java.util.List;
-import java.util.UUID;
 
 /**
  * MongoDB implementation of DatabaseResult that wraps a BSON Document.
  */
 public class MongoDatabaseResult implements DatabaseResult {
     private final Document document;
-    private final BsonDocument bsonDocument;
     private String[] columnNames;
 
     public MongoDatabaseResult(Document document) {
         this.document = document;
-        this.bsonDocument = document != null ? document.toBsonDocument() : null;
     }
 
     private String[] getColumnNames() {

@@ -7,10 +7,6 @@ public record ValidationEstimation(ValidationResult result, String reason) {
         return new ValidationEstimation(ValidationResult.FAIL, reason);
     }
 
-    public boolean isPass() {
-        return result == ValidationResult.PASS;
-    }
-
     public boolean isFail() {
         return result == ValidationResult.FAIL;
     }

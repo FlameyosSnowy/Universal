@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 @ApiStatus.Internal
+@SuppressWarnings({"unchecked", "unused"})
 public class ProxiedAdapterHandler<T, ID, C> implements InvocationHandler {
     private final RepositoryAdapter<T, ID, C> adapter;
     private final Class<T> elementType;

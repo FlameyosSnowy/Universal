@@ -10,7 +10,6 @@ import io.github.flameyossnowy.universal.sql.resolvers.MultiMapTypeResolver;
 
 import java.sql.ResultSet;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Fully portable, backend-agnostic relationship handler.
