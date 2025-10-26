@@ -164,7 +164,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         // Create codec registry with our custom providers
         CodecRegistry codecRegistry = CodecRegistries.fromRegistries(
                 CodecRegistries.fromProviders(
-                        MongoTypeCodecProvider.create(typeResolverRegistry),
+                        MongoTypeCodecProvider.create(typeResolverRegistry, repositoryInformation),
                         PojoCodecProvider.builder().automatic(true).build()
                 ),
                 MongoClientSettings.getDefaultCodecRegistry()

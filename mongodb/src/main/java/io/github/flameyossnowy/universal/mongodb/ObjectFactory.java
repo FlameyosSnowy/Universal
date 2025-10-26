@@ -7,6 +7,7 @@ import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodec;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.jetbrains.annotations.ApiStatus;
@@ -46,8 +47,16 @@ public class ObjectFactory<T, ID> {
 
         for (FieldData<?> field : repoInfo.getFields()) {
             if (field.manyToOne() != null || field.oneToMany() != null || field.oneToOne() != null) continue;
-            Object value = field.getValue(entity);
-            doc.put(field.name(), value);
+            
+            // Set field context for codec to use
+            MongoTypeCodec.setCurrentFieldName(field.name());
+            try {
+                Object value = field.getValue(entity);
+                doc.put(field.name(), value);
+            } finally {
+                // Always clear the ThreadLocal to prevent leaks
+                MongoTypeCodec.setCurrentFieldName(null);
+            }
         }
 
         return doc;
@@ -60,7 +69,14 @@ public class ObjectFactory<T, ID> {
             for (int index = 0; index < length; index++) {
                 RecordComponent rc = recordComponents[index];
                 String fieldName = rc.getName();
-                args[index] = doc.get(fieldName);
+                
+                // Set field context for codec to use during deserialization
+                io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodec.setCurrentFieldName(fieldName);
+                try {
+                    args[index] = doc.get(fieldName);
+                } finally {
+                    io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodec.setCurrentFieldName(null);
+                }
             }
             try {
                 return (T) repoInfo.getRecordConstructor().newInstance(args);
@@ -76,30 +92,37 @@ public class ObjectFactory<T, ID> {
 
         for (FieldData<?> field : repoInfo.getFields()) {
             String fieldName = field.name();
-            Object value = doc.get(fieldName);
+            
+            // Set field context for codec to use during deserialization
+            io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodec.setCurrentFieldName(fieldName);
+            try {
+                Object value = doc.get(fieldName);
 
-            if (field.primary()) {
-                entityId = (ID) value;
+                if (field.primary()) {
+                    entityId = (ID) value;
+                    field.setValue(entity, value);
+                    continue;
+                }
+
+                if (field.manyToOne() != null) {
+                    loadManyToOne(field, entity, entityId);
+                    continue;
+                }
+
+                if (field.oneToOne() != null) {
+                    loadOneToOne(field, entity, entityId);
+                    continue;
+                }
+
+                if (field.oneToMany() != null) {
+                    loadOneToMany(field, entity, value);
+                    continue;
+                }
+
                 field.setValue(entity, value);
-                continue;
+            } finally {
+                io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodec.setCurrentFieldName(null);
             }
-
-            if (field.manyToOne() != null) {
-                loadManyToOne(field, entity, entityId);
-                continue;
-            }
-
-            if (field.oneToOne() != null) {
-                loadOneToOne(field, entity, entityId);
-                continue;
-            }
-
-            if (field.oneToMany() != null) {
-                loadOneToMany(field, entity, value);
-                continue;
-            }
-
-            field.setValue(entity, value);
         }
 
         return entity;
