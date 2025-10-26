@@ -32,6 +32,17 @@ public interface DatabaseImplementation {
     boolean supportsArrays();
 
     /**
+     * Retrieves the character used to quote table and field names in this database implementation.
+     * <p>
+     * For example, in MySQL it would be the backtick (\`), in PostgreSQL it would be the double quote (\").
+     *
+     * @return the character used to quote table and field names
+     */
+    default char quoteCharacter() {
+        return '"';
+    }
+
+    /**
      * Retrieves the keyword for auto-incrementing fields.
      * <p>
      * For example, in MySQL it would be "AUTO_INCREMENT", in PostgreSQL it would be "GENERATED ALWAYS AS IDENTITY", in SQLite it would be "AUTOINCREMENT", etc.

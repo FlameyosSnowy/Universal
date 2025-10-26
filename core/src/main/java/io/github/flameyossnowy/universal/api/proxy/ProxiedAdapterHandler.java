@@ -1,8 +1,8 @@
-package io.github.flameyossnowy.universal.mongodb.internals;
+package io.github.flameyossnowy.universal.api.proxy;
 
+import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.annotations.proxy.*;
 import io.github.flameyossnowy.universal.api.options.Query;
-import io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
@@ -10,14 +10,15 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 @ApiStatus.Internal
-public class MongoProxiedAdapterHandler<T, ID> implements InvocationHandler {
-    private final MongoRepositoryAdapter<T, ID> adapter;
+public class ProxiedAdapterHandler<T, ID, C> implements InvocationHandler {
+    private final RepositoryAdapter<T, ID, C> adapter;
     private final Class<T> elementType;
     private final Map<String, MethodData> methodCache = new ConcurrentHashMap<>(5);
 
-    public MongoProxiedAdapterHandler(MongoRepositoryAdapter<T, ID> adapter) {
+    public ProxiedAdapterHandler(RepositoryAdapter<T, ID, C> adapter) {
         this.adapter = adapter;
         this.elementType = adapter.getElementType();
     }
@@ -32,22 +33,15 @@ public class MongoProxiedAdapterHandler<T, ID> implements InvocationHandler {
             Update update = method.getAnnotation(Update.class);
 
             // Made for performance and safety reasons
-            int sum = 0, annotationSum = 0;
-            sum += filters.length;
+            int sum = insert == null ? 0 : 1;
+            sum += select == null ? 0 : 1;
+            sum += update == null ? 0 : 1;
 
-            annotationSum += insert == null ? 0 : 1;
-            annotationSum += select == null ? 0 : 1;
-            annotationSum += update == null ? 0 : 1;
-
-            if (annotationSum > 1) {
+            if (sum > 1) {
                 throw new IllegalStateException("A proxy method cannot have multiple annotations of @Insert, @Select and/or @Update.");
             }
 
-            if (limit != null) sum += 1;
-            if (orderBy != null) sum += 1;
-            // Made for performance and safety reasons
-
-            return new MethodData(method.getName(), filters, limit, orderBy, insert, select, update, sum);
+            return new MethodData(method.getName(), filters, limit, orderBy, insert, select, update);
         });
     }
 
@@ -80,16 +74,18 @@ public class MongoProxiedAdapterHandler<T, ID> implements InvocationHandler {
             List<T> result = adapter.find(selectQuery.build());
 
             Class<?> returnType = method.getReturnType();
-            if (returnType == List.class) {
+            if (returnType == List.class || returnType == Iterable.class) {
                 return result;
             } else if (returnType == Set.class) {
-                return new HashSet<>(result);
-            } else if (returnType == Iterable.class) {
-                return result;
+                return result.isEmpty() ? Set.of() : new HashSet<>(result);
             } else if (returnType == elementType) {
                 return result.isEmpty() ? null : result.get(0);
             } else if (returnType == Iterator.class) {
                 return result.iterator();
+            } else if (returnType == Optional.class) {
+                return result.isEmpty() ? Optional.empty() : Optional.of(result.get(0));
+            } else if (returnType == Stream.class) {
+                return result.stream();
             } else {
                 throw new IllegalStateException("Unsupported return type: " + returnType);
             }
@@ -98,5 +94,5 @@ public class MongoProxiedAdapterHandler<T, ID> implements InvocationHandler {
         return null;
     }
 
-    record MethodData(String name, Filter[] filters, Limit limit, OrderBy orderBy, Insert insert, Select select, Update update, int sum) { }
+    record MethodData(String name, Filter[] filters, Limit limit, OrderBy orderBy, Insert insert, Select select, Update update) { }
 }

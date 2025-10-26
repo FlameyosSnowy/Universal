@@ -13,69 +13,46 @@ import java.util.List;
 public class DefaultExceptionHandler<T, ID, C> implements ExceptionHandler<T, ID, C> {
     @Override
     public TransactionResult<Boolean> handleInsert(@NotNull Exception exception, @NotNull RepositoryInformation information, @NotNull RepositoryAdapter<T, ID, C> adapter) {
-        String message = String.format("Exception in repository [%s] with adapter [%s]: %s",
-                information.getRepositoryName(),
-                adapter.getClass().getSimpleName(),
-                exception.getMessage());
-
-        if (exception.getMessage() != null && exception.getMessage().contains("Communications link failure")) {
-            // communications exception should not be retried, this is an acceptable moment to throw
-            throw new RepositoryException(message, exception);
-        }
-
-        Logging.error(message);
-
-        return TransactionResult.failure(new RepositoryException(message, exception));
+        return handleException(exception, information, adapter);
     }
 
     @Override
     public TransactionResult<Boolean> handleDelete(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter) {
-        String message = String.format("Exception in repository [%s] with adapter [%s]: %s",
-                information.getRepositoryName(),
-                adapter.getClass().getSimpleName(),
-                exception.getMessage());
-
-        if (exception.getMessage() != null && exception.getMessage().contains("Communications link failure")) {
-            // communications exception should not be retried, this is an acceptable moment to throw
-            throw new RepositoryException(message, exception);
-        }
-
-        Logging.error(message);
-
-        return TransactionResult.failure(new RepositoryException(message, exception));
+        return handleException(exception, information, adapter);
     }
 
     @Override
     public TransactionResult<Boolean> handleUpdate(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter) {
-        String message = String.format("Exception in repository [%s] with adapter [%s]: %s",
-                information.getRepositoryName(),
-                adapter.getClass().getSimpleName(),
-                exception.getMessage());
+        return handleException(exception, information, adapter);
+    }
 
-        if (exception.getMessage() != null && exception.getMessage().contains("Communications link failure")) {
-            // communications exception should not be retried, this is an acceptable moment to throw
-            throw new RepositoryException(message, exception);
-        }
-
+    @NotNull
+    private TransactionResult<Boolean> handleException(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter) {
+        String message = createExceptionMessage(exception, information, adapter);
+        checkForUnrecoverableErrors(exception, message);
         Logging.error(message);
-
         return TransactionResult.failure(new RepositoryException(message, exception));
     }
 
     @Override
     public List<T> handleRead(@NotNull Exception exception, @NotNull RepositoryInformation information, SelectQuery query, @NotNull RepositoryAdapter<T, ID, C> adapter) {
-        String message = String.format("Exception in repository [%s] with adapter [%s]: %s",
-                information.getRepositoryName(),
-                adapter.getClass().getSimpleName(),
-                exception.getMessage());
+        String message = createExceptionMessage(exception, information, adapter);
+        checkForUnrecoverableErrors(exception, message);
+        Logging.error(message);
+        return List.of();
+    }
 
+    private static void checkForUnrecoverableErrors(@NotNull Exception exception, String message) {
         if (exception.getMessage() != null && exception.getMessage().contains("Communications link failure")) {
             // communications exception should not be retried, this is an acceptable moment to throw
             throw new RepositoryException(message, exception);
         }
+    }
 
-        Logging.error(message);
-
-        return List.of();
+    private static <T, ID, C> @NotNull String createExceptionMessage(@NotNull Exception exception, @NotNull RepositoryInformation information, @NotNull RepositoryAdapter<T, ID, C> adapter) {
+        return String.format("Exception in repository [%s] with adapter [%s]: %s",
+                information.getRepositoryName(),
+                adapter.getClass().getSimpleName(),
+                exception.getMessage());
     }
 }
