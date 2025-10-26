@@ -283,7 +283,7 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
             CassandraDatabaseParameters parameters = new CassandraDatabaseParameters();
             ID id = repositoryInformation.getPrimaryKey().getValue(value);
             this.objectFactory.insertEntity(parameters, value);
-            this.objectFactory.insertCollectionEntities(value, id, statement);
+            this.objectFactory.insertCollectionEntities(value, id, parameters);
             ResultSet resultSet = this.session.execute(statement.bind(parameters.getValues()));
 
             if (globalCache != null) globalCache.put(id, value);
@@ -319,7 +319,7 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
             PreparedStatement statement = getPreparedStatement(sql);
             CassandraDatabaseParameters parameters = new CassandraDatabaseParameters();
             this.objectFactory.insertEntity(parameters, entity);
-            this.objectFactory.insertCollectionEntities(entity, id, statement);
+            this.objectFactory.insertCollectionEntities(entity, id, parameters);
             ResultSet resultSet = this.session.execute(statement.bind(parameters.getValues()));
             boolean wasApplied = resultSet.wasApplied();
 
