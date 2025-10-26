@@ -219,18 +219,6 @@ public class RepositoryMetadata {
         ManyToOne manyToOne = recordComponent.getAnnotation(ManyToOne.class);
         OneToOne oneToOne = recordComponent.getAnnotation(OneToOne.class);
 
-        if (oneToMany != null) {
-            throw new IllegalArgumentException("Unsupported @OneToMany annotation on record component: " + recordComponent);
-        }
-
-        if (manyToOne != null) {
-            throw new IllegalArgumentException("Unsupported @ManyToOne annotation on record component: " + recordComponent);
-        }
-
-        if (oneToOne != null) {
-            throw new IllegalArgumentException("Unsupported @OneToOne annotation on record component: " + recordComponent);
-        }
-
         boolean id = recordComponent.isAnnotationPresent(Id.class);
         boolean autoIncrement = RepositoryMetadata.isAutoIncrement(
                 recordComponent.getType(),
