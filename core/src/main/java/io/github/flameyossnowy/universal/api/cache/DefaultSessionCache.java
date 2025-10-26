@@ -1,12 +1,10 @@
-package io.github.flameyossnowy.universal.sql;
-
-import io.github.flameyossnowy.universal.api.cache.SessionCache;
+package io.github.flameyossnowy.universal.api.cache;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class SQLSessionCache<ID, T> implements SessionCache<ID, T> {
-    private final Map<ID, T> internalCache = new ConcurrentHashMap<>(5);
+public class DefaultSessionCache<ID, T> implements SessionCache<ID, T> {
+    private final Map<ID, T> internalCache = new ConcurrentHashMap<>(16);
 
     @Override
     public Map<ID, T> getInternalCache() {

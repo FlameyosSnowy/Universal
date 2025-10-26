@@ -1,41 +1,31 @@
-package io.github.flameyossnowy.universal.sql.internals;
+package io.github.flameyossnowy.universal.api.cache;
 
-import io.github.flameyossnowy.universal.api.cache.Session;
-import io.github.flameyossnowy.universal.api.cache.SessionCache;
-import io.github.flameyossnowy.universal.api.cache.SessionOption;
-import io.github.flameyossnowy.universal.api.cache.TransactionResult;
+import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
-import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.utils.Logging;
-import io.github.flameyossnowy.universal.sql.RelationalRepositoryAdapter;
 
-import java.sql.Connection;
 import java.util.*;
 
-public class SQLSession<ID, T> implements Session<ID, T, Connection> {
-    private final RelationalRepositoryAdapter<T, ID> repository;
+public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
     private final SessionCache<ID, T> cache;
-    private final TransactionContext<Connection> transactionContext;
+    private final RepositoryAdapter<T, ID, C> repository;
+    private final TransactionContext<C> transactionContext;
     private final RepositoryInformation information;
     private final long id;
-
-    private final List<Runnable> pendingOperations = new ArrayList<>(5);
-    private final List<TransactionResult<?>> results = new ArrayList<>(5);
-
     private final EnumSet<SessionOption> options;
 
-    public SQLSession(RelationalRepositoryAdapter<T, ID> repository, SessionCache<ID, T> cache, long id) {
-        this(repository, cache, id, EnumSet.noneOf(SessionOption.class));
-    }
+    private final List<Runnable> pendingOperations = new ArrayList<>(5);
+    private final List<Runnable> rollbackCallbacks = new ArrayList<>(5);
+    private final List<TransactionResult<?>> results = new ArrayList<>(5);
 
-    public SQLSession(RelationalRepositoryAdapter<T, ID> repository, SessionCache<ID, T> cache, long id, EnumSet<SessionOption> options) {
+    public DefaultSession(RepositoryAdapter<T, ID, C> repository, SessionCache<ID, T> cache, long id, EnumSet<SessionOption> options) {
         this.repository = repository;
         this.transactionContext = repository.beginTransaction();
         this.cache = cache;
-        this.information = repository.getInformation();
+        this.information = repository.getRepositoryInformation();
         this.id = id;
-        this.options = options;
+        this.options = options != null ? options : EnumSet.noneOf(SessionOption.class);
     }
 
     @Override
@@ -54,56 +44,71 @@ public class SQLSession<ID, T> implements Session<ID, T, Connection> {
     }
 
     @Override
-    public Connection connection() {
+    public C connection() {
         return transactionContext.connection();
     }
 
     @Override
     public T findById(ID key) {
-        if (options.contains(SessionOption.NO_CACHE)) {
-            return repository.findById(key);
-        }
-        return cache.computeIfAbsent(key, repository::findById);
+        return options.contains(SessionOption.NO_CACHE)
+                ? repository.findById(key)
+                : cache.computeIfAbsent(key, repository::findById);
     }
 
     @Override
     public TransactionResult<Boolean> commit() {
-        for (Runnable action : pendingOperations) {
-            action.run();
+        if (!options.contains(SessionOption.BUFFERED_WRITE)) {
+            for (Runnable action : pendingOperations) {
+                action.run();
+            }
         }
 
         for (TransactionResult<?> result : results) {
             if (!result.isError()) continue;
             rollback();
-            return TransactionResult.failure(result.getError().orElseGet(() -> new IllegalStateException("Operation returned false")));
+            return TransactionResult.failure(result.getError().orElse(new IllegalStateException("Operation returned false")));
+        }
+
+        try {
+            transactionContext.commit();
+        } catch (Exception e) {
+            rollback();
+            return TransactionResult.failure(e);
         }
 
         pendingOperations.clear();
+        rollbackCallbacks.clear();
         results.clear();
-        return transactionContext.commit();
+        return TransactionResult.success(null);
     }
 
     @Override
     public void rollback() {
+        rollbackCallbacks.forEach(Runnable::run);
         pendingOperations.clear();
+        rollbackCallbacks.clear();
 
         try {
             transactionContext.rollback();
         } catch (Exception e) {
-            throw new RepositoryException(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
     @Override
     public boolean insert(T entity) {
         ID entityId = information.getPrimaryKey().getValue(entity);
+
         Runnable operation = () -> {
-            log("Inserting entity: " + entity);
             TransactionResult<Boolean> result = repository.insert(entity, transactionContext);
             results.add(result);
-            if (!result.getResult().orElse(false)) return;
+            if (result.getResult().orElse(Boolean.FALSE)) return;
             cache.put(entityId, entity);
         };
+
+        if (options.contains(SessionOption.LOG_OPERATIONS)) {
+            log("INSERT " + entity);
+        }
 
         if (options.contains(SessionOption.BUFFERED_WRITE)) {
             pendingOperations.add(operation);
@@ -111,19 +116,25 @@ public class SQLSession<ID, T> implements Session<ID, T, Connection> {
             operation.run();
         }
 
+        rollbackCallbacks.add(() -> cache.remove(entityId));
         return true;
     }
 
     @Override
     public boolean delete(T entity) {
         ID entityId = information.getPrimaryKey().getValue(entity);
+        T previous = findById(entityId);
+
         Runnable operation = () -> {
-            log("Deleting entity: " + entity);
             TransactionResult<Boolean> result = repository.delete(entity, transactionContext);
             results.add(result);
-            if (!result.getResult().orElse(false)) return;
+            if (result.getResult().orElse(Boolean.FALSE)) return;
             cache.remove(entityId);
         };
+
+        if (options.contains(SessionOption.LOG_OPERATIONS)) {
+            log("DELETE " + entity);
+        }
 
         if (options.contains(SessionOption.BUFFERED_WRITE)) {
             pendingOperations.add(operation);
@@ -131,19 +142,27 @@ public class SQLSession<ID, T> implements Session<ID, T, Connection> {
             operation.run();
         }
 
+        rollbackCallbacks.add(() -> {
+            if (previous != null) cache.put(entityId, previous);
+        });
         return true;
     }
 
     @Override
     public boolean update(T entity) {
         ID entityId = information.getPrimaryKey().getValue(entity);
+        T previous = findById(entityId);
+
         Runnable operation = () -> {
-            log("Updating entity: " + entity);
             TransactionResult<Boolean> result = repository.updateAll(entity, transactionContext);
             results.add(result);
-            if (!result.getResult().orElse(false)) return;
+            if (result.getResult().orElse(Boolean.FALSE)) return;
             cache.put(entityId, entity);
         };
+
+        if (options.contains(SessionOption.LOG_OPERATIONS)) {
+            log("UPDATE " + entity);
+        }
 
         if (options.contains(SessionOption.BUFFERED_WRITE)) {
             pendingOperations.add(operation);
@@ -151,12 +170,13 @@ public class SQLSession<ID, T> implements Session<ID, T, Connection> {
             operation.run();
         }
 
+        rollbackCallbacks.add(() -> {
+            if (previous != null) cache.put(entityId, previous);
+        });
         return true;
     }
-
+    
     private void log(String message) {
-        if (options.contains(SessionOption.LOG_OPERATIONS)) {
-            Logging.info("[SQLSession " + id + "] " + message);
-        }
+        Logging.info("[MongoSession " + id + "] " + message);
     }
 }

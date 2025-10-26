@@ -33,7 +33,7 @@ public class ImmutableList<T> implements List<T> {
     }
 
     @Override
-    public @NotNull Object[] toArray() {
+    public @NotNull Object @NotNull [] toArray() {
         return array;
     }
 
