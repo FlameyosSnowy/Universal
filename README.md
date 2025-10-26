@@ -12,6 +12,77 @@ Universal is a powerful and fully featured Object-Relational Mapper (ORM) and Ob
 - **Efficient Query Handling**: Uses built-in MongoDB methods and SQL functions without unnecessary query parsing.
 - **Lightweight**: Only ~400kb for one Platform + Core.
 
+## Supported Types
+```java
+import java.math.*;
+import java.net.*;
+import java.sql.*;
+import java.time.*;
+import java.util.*;
+
+@Repository(name = "example")
+public class Example {
+    @Id
+    private int id;
+
+    private String text;
+    private Integer integerObject;
+    private int integerPrimitive;
+    private Long longObject;
+    private long longPrimitive;
+    private Double doubleObject;
+    private double doublePrimitive;
+    private Float floatObject;
+    private float floatPrimitive;
+    private Boolean booleanObject;
+    private boolean booleanPrimitive;
+    private Short shortObject;
+    private short shortPrimitive;
+    private Byte byteObject;
+    private byte bytePrimitive;
+    private BigDecimal bigDecimal;
+    private BigInteger bigInteger;
+    private byte[] binary;
+    private Timestamp timestamp;
+    private Date date;
+    private Time time;
+    private LocalDate localDate;
+    private LocalTime localTime;
+    private LocalDateTime localDateTime;
+    private OffsetDateTime offsetDateTime;
+    private ZonedDateTime zonedDateTime;
+    private Duration duration;
+    private Period period;
+    private URI uri;
+    private URL url;
+    private InetAddress inetAddress;
+    private NetworkInterface networkInterface;
+    private Class<?> type;
+    private Locale locale;
+    private Currency currency;
+    private UUID uuid;
+    
+    private EnumType enumValue;
+
+    @EnumAsOrdinal // Store the enum's ordinal in the database instead of the name
+    private EnumType enumValueAsOrdinal;
+
+    private List<String> list;
+    private Set<Integer> set;
+    private Map<String, String> map;
+    private Map<String, List<String>> mapList;
+    private Map<String, Map<String, String>> mapMap;
+    private List<Map<String, String>> listMap;
+    private Set<List<String>> setList;
+    private List<List<String>> listList;
+    private Set<Set<Integer>> setSet;
+    private Map<String, Set<Integer>> mapSet;
+
+    public enum EnumType { A, B, C }
+}
+```
+
+
 ## Installation
 
 To include Universal in your project, add it as a dependency in your `pom.xml` (Maven) or `build.gradle`(`.kts`) (Gradle):
