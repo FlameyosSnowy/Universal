@@ -87,11 +87,11 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
                 MapData result = DatabaseObjectFactory.getMapData(field);
 
                 if (result.isMultiMap()) {
-                    args[index] = relationshipHandler.handleMultiMap(id, result.keyType(), result.valueType(), rs, field);
+                    args[index] = relationshipHandler.handleMultiMap(id, result.keyType(), result.valueType());
                     index++;
                     continue;
                 }
-                args[index] = relationshipHandler.handleNormalMap(id, result.keyType(), result.valueType(), rs, field);
+                args[index] = relationshipHandler.handleNormalMap(id, result.keyType(), result.valueType());
                 index++;
                 continue;
             }
@@ -144,10 +144,10 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
                 MapData result = DatabaseObjectFactory.getMapData(field);
 
                 if (result.isMultiMap()) {
-                    setFieldValue(instance, field, relationshipHandler.handleMultiMap(id, result.keyType(), result.valueType(), rs, field));
+                    setFieldValue(instance, field, relationshipHandler.handleMultiMap(id, result.keyType(), result.valueType()));
                     continue;
                 }
-                setFieldValue(instance, field, relationshipHandler.handleNormalMap(id, result.keyType(), result.valueType(), rs, field));
+                setFieldValue(instance, field, relationshipHandler.handleNormalMap(id, result.keyType(), result.valueType()));
                 continue;
             }
 
@@ -222,10 +222,10 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
                 MapData result = DatabaseObjectFactory.getMapData(field);
 
                 if (result.isMultiMap()) {
-                    field.setValue(instance, relationshipHandler.handleMultiMap(primaryId, result.keyType(), result.valueType(), rs, field));
+                    field.setValue(instance, relationshipHandler.handleMultiMap(primaryId, result.keyType(), result.valueType()));
                     continue;
                 }
-                field.setValue(instance, relationshipHandler.handleNormalMap(primaryId, result.keyType(), result.valueType(), rs, field));
+                field.setValue(instance, relationshipHandler.handleNormalMap(primaryId, result.keyType(), result.valueType()));
             } else {
                 populateFieldInternal(rs, field, instance);
             }
@@ -303,19 +303,19 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
         Field rawField = field.rawField();
         ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
         Class<?> itemType = (Class<?>) paramType.getActualTypeArguments()[0];
-        return relationshipHandler.handleNormalLists(id, itemType, set, field);
+        return relationshipHandler.handleNormalLists(id, itemType);
     }
 
     protected Object[] handleGenericArrayField(@NotNull FieldData<?> field, ID id, ResultSet set) throws Exception {
         Class<?> itemType = field.type().getComponentType();
-        return relationshipHandler.handleNormalArrays(id, itemType, set, field);
+        return relationshipHandler.handleNormalArrays(id, itemType);
     }
 
     protected Collection<Object> handleGenericSetField(FieldData<?> field, ID id, ResultSet set) throws Exception {
         Field rawField = field.rawField();
         ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
         Class<?> itemType = (Class<?>) paramType.getActualTypeArguments()[0];
-        return relationshipHandler.handleNormalSets(id, itemType, set, field);
+        return relationshipHandler.handleNormalSets(id, itemType);
     }
 
     protected List<Object> handleOneToManyField(FieldData<?> field, ID primaryId) {

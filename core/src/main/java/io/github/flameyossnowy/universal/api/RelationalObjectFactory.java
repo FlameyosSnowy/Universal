@@ -10,7 +10,7 @@ import java.sql.ResultSet;
  * @param <T> the element class
  * @param <ID> the id class
  */
-public interface RelationalObjectFactory<T, ID> extends DatabaseObjectFactory<T, ID, ResultSet> {
+public interface RelationalObjectFactory<T, ID> extends DatabaseObjectFactory<T, ResultSet> {
     /**
      * Inserts a single entity into the database using the given PreparedStatement.
      *

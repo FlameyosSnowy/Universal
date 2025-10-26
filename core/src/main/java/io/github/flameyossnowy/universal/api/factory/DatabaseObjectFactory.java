@@ -13,7 +13,8 @@ import java.time.*;
 import java.util.*;
 import java.util.function.Supplier;
 
-public interface DatabaseObjectFactory<T, ID, S> {
+@SuppressWarnings("unchecked")
+public interface DatabaseObjectFactory<T, S> {
     Map<Class<?>, Supplier<Object>> NOW_MAPPERS = Map.ofEntries(
             Map.entry(Instant.class, Instant::now),
             Map.entry(Date.class, Date::new),

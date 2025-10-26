@@ -1,14 +1,15 @@
 package io.github.flameyossnowy.universal.postgresql.internals;
 
+import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.ImmutableList;
 import io.github.flameyossnowy.universal.api.utils.Logging;
-import io.github.flameyossnowy.universal.sql.RelationalRepositoryAdapter;
+import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.sql.internals.ObjectFactory;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
-import io.github.flameyossnowy.universal.sql.resolvers.ValueTypeResolverRegistry;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.*;
@@ -18,8 +19,8 @@ public class PostgresObjectFactory<T, ID> extends ObjectFactory<T, ID> {
 
     public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 
-    public PostgresObjectFactory(RepositoryInformation repoInfo, SQLConnectionProvider connectionProvider, @NotNull RelationalRepositoryAdapter<T, ID> adapter) {
-        super(repoInfo, connectionProvider, adapter);
+    public PostgresObjectFactory(RepositoryInformation repoInfo, SQLConnectionProvider connectionProvider, @NotNull RelationalRepositoryAdapter<T, ID> adapter, TypeResolverRegistry resolverRegistry) {
+        super(repoInfo, connectionProvider, adapter, resolverRegistry);
     }
 
     @Override
@@ -56,7 +57,6 @@ public class PostgresObjectFactory<T, ID> extends ObjectFactory<T, ID> {
     public void insertEntity(PreparedStatement stmt, T entity) throws Exception {
         int paramIndex = 0;
 
-        // First pass: regular fields
         for (FieldData<?> field : repoInfo.getFields()) {
             if (field.autoIncrement()) continue;
 
@@ -72,7 +72,7 @@ public class PostgresObjectFactory<T, ID> extends ObjectFactory<T, ID> {
         Objects.requireNonNull(entity, "Entity cannot be null");
         Objects.requireNonNull(stmt, "Statement cannot be null");
 
-        Object valueToInsert = resolveInsertValue(field, entity);
+        Object valueToInsert = DatabaseObjectFactory.resolveInsertValue(field, entity);
 
         SQLValueTypeResolver<Object> resolver = getValueResolver(field);
         Objects.requireNonNull(resolver, "Missing resolver for field " + field.name());
@@ -81,18 +81,21 @@ public class PostgresObjectFactory<T, ID> extends ObjectFactory<T, ID> {
         resolver.insert(stmt, paramIndex, valueToInsert);
     }
 
-    private static <T> boolean checkArray(PreparedStatement stmt, T entity, @NotNull FieldData<?> field, int paramIndex) throws SQLException {
+    private boolean checkArray(PreparedStatement stmt, T entity, @NotNull FieldData<?> field, int paramIndex) throws SQLException {
         if (!field.type().isArray()) return false;
         Object[] valueToInsert = field.getValue(entity);
         if (valueToInsert == null) return true;
 
-        Array sqlArray = stmt.getConnection().createArrayOf(ValueTypeResolverRegistry.INSTANCE.getType(valueToInsert.getClass().getComponentType()), valueToInsert);
+        Array sqlArray = stmt.getConnection().createArrayOf(
+                this.typeResolverRegistry.getType(valueToInsert.getClass().getComponentType()),
+                valueToInsert
+        );
         stmt.setArray(paramIndex, sqlArray);
         return true;
     }
 
     private static <T> boolean checkCollection(PreparedStatement stmt, T entity, FieldData<?> field, int paramIndex) throws SQLException {
-        if (!isListField(field) || !isSetField(field)) return false;
+        if (!DatabaseObjectFactory.isListField(field) || !DatabaseObjectFactory.isSetField(field)) return false;
 
         Collection<Object> valueToInsert = field.getValue(entity);
         if (valueToInsert == null) return false;
