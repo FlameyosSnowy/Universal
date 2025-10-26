@@ -50,14 +50,8 @@ public class MongoDatabaseParameters implements DatabaseParameters {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> void set(@NotNull String name, @Nullable T value, @NotNull Class<?> type) {
         document.put(name, value);
-    }
-
-    @Override
-    public void setNull(int index, @NotNull Class<?> type) {
-        set(index, null, type);
     }
 
     @Override
@@ -71,13 +65,11 @@ public class MongoDatabaseParameters implements DatabaseParameters {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> @Nullable T get(int index, @NotNull Class<T> type) {
         throw new UnsupportedOperationException("Cannot get positional parameters in MongoDB");
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> @Nullable T get(@NotNull String name, @NotNull Class<T> type) {
         return document.get(name, type);
     }
