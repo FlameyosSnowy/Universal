@@ -6,7 +6,7 @@ import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import java.util.concurrent.CompletableFuture;
 
 @SuppressWarnings("unused")
-public interface Session<ID, T, C> extends TransactionContext<C>, AutoCloseable {
+public interface DatabaseSession<ID, T, C> extends TransactionContext<C>, AutoCloseable {
     /**
      * Retrieves the cache associated with this session.
      * @return the cache associated with this session.

@@ -8,13 +8,13 @@ public interface EntityLifecycleListener<T> {
      * Called before the entity is persisted into the underlying storage.
      * @param entity the entity to be persisted, or null if the entity is null
      */
-    default void onPrePersist(@Nullable T entity) {}
+    default void onPreInsert(@Nullable T entity) {}
 
     /**
      * Called after the entity is persisted into the underlying storage.
      * @param entity the entity that was persisted, or null if the entity was null
      */
-    default void onPostPersist(@Nullable T entity) {}
+    default void onPostInsert(@Nullable T entity) {}
 
     /**
      * Called before the entity is updated in the underlying storage.

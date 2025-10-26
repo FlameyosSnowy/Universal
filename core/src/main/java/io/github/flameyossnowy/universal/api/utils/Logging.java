@@ -10,15 +10,32 @@ public final class Logging {
     public static boolean ENABLED = false;
     public static boolean DEEP = false;
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(Logging.class);
-    private static final java.util.logging.Logger FALLBACK = java.util.logging.Logger.getLogger(Logging.class.getName());
+    private static final Logger LOGGER;
+    private static final java.util.logging.Logger FALLBACK;
+
+    static {
+        Logger detected;
+        try {
+            Logger logger = LoggerFactory.getLogger(Logging.class);
+            detected = logger instanceof NOPLogger ? null : logger;
+        } catch (NoClassDefFoundError e) {
+            detected = null;
+        }
+        LOGGER = detected;
+
+        if (LOGGER == null) {
+            FALLBACK = java.util.logging.Logger.getLogger(Logging.class.getName());
+        } else {
+            FALLBACK = null;
+        }
+    }
 
     /**
      * Debugs an error message but does not require debugging to be enabled.
      * @param string the message
      */
     public static void error(String string) {
-        if (LOGGER != NOPLogger.NOP_LOGGER) LOGGER.error(string);
+        if (LOGGER != null) LOGGER.error(string);
         else FALLBACK.severe(string);
 
     }
@@ -29,7 +46,7 @@ public final class Logging {
      * @param throwable the throwable that caused the error
      */
     public static void error(String string, Throwable throwable) {
-        if (LOGGER != NOPLogger.NOP_LOGGER) LOGGER.error(string, throwable);
+        if (LOGGER != null) LOGGER.error(string, throwable);
         else FALLBACK.log(java.util.logging.Level.SEVERE, string, throwable);
     }
 
@@ -38,7 +55,7 @@ public final class Logging {
      * @param throwable the throwable that caused the error
      */
     public static void error(Throwable throwable) {
-        if (LOGGER != NOPLogger.NOP_LOGGER) LOGGER.error(throwable.getMessage(), throwable);
+        if (LOGGER != null) LOGGER.error(throwable.getMessage(), throwable);
         else FALLBACK.log(java.util.logging.Level.SEVERE, throwable.getMessage(), throwable);
     }
 
@@ -48,7 +65,7 @@ public final class Logging {
      */
     public static void info(String string) {
         if (ENABLED) {
-            if (LOGGER != NOPLogger.NOP_LOGGER) LOGGER.info(string);
+            if (LOGGER != null) LOGGER.info(string);
             else FALLBACK.info(string);
         }
     }
@@ -58,8 +75,8 @@ public final class Logging {
      * @param string the message
      */
     public static void deepInfo(String string) {
-        if (ENABLED && DEEP) {
-            if (LOGGER != NOPLogger.NOP_LOGGER) LOGGER.info(string);
+        if (DEEP) {
+            if (LOGGER != null) LOGGER.info(string);
             else FALLBACK.info(string);
         }
     }
