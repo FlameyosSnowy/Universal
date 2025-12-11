@@ -96,13 +96,15 @@ To include Universal in your project, add it as a dependency in your `pom.xml` (
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifact>core</artifactId>
-  <version>4.0.0</version>
+  <version>5.0.0</version>
 </dependency>
+
+<!-- if you're using sql, add sql-common-->
 
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifactId>PLATFORM</artifactId>
-  <version>4.0.0</version>
+  <version>5.0.0</version>
 </dependency>
 ```
 
@@ -112,8 +114,9 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.FlameyosSnowy.Universal:core:4.0.0")
-    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:4.0.0")
+    implementation("com.github.FlameyosSnowy.Universal:core:5.0.0")
+    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:5.0.0")
+    // implementation("com.github.FlameyosSnowy.Universal:sql-common:5.0.0")
 }
 ```
 
@@ -180,8 +183,8 @@ for (User user : minors) {
 ```
 
 ## Supported Databases
-- **SQL Databases**: MySQL, PostgreSQL, SQLite
-- **NoSQL Databases**: MongoDB.
+- **SQL Databases**: MySQL, PostgreSQL, SQLite, MariaDB (If you use MySQL, lol)
+- **NoSQL Databases**: MongoDB, Cassandra
 
 ## Contributing
 
