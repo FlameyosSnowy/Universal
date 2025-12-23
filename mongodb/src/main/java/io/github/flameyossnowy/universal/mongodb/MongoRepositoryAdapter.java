@@ -16,13 +16,18 @@ import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
+import io.github.flameyossnowy.universal.api.operation.OperationContext;
+import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
+import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
+import io.github.flameyossnowy.universal.api.options.validator.ValidationEstimation;
 import io.github.flameyossnowy.universal.api.reflect.*;
 import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.mongodb.annotations.MongoResolver;
 import io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodecProvider;
+import io.github.flameyossnowy.universal.mongodb.query.MongoQueryValidator;
 import org.bson.*;
 import org.bson.codecs.*;
 import org.bson.codecs.configuration.*;
@@ -33,7 +38,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongFunction;
 
 import static com.mongodb.client.model.Filters.*;
@@ -63,8 +67,6 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
             float.class, double.class, short.class, byte.class, char.class
     );
 
-    static final Map<Class<?>, MongoRepositoryAdapter<?, ?>> ADAPTERS = new ConcurrentHashMap<>(10);
-
     private final AuditLogger<T> auditLogger;
     private final EntityLifecycleListener<T> entityLifecycleListener;
 
@@ -77,6 +79,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     private final ExceptionHandler<T, ID, ClientSession> exceptionHandler;
     private final TypeResolverRegistry typeResolverRegistry = new TypeResolverRegistry();
+    private final QueryValidator queryValidator;
 
     MongoRepositoryAdapter(
             @NotNull MongoClientSettings.Builder clientBuilder,
@@ -88,20 +91,21 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
             CacheWarmer<T, ID> cacheWarmer
     ) {
         this.repositoryInformation = RepositoryMetadata.getMetadata(repo);
-        this.idType = idType;
-        this.elementType = repo;
-        this.globalCache = sessionCache;
-        this.sessionCacheSupplier = sessionCacheSupplier;
-
         if (repositoryInformation == null)
             throw new IllegalArgumentException("Unable to find repository information for " + repo.getSimpleName());
 
         if (NUMBERS.contains(repositoryInformation.getPrimaryKey().type()) || repositoryInformation.getPrimaryKey().autoIncrement())
             throw new IllegalArgumentException("Primary key must not be of type number and/or must not be auto-increment");
 
-        this.exceptionHandler = (ExceptionHandler<T, ID, ClientSession>) repositoryInformation.getExceptionHandler();
+        this.idType = idType;
+        this.elementType = repo;
+        this.globalCache = sessionCache;
+        this.sessionCacheSupplier = sessionCacheSupplier;
 
-        ADAPTERS.put(repo, this);
+        this.exceptionHandler = (ExceptionHandler<T, ID, ClientSession>) repositoryInformation.getExceptionHandler();
+        this.queryValidator = new MongoQueryValidator(repositoryInformation);
+
+        RepositoryRegistry.register(this.repositoryInformation.getRepositoryName(), this);
         this.objectFactory = new ObjectFactory<>(this.repositoryInformation, repo, idType);
         this.resultCache = new DefaultResultCache<>(1000, CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED);
         // Initialize advanced caches
@@ -191,6 +195,12 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public List<T> find(@NotNull SelectQuery query) {
+        // Validate query
+        ValidationEstimation validation = queryValidator.validateSelectQuery(query);
+        if (validation.isFail()) {
+            Logging.warn("Query validation failed: " + validation.reason());
+        }
+        
         Document filterDoc = createFilterDocument(query.filters());
         List<T> cached = resultCache.fetch(filterDoc);
         if (cached != null) return cached;
@@ -245,6 +255,41 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         }
 
         return null;
+    }
+
+    @Override
+    public Map<ID, T> findAllById(Collection<ID> keys) {
+        if (keys.isEmpty()) return Map.of();
+
+        Map<ID, T> result = new HashMap<>(keys.size());
+        List<ID> missing = new ArrayList<>();
+
+        // Identity map first
+        for (ID id : keys) {
+            T cached = globalCache.get(id);
+            if (cached != null) {
+                result.put(id, cached);
+            } else {
+                missing.add(id);
+            }
+        }
+
+        if (missing.isEmpty()) return result;
+
+        String pk = repositoryInformation.getPrimaryKey().name();
+        FindIterable<Document> iterable =
+            collection.find(in(pk, missing));
+
+        try (MongoCursor<Document> cursor = iterable.iterator()) {
+            while (cursor.hasNext()) {
+                T entity = objectFactory.fromDocument(cursor.next());
+                ID id = repositoryInformation.getPrimaryKey().getValue(entity);
+                result.put(id, entity);
+                globalCache.put(id, entity);
+            }
+        }
+
+        return result;
     }
 
     private T loadFromDatabase(ID key) {
@@ -342,7 +387,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
-    public TransactionResult<Boolean> insertAll(List<T> values, @NotNull TransactionContext<ClientSession> tx) {
+    public TransactionResult<Boolean> insertAll(Collection<T> values, @NotNull TransactionContext<ClientSession> tx) {
         try {
             if (repositoryInformation.getAuditLogger() != null)
                 ((AuditLogger<T>) repositoryInformation.getAuditLogger()).onInsert(values);
@@ -357,7 +402,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
-    public TransactionResult<Boolean> insertAll(List<T> values) {
+    public TransactionResult<Boolean> insertAll(Collection<T> values) {
         try {
             List<Document> docs = values.stream().map(objectFactory::toDocument).toList();
             InsertManyResult result = collection.insertMany(docs);
@@ -478,7 +523,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                     conditions.isEmpty() ? new Document() : and(conditions),
                     Updates.combine(updates)
             );
-            invalidate(createFilterDocument(query.conditions()));
+            invalidate(createFilterDocument(query.filters()));
             return TransactionResult.success(result.getModifiedCount() > 0);
         } catch (Exception e) {
             return this.exceptionHandler.handleInsert(e, repositoryInformation, this);
@@ -487,6 +532,12 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query) {
+        // Validate query
+        ValidationEstimation validation = queryValidator.validateUpdateQuery(query);
+        if (validation.isFail()) {
+            Logging.warn("Update query validation failed: " + validation.reason());
+        }
+        
         try {
             MongoUpdateResult mongoUpdateResult = getMongoUpdateResult(query);
             UpdateResult result = collection.updateMany(
@@ -494,7 +545,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                             ? new Document()
                             : and(mongoUpdateResult.conditions()),
                     Updates.combine(mongoUpdateResult.updates()));
-            invalidate(createFilterDocument(query.conditions()));
+            invalidate(createFilterDocument(query.filters()));
             return TransactionResult.success(result.getModifiedCount() > 0);
         } catch (Exception e) {
             return this.exceptionHandler.handleInsert(e, repositoryInformation, this);
@@ -503,7 +554,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     private static MongoUpdateResult getMongoUpdateResult(@NotNull UpdateQuery query) {
         List<Bson> conditions = new ArrayList<>(3), updates = new ArrayList<>(3);
-        for (var f : query.conditions())
+        for (var f : query.filters())
             conditions.add(eq(f.option(), f.value()));
         for (var e : query.updates().entrySet())
             updates.add(Updates.set(e.getKey(), e.getValue()));
@@ -533,6 +584,12 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> delete(@NotNull DeleteQuery query) {
+        // Validate query
+        ValidationEstimation validation = queryValidator.validateDeleteQuery(query);
+        if (validation.isFail()) {
+            Logging.warn("Delete query validation failed: " + validation.reason());
+        }
+        
         try {
             if (query.filters().isEmpty()) {
                 DeleteResult result = collection.deleteMany(new Document());
@@ -588,8 +645,45 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
-    public TransactionContext<ClientSession> beginTransaction() {
+    public @NotNull TransactionContext<ClientSession> beginTransaction() {
         return new SimpleTransactionContext(client.startSession());
+    }
+
+    @Override
+    public @NotNull List<ID> findIds(@NotNull SelectQuery query) {
+        // Validate query (same philosophy as find)
+        ValidationEstimation validation = queryValidator.validateSelectQuery(query);
+        if (validation.isFail()) {
+            Logging.warn("findIds query validation failed: " + validation.reason());
+        }
+
+        // Build filters
+        Document filterDoc = createFilterDocument(query.filters());
+
+        // Build projection: ONLY primary key
+        String pk = repositoryInformation.getPrimaryKey().name();
+        Bson projection = Projections.include(pk);
+
+        FindIterable<Document> iterable =
+            collection.find(filterDoc)
+                .projection(projection);
+
+        // Apply query modifiers
+        iterable = process(query, iterable, repositoryInformation.getFetchPageSize());
+
+        List<ID> ids = new ArrayList<>();
+
+        try (MongoCursor<Document> cursor = iterable.iterator()) {
+            while (cursor.hasNext()) {
+                Document doc = cursor.next();
+                ID id = doc.get(pk, idType);
+                if (id != null) {
+                    ids.add(id);
+                }
+            }
+        }
+
+        return ids;
     }
 
     @Override
@@ -617,7 +711,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
-    public Class<ID> getIdType() {
+    public @NotNull Class<ID> getIdType() {
         return idType;
     }
 
@@ -628,8 +722,23 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
+    public @NotNull OperationContext<ClientSession> getOperationContext() {
+        return null;
+    }
+
+    @Override
+    public @NotNull OperationExecutor<ClientSession> getOperationExecutor() {
+        return null;
+    }
+
+    @Override
     public @NotNull RepositoryInformation getRepositoryInformation() {
         return repositoryInformation;
+    }
+
+    @Override
+    public @NotNull TypeResolverRegistry getTypeResolverRegistry() {
+        return null;
     }
 
     @Override
