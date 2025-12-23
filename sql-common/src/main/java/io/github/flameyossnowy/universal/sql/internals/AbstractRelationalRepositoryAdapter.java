@@ -1,8 +1,6 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
-import io.github.flameyossnowy.universal.api.IndexOptions;
-import io.github.flameyossnowy.universal.api.RepositoryAdapter;
-import io.github.flameyossnowy.universal.api.RelationalObjectFactory;
+import io.github.flameyossnowy.universal.api.*;
 import io.github.flameyossnowy.universal.api.annotations.Index;
 import io.github.flameyossnowy.universal.api.cache.*;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
@@ -11,25 +9,27 @@ import io.github.flameyossnowy.universal.api.exceptions.handler.DefaultException
 import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
+import io.github.flameyossnowy.universal.api.operation.OperationContext;
+import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
+import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
 import io.github.flameyossnowy.universal.api.reflect.*;
 
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
-import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.sql.SimpleTransactionContext;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
-import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
+import io.github.flameyossnowy.universal.sql.query.SQLQueryValidator;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongFunction;
 
 @SuppressWarnings("unchecked")
@@ -55,8 +55,11 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     protected final PrefetchingCache<ID, T> prefetchingCache;
 
     protected long openedSessions = 1;
-
-    static final Map<Class<?>, RepositoryAdapter<?, ?, ?>> ADAPTERS = new ConcurrentHashMap<>(3);
+    
+    // Operation-based API support
+    protected final OperationContext<Connection> operationContext;
+    protected final OperationExecutor<Connection> operationExecutor;
+    protected final QueryValidator queryValidator;
 
     protected AbstractRelationalRepositoryAdapter(
             SQLConnectionProvider dataSource,
@@ -68,20 +71,18 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
             LongFunction<SessionCache<ID, T>> sessionCacheSupplier,
             CacheWarmer<T, ID> cacheWarmer) {
         this.sessionCacheSupplier = sessionCacheSupplier;
-        Logging.info("Initializing repository: " + repository.getSimpleName());
+        this.idClass = idClass;
+        this.dataSource = dataSource;
+        this.cache = cache;
+        this.repository = repository;
         this.globalCache = globalCache;
+        Logging.info("Initializing repository: " + repository.getSimpleName());
 
         this.repositoryInformation = RepositoryMetadata.getMetadata(repository);
         if (repositoryInformation == null)
             throw new IllegalArgumentException("Could not find repository information for class: " + repository.getSimpleName());
-        ADAPTERS.put(repository, this);
-        Logging.info("Repository information: " + repositoryInformation);
-
-        this.idClass = idClass;
-
-        this.dataSource = dataSource;
-        this.cache = cache;
-        this.repository = repository;
+        RepositoryRegistry.register(this.repositoryInformation.getRepositoryName(), this);
+        Logging.deepInfo("Repository information: " + repositoryInformation);
 
         this.resolverRegistry = new TypeResolverRegistry();
         this.objectFactory = new ObjectFactory<>(repositoryInformation, dataSource, this, resolverRegistry);
@@ -103,6 +104,15 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         
         Logging.info("Advanced caching enabled: L2 Cache, Read-Through Cache, Prefetching Cache");
 
+        // Initialize operation-based API support
+        this.operationExecutor = new SQLOperationExecutor<>(this);
+        this.operationContext = new OperationContext<>(
+                repositoryInformation,
+                resolverRegistry,
+                operationExecutor
+        );
+        this.queryValidator = new SQLQueryValidator(repositoryInformation, type.getDialect());
+
         if (cacheWarmer != null) {
             cacheWarmer.warmCache(this);
         }
@@ -123,26 +133,29 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         return executeQueryWithParams(query, q == null ? List.of() : q.filters());
     }
 
+    private @NotNull List<ID> extractIds(ResultSet rs) throws SQLException {
+        FieldData<?> primaryKey = validatePrimaryKey();
+
+        String idColumn = primaryKey.name();
+
+        TypeResolver<ID> resolver = resolverRegistry.getResolver(idClass);
+
+        List<ID> list = new ArrayList<>(rs.getMetaData().getColumnCount());
+
+        SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
+        while (rs.next()) {
+            ID id = resolver.resolve(result, idColumn);
+            list.add(id);
+        }
+
+        return list;
+    }
+
     private @NotNull List<T> search(String query, boolean first, @NotNull List<SelectOption> filters) throws Exception {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = dataSource.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry);
-
-            for (SelectOption value : filters) {
-                if (value == null) continue;
-                
-                // Handle IN clause with list of values
-                if ("IN".equalsIgnoreCase(value.operator()) && value.value() instanceof List<?> list) {
-                    for (Object item : list) {
-                        TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(item.getClass());
-                        resolver.insert(parameters, value.option(), item);
-                    }
-                } else {
-                    TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(value.value().getClass());
-                    resolver.insert(parameters, value.option(), value.value());
-                }
-            }
-
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, query);
+            this.addFilterToPreparedStatement(filters, parameters);
             try (ResultSet resultSet = statement.executeQuery()) {
                 return first ? fetchFirst(query, resultSet) : fetchAll(query, resultSet);
             }
@@ -162,7 +175,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     private @NotNull List<T> fetchFirst(String query, @NotNull ResultSet resultSet) throws Exception {
         if (!resultSet.next()) return insertToCache(query, List.of());
-        // Fixed: Use createWithRelationships when relationships exist, not the other way around
         return insertToCache(query, List.of(repositoryInformation.hasRelationships() ? this.objectFactory.createWithRelationships(resultSet) : this.objectFactory.create(resultSet)));
     }
 
@@ -173,6 +185,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public T findById(ID key) {
+        FieldData<?> primaryKey = validatePrimaryKey();
+
         // Check L2 cache first
         T cached = l2Cache.get(key);
         if (cached != null) {
@@ -181,7 +195,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         }
         
         // Load from database
-        T entity = first(Query.select().where(repositoryInformation.getPrimaryKey().name(), key).build());
+        T entity = first(Query.select().where(primaryKey.name(), key).build());
         
         // Store in L2 cache
         if (entity != null) {
@@ -190,19 +204,47 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         
         return entity;
     }
-    
+
+    @Override
+    public Map<ID, T> findAllById(Collection<ID> keys) {
+        FieldData<?> primaryKey = validatePrimaryKey();
+
+        if (keys.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        if (keys.size() == 1) {
+            ID next = keys.iterator().next();
+            return Collections.singletonMap(next, findById(next));
+        }
+
+        SelectQuery query = Query.select().where(primaryKey.name(), keys).build();
+        String s = engine.parseSelect(query, false);
+
+        List<T> ts = executeQueryWithParams(s, false, query.filters());
+        Map<ID, T> result = new HashMap<>(ts.size());
+        for (T t : ts) {
+            ID id = primaryKey.getValue(t);
+            result.put(id, t);
+            l2Cache.put(id, t);
+            readThroughCache.put(id, t);
+        }
+        return result;
+    }
+
     /**
      * Helper method to load entity from database (used by ReadThroughCache).
      */
     private T loadFromDatabase(ID key) {
-        return first(Query.select().where(repositoryInformation.getPrimaryKey().name(), key).build());
+        FieldData<?> primaryKey = validatePrimaryKey();
+        return first(Query.select().where(primaryKey.name(), key).build());
     }
 
     @Override
-    public T first(final SelectQuery q) {
+    public @Nullable T first(final SelectQuery q) {
         String query = engine.parseSelect(q, true);
         List<T> results = executeQueryWithParams(query, true, q.filters());
-        return results.isEmpty() ? null : results.get(0);
+        return results.isEmpty() ? null : results.getFirst();
     }
 
     @Override
@@ -211,29 +253,30 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     @Override
-    public TransactionResult<Boolean> insertAll(List<T> value, TransactionContext<Connection> transactionContext) {
+    public TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext<Connection> transactionContext) {
         if (value.isEmpty()) return TransactionResult.success(false);
         return executeBatch(transactionContext, engine.parseInsert(), value);
     }
 
     @Override
-    public TransactionResult<Boolean> insertAll(@NotNull List<T> collection) {
+    public TransactionResult<Boolean> insertAll(@NotNull Collection<T> collection) {
         if (collection.isEmpty()) return TransactionResult.success(false);
         return executeBatch(null, engine.parseInsert(), collection);
     }
 
     private static final int BATCH_SIZE = 1000; // Prevent OOM on large batches
     
-    private TransactionResult<Boolean> executeBatch(TransactionContext<Connection> transactionContext, String sql, List<T> collection) {
+    private TransactionResult<Boolean> executeBatch(TransactionContext<Connection> transactionContext, String sql, Collection<T> collection) {
         try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
              PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
 
             connection.setAutoCommit(false);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
             try {
                 // Process in chunks to prevent OOM and timeout issues
-                for (int i = 0; i < collection.size(); i++) {
-                    T entity = collection.get(i);
-                    objectFactory.insertEntity(statement, entity);
+                int i = 0;
+                for (T entity : collection) {
+                    objectFactory.insertEntity(parameters, entity);
                     statement.addBatch();
                     
                     // Execute batch every BATCH_SIZE items
@@ -241,6 +284,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
                         statement.executeBatch();
                         statement.clearBatch();
                     }
+
+                    i++;
                 }
                 
                 // Execute remaining items
@@ -250,9 +295,12 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
                 
                 connection.commit();
 
-                // Insert collection entities after main batch
-                for (T entity : collection) {
-                    objectFactory.insertCollectionEntities(entity, repositoryInformation.getPrimaryKey().getValue(entity), statement);
+                FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+                if (primaryKey != null) {
+                    // Insert collection entities after main batch
+                    for (T entity : collection) {
+                        objectFactory.insertCollectionEntities(entity, primaryKey.getValue(entity), parameters);
+                    }
                 }
 
                 if (cache != null) cache.clear();
@@ -270,8 +318,14 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull T entity, TransactionContext<Connection> transactionContext) {
-        ID id = repositoryInformation.getPrimaryKey().getValue(entity);
-        TransactionResult<Boolean> result = executeUpdate(transactionContext, engine.parseUpdateFromEntity(), statement -> this.setUpdateParameters(statement, entity), entity, id);
+        FieldData<?> primaryKey = validatePrimaryKey();
+
+        ID id = primaryKey.getValue(entity);
+        String sql = engine.parseUpdateFromEntity();
+        TransactionResult<Boolean> result = executeUpdate(transactionContext, sql, statement -> {
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            this.setUpdateParameters(parameters, entity);
+        }, entity, id);
         
         if (result.isSuccess()) {
             // Invalidate L2 cache for this entity
@@ -299,11 +353,13 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public TransactionResult<Boolean> deleteById(@NotNull ID entity, TransactionContext<Connection> transactionContext) {
+        validatePrimaryKey();
         return executeDeleteWithId(transactionContext, engine.parseDelete(entity), entity);
     }
 
     @Override
     public TransactionResult<Boolean> deleteById(ID value) {
+        validatePrimaryKey();
         return executeDeleteWithId(null, engine.parseDelete(value), value);
     }
 
@@ -331,30 +387,50 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     private @NotNull List<T> mapResults(String query, @NotNull ResultSet resultSet, List<T> results) throws Exception {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+
+        boolean existingGlobalCache = globalCache != null;
+        if (existingGlobalCache && primaryKey == null) {
+            throw new IllegalArgumentException("Cannot extract primary key from " + repositoryInformation.getRepositoryName() + " because there's no id.");
+        }
+
         while (resultSet.next()) {
             T entity = this.objectFactory.create(resultSet);
-            if (globalCache != null) globalCache.put(repositoryInformation.getPrimaryKey().getValue(entity), entity);
+            if (existingGlobalCache)
+                globalCache.put(primaryKey.getValue(entity), entity);
             results.add(entity);
         }
         return insertToCache(query, results);
     }
 
     private List<T> insertToCache(String query, List<T> result) {
-        if (cache != null) cache.insert(query, result, (entity) -> repositoryInformation.getPrimaryKey().getValue(entity));
+        if (cache != null) cache.insert(query, result, (entity) -> {
+            FieldData<?> primaryKey = validatePrimaryKey();
+            return primaryKey.getValue(entity);
+        });
         return result;
     }
 
     private @NotNull List<T> mapResultsWithRelationships(String query, @NotNull ResultSet resultSet, List<T> fetchedData) throws Exception {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+
+        boolean existingGlobalCache = globalCache != null;
+        if (existingGlobalCache) {
+            if (primaryKey == null) {
+                throw new IllegalArgumentException("Cannot extract primary key from " + repositoryInformation.getRepositoryName() + " because there's no id.");
+            }
+        }
+
         while (resultSet.next()) {
             T entity = this.objectFactory.createWithRelationships(resultSet);
-            if (globalCache != null) globalCache.put(repositoryInformation.getPrimaryKey().getValue(entity), entity);
+            if (globalCache != null) globalCache.put(primaryKey.getValue(entity), entity);
             fetchedData.add(entity);
         }
         return insertToCache(query, fetchedData);
     }
 
     @Override
-    public TransactionContext<Connection> beginTransaction() {
+    public @NotNull TransactionContext<Connection> beginTransaction() {
         try {
             return new SimpleTransactionContext(dataSource.getConnection());
         } catch (Exception e) {
@@ -363,9 +439,43 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     @Override
+    public @NotNull List<ID> findIds(@NotNull SelectQuery query) {
+        String sql = engine.parseSelect(query, query.limit() == 1, true);
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            this.addFilterToPreparedStatement(query.filters(), parameters);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return extractIds(resultSet);
+            }
+        } catch (Exception e) {
+            return this.exceptionHandler.handleReadIds(e, repositoryInformation, query, this);
+        }
+    }
+
+    private void addFilterToPreparedStatement(List<SelectOption> filters, SQLDatabaseParameters parameters) {
+        for (SelectOption value : filters) {
+            if (value == null) continue;
+
+            // Handle IN clause with list of values
+            if ("IN".equalsIgnoreCase(value.operator()) && value.value() instanceof Collection<?> list) {
+                for (Object item : list) {
+                    TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(item.getClass());
+                    resolver.insert(parameters, value.option(), item);
+                }
+            } else {
+                TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(value.value().getClass());
+                resolver.insert(parameters, value.option(), value.value());
+            }
+        }
+    }
+
+
+    @Override
     public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query, TransactionContext<Connection> transactionContext) {
-        return executeUpdate(transactionContext, engine.parseUpdate(query), statement -> {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry);
+        String sql = engine.parseUpdate(query);
+        return executeUpdate(transactionContext, sql, statement -> {
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
             setUpdateParameters(query, parameters);
         });
     }
@@ -377,8 +487,9 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query) {
-        return executeUpdate(null, engine.parseUpdate(query), statement -> {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry);
+        String sql = engine.parseUpdate(query);
+        return executeUpdate(null, sql, statement -> {
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
             setUpdateParameters(query, parameters);
         });
     }
@@ -414,8 +525,15 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     public TransactionResult<Boolean> updateAll(T entity) {
         if (entityLifecycleListener != null) entityLifecycleListener.onPreUpdate(entity);
         T oldEntity = null;
-        if (auditLogger != null) oldEntity = findById(repositoryInformation.getPrimaryKey().getValue(entity));
-        TransactionResult<Boolean> result = executeUpdate(null, engine.parseUpdateFromEntity(), statement -> setUpdateParameters(statement, entity));
+
+        FieldData<?> primaryKey = validatePrimaryKey();
+        if (auditLogger != null) oldEntity = findById(primaryKey.getValue(entity));
+
+        String sql = engine.parseUpdateFromEntity();
+        TransactionResult<Boolean> result = executeUpdate(null, sql, statement -> {
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            this.setUpdateParameters(parameters, entity);
+        });
         if (result.isSuccess()) {
             if (entityLifecycleListener != null)entityLifecycleListener.onPostUpdate(entity);
             if (auditLogger != null) auditLogger.onUpdate(oldEntity, entity);
@@ -423,8 +541,16 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         return result;
     }
 
+    private @NotNull FieldData<?> validatePrimaryKey() {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Cannot extract primary key from " + repositoryInformation.getRepositoryName() + " because there's no id.");
+        }
+        return primaryKey;
+    }
+
     @Override
-    public Class<ID> getIdType() {
+    public @NotNull Class<ID> getIdType() {
         return idClass;
     }
 
@@ -436,6 +562,24 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     @Override
     public Class<T> getElementType() {
         return repository;
+    }
+
+    @Override
+    @NotNull
+    public OperationContext<Connection> getOperationContext() {
+        return operationContext;
+    }
+
+    @Override
+    @NotNull
+    public OperationExecutor<Connection> getOperationExecutor() {
+        return operationExecutor;
+    }
+
+    @Override
+    @NotNull
+    public TypeResolverRegistry getTypeResolverRegistry() {
+        return resolverRegistry;
     }
 
     @Override
@@ -497,8 +641,11 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     private TransactionResult<Boolean> executeDelete(TransactionContext<Connection> transactionContext, String sql, T entity) {
         if (entityLifecycleListener != null) entityLifecycleListener.onPreDelete(entity);
         try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry);
-            return processDelete(repositoryInformation.getPrimaryKey().getValue(entity), parameters, statement, entity);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+
+            FieldData<?> primaryKey = validatePrimaryKey();
+
+            return processDelete(primaryKey.getValue(entity), parameters, statement, entity);
         } catch (Exception e) {
             return this.exceptionHandler.handleDelete(e, repositoryInformation, this);
         }
@@ -506,7 +653,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     private TransactionResult<Boolean> executeDelete(TransactionContext<Connection> transactionContext, String sql, DeleteQuery query) {
         try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
             setUpdateParameters(query, parameters);
             if (cache != null) cache.clear();
             return TransactionResult.success(statement.execute());
@@ -520,7 +667,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         if (auditLogger != null || entityLifecycleListener != null) byId = findById(id);
         if (entityLifecycleListener != null) entityLifecycleListener.onPreDelete(byId);
         try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
             return processDelete(id, parameters, statement, byId);
         } catch (Exception e) {
             return this.exceptionHandler.handleDelete(e, repositoryInformation, this);
@@ -529,6 +676,9 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     private @NotNull TransactionResult<Boolean> processDelete(ID id, SQLDatabaseParameters parameters, PreparedStatement statement, T entity) throws SQLException {
         TypeResolver<ID> resolver = resolverRegistry.getResolver(idClass);
+
+        // Primary key is always not null
+        //noinspection DataFlowIssue
         resolver.insert(parameters, repositoryInformation.getPrimaryKey().name(), id);
 
         if (cache != null) cache.clear();
@@ -551,18 +701,20 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     private TransactionResult<Boolean> executeInsertAndSetId(TransactionContext<Connection> transactionContext, String sql, T value) {
-        entityLifecycleListener.onPreInsert(value);
+        if (entityLifecycleListener != null) entityLifecycleListener.onPreInsert(value);
         try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
              PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
 
-            this.objectFactory.insertEntity(statement, value);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+
+            this.objectFactory.insertEntity(parameters, value);
 
             if (statement.executeUpdate() > 0) {
                 if (repositoryInformation.getPrimaryKey() == null) {
                     return TransactionResult.success(true);
                 }
                 if (!repositoryInformation.getPrimaryKey().autoIncrement()) {
-                    this.objectFactory.insertCollectionEntities(value, repositoryInformation.getPrimaryKey().getValue(value), statement);
+                    this.objectFactory.insertCollectionEntities(value, repositoryInformation.getPrimaryKey().getValue(value), parameters);
                     if (globalCache != null) globalCache.put(repositoryInformation.getPrimaryKey().getValue(value), value);
                     return TransactionResult.success(true);
                 }
@@ -576,11 +728,12 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
                     if (globalCache != null) globalCache.put(generatedId, value);
 
-                    this.objectFactory.insertCollectionEntities(value, generatedId, statement);
+                    this.objectFactory.insertCollectionEntities(value, generatedId, parameters);
                 }
                 if (cache != null) cache.clear();
-                auditLogger.onInsert(value);
-                entityLifecycleListener.onPostInsert(value);
+                if (auditLogger != null) auditLogger.onInsert(value);
+                if (entityLifecycleListener != null) entityLifecycleListener.onPostInsert(value);
+
                 return TransactionResult.success(true);
             }
             return TransactionResult.success(false);
@@ -589,13 +742,62 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         }
     }
 
-    private void setUpdateParameters(PreparedStatement statement, @NotNull T entity) throws Exception {
-        int index = 1;
+    private void setUpdateParameters(SQLDatabaseParameters statement, @NotNull T entity) {
         for (FieldData<?> fieldData : repositoryInformation.getFields()) {
-            Object value = fieldData.getValue(entity);
+            if (fieldData.autoIncrement() || fieldData.oneToMany() != null) {
+                continue; // Skip auto-incrementing fields and collection-based relationships
+            }
 
-            SQLValueTypeResolver<Object> resolver = (SQLValueTypeResolver<Object>) resolverRegistry.getResolver(fieldData.type());
-            resolver.insert(statement, index, value);
+            Object value = fieldData.getValue(entity);
+            Logging.deepInfo("Processing field for update: " + fieldData.name() + " with value: " + value);
+
+            // Handle relationship fields
+            if ((fieldData.oneToOne() != null || fieldData.manyToOne() != null)) {
+                if (value == null) {
+                    // If the relationship is null, we still need to set the foreign key to null
+                    Logging.deepInfo("  -> Relationship field is null, setting to NULL");
+                } else {
+                    // For non-null relationships, get the ID from the related entity
+                    RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(fieldData.type());
+                    if (relatedInfo != null) {
+                        FieldData<?> pkField = relatedInfo.getPrimaryKey();
+                        if (pkField == null) {
+                            throw new IllegalArgumentException("Cannot extract primary key from " + repositoryInformation.getRepositoryName() + " because there's no id.");
+                        }
+
+                        value = pkField.getValue(value);
+                        Logging.deepInfo("  -> Relationship field, using ID for update: " + value);
+                    }
+                }
+            }
+
+            // Get the appropriate type resolver
+            TypeResolver<Object> resolver;
+            if ((fieldData.oneToOne() != null || fieldData.manyToOne() != null) && value != null) {
+                // For relationship fields, use the type of the ID field
+                RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(fieldData.type());
+                if (relatedInfo != null) {
+                    FieldData<?> pkField = relatedInfo.getPrimaryKey();
+                    if (pkField == null) {
+                        throw new IllegalArgumentException("Cannot extract primary key from " + repositoryInformation.getRepositoryName() + " because there's no id.");
+                    }
+
+                    resolver = (TypeResolver<Object>) resolverRegistry.resolve(pkField.type());
+                } else {
+                    resolver = (TypeResolver<Object>) resolverRegistry.resolve(fieldData.type());
+                }
+            } else {
+                // For regular fields, use the field's type
+                resolver = (TypeResolver<Object>) resolverRegistry.resolve(fieldData.type());
+            }
+
+            if (resolver == null) {
+                Logging.deepInfo("No resolver for " + fieldData.type() + ", assuming it's a relationship handled elsewhere.");
+                continue;
+            }
+
+            Logging.deepInfo("Binding parameter " + fieldData.name() + ": " + value + " (type: " + (value != null ? value.getClass().getSimpleName() : "null") + ")");
+            resolver.insert(statement, fieldData.name(), value);
         }
     }
 
@@ -605,7 +807,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
             resolver.insert(parameters, value.getKey(), value.getValue());
         }
 
-        List<SelectOption> conditions = query.conditions();
+        List<SelectOption> conditions = query.filters();
         if (conditions.isEmpty()) return;
         for (SelectOption value : conditions) {
             TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(value.value().getClass());

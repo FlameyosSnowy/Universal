@@ -1,6 +1,5 @@
 package io.github.flameyossnow.universal.cassandra;
 
-
 import com.datastax.driver.core.*;
 import io.github.flameyossnow.universal.cassandra.factory.CassandraObjectFactory;
 import io.github.flameyossnow.universal.cassandra.handler.CassandraRelationshipHandler;
@@ -9,6 +8,7 @@ import io.github.flameyossnow.universal.cassandra.query.CassandraQueryEngine;
 import io.github.flameyossnow.universal.cassandra.query.CassandraTableParser;
 import io.github.flameyossnowy.universal.api.IndexOptions;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
+import io.github.flameyossnowy.universal.api.RepositoryRegistry;
 import io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmType;
 import io.github.flameyossnowy.universal.api.cache.*;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
@@ -16,6 +16,8 @@ import io.github.flameyossnowy.universal.api.exceptions.handler.DefaultException
 import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
+import io.github.flameyossnowy.universal.api.operation.OperationContext;
+import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
@@ -24,8 +26,16 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongFunction;
 
@@ -49,13 +59,11 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     private final TypeResolverRegistry resolverRegistry = new TypeResolverRegistry();
     private int currentSession = 0;
 
-    private static final Map<Class<?>, RepositoryAdapter<?, ?, ?>> ADAPTERS = new ConcurrentHashMap<>();
-
     private final AuditLogger<T> auditLogger;
     private final EntityLifecycleListener<T> entityLifecycleListener;
 
     // PreparedStatement cache for performance optimization
-    private final Map<String, PreparedStatement> preparedStatementCache = new ConcurrentHashMap<>();
+    private final Map<String, PreparedStatement> preparedStatementCache = new ConcurrentHashMap<>(16);
 
     public CassandraRepositoryAdapter(
             DefaultResultCache<String, T, ID> resultCache,
@@ -113,13 +121,15 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
 
         Logging.info("Repository information: " + repositoryInformation);
 
+        RepositoryRegistry.register(this.repositoryInformation.getRepositoryName(), this);
+
         this.objectFactory = new CassandraObjectFactory<>(
                 repositoryInformation,
                 resolverRegistry,
                 idClass,
                 repository,
                 session,
-                new CassandraRelationshipHandler<>(repositoryInformation, idClass, ADAPTERS, resolverRegistry)
+                new CassandraRelationshipHandler<>(repositoryInformation, idClass, resolverRegistry)
         );
 
         @SuppressWarnings("unchecked")
@@ -138,7 +148,11 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     }
 
     private T loadFromDatabase(ID id) {
-        return first(Query.select().where(repositoryInformation.getPrimaryKey().name(), id).build());
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Cannot find by id from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+        }
+        return first(Query.select().where(primaryKey.name(), id).build());
     }
 
     @Override
@@ -148,8 +162,13 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     }
 
     @Override
-    public TransactionContext<Session> beginTransaction() {
+    public @NotNull TransactionContext<Session> beginTransaction() {
         return new CassandraTransactionContext(this.session);
+    }
+
+    @Override
+    public @NotNull List<ID> findIds(SelectQuery query) {
+        return List.of();
     }
 
     @Override
@@ -192,7 +211,14 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
                 results.add(instance);
             }
 
-            if (resultCache != null) this.resultCache.insert(sql, results, (element) -> repositoryInformation.getPrimaryKey().getValue(element));
+            if (resultCache != null) this.resultCache.insert(sql, results, (element) -> {
+                FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+                if (primaryKey == null) {
+                    throw new IllegalArgumentException("Cannot extract ID from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+                }
+
+                return primaryKey.getValue(element);
+            });
             return results;
         } catch (Exception e) {
             return this.exceptionHandler.handleRead(e, repositoryInformation, query, this);
@@ -229,6 +255,7 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     }
 
     @Override
+    @Nullable
     public T findById(ID key) {
         T cached = l2Cache.get(key);
         if (cached != null) {
@@ -247,6 +274,44 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     }
 
     @Override
+    public Map<ID, T> findAllById(Collection<ID> keys) {
+        if (keys.isEmpty()) return Collections.emptyMap();
+
+        if (keys.size() == 1) {
+            ID next = keys.iterator().next();
+            return Collections.singletonMap(next, findById(next));
+        }
+
+        if (keys.size() == 2) {
+            Map<ID, T> map = new HashMap<>(2);
+            ID firstId = keys.iterator().next();
+            ID secondId = keys.iterator().next();
+            map.put(firstId, findById(firstId));
+            map.put(secondId, findById(secondId));
+            return map;
+        }
+
+        // no longer inline optimization
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Cannot find anything by ID from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+        }
+
+        SelectQuery query = Query.select().where(primaryKey.name(), keys).build();
+        String s = engine.parseSelect(query, false);
+        List<T> results = fetchAllResults(s, query);
+        Map<ID, T> map = new HashMap<>(results.size());
+        for (T result : results) {
+            ID id = primaryKey.getValue(result);
+            map.put(id, result);
+            readThroughCache.put(id, result);
+            l2Cache.put(id, result);
+        }
+
+        return map;
+    }
+
+    @Override
     public T first(SelectQuery query) {
         Objects.requireNonNull(query);
         String sql = this.engine.parseSelect(query, false);
@@ -256,7 +321,7 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     private T fetchOneResult(String sql, SelectQuery query) {
         if (resultCache != null) {
             List<T> result = this.resultCache.fetch(sql);
-            if (result != null) return result.get(0);
+            if (result != null) return result.getFirst();
         }
 
         BoundStatement bind = insertParametersIntoQuery(sql, query);
@@ -266,10 +331,16 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
         try {
             List<T> results = List.of(objectFactory.create(one));
 
-            if (resultCache != null) this.resultCache.insert(sql, results, (element) -> repositoryInformation.getPrimaryKey().getValue(element));
-            return results.get(0);
+            if (resultCache != null) this.resultCache.insert(sql, results, (element) -> {
+                FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+                if (primaryKey == null) {
+                    throw new IllegalArgumentException("Cannot extract ID from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+                }
+                return primaryKey.getValue(element);
+            });
+            return results.getFirst();
         } catch (Exception e) {
-            return this.exceptionHandler.handleRead(e, repositoryInformation, query, this).get(0);
+            return this.exceptionHandler.handleRead(e, repositoryInformation, query, this).getFirst();
         }
     }
 
@@ -281,7 +352,13 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
         try {
             PreparedStatement statement = getPreparedStatement(sql);
             CassandraDatabaseParameters parameters = new CassandraDatabaseParameters();
-            ID id = repositoryInformation.getPrimaryKey().getValue(value);
+
+            FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+            if (primaryKey == null) {
+                throw new IllegalArgumentException("Cannot extract ID from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+            }
+
+            ID id = primaryKey.getValue(value);
             this.objectFactory.insertEntity(parameters, value);
             this.objectFactory.insertCollectionEntities(value, id, parameters);
             ResultSet resultSet = this.session.execute(statement.bind(parameters.getValues()));
@@ -309,7 +386,12 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
                 entityLifecycleListener.onPreUpdate(entity);
             }
 
-            ID id = repositoryInformation.getPrimaryKey().getValue(entity);
+            FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+            if (primaryKey == null) {
+                throw new IllegalArgumentException("Cannot extract ID from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+            }
+
+            ID id = primaryKey.getValue(entity);
 
             T oldEntity = null;
             if (auditLogger != null) {
@@ -354,15 +436,20 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
             String cql = engine.parseDelete(entity);
             PreparedStatement statement = getPreparedStatement(cql);
             CassandraDatabaseParameters parameters = new CassandraDatabaseParameters();
-            return processDelete(entity, statement, parameters, cql);
+            return processDelete(entity, statement, parameters);
         } catch (Exception e) {
             return this.exceptionHandler.handleDelete(e, repositoryInformation, this);
         }
     }
 
     @NotNull
-    private TransactionResult<Boolean> processDelete(T entity, PreparedStatement statement, CassandraDatabaseParameters parameters, String cql) {
-        ID id = repositoryInformation.getPrimaryKey().getValue(entity);
+    private TransactionResult<Boolean> processDelete(T entity, PreparedStatement statement, CassandraDatabaseParameters parameters) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Cannot extract ID from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+        }
+
+        ID id = primaryKey.getValue(entity);
 
         try {
             if (entityLifecycleListener != null) {
@@ -388,7 +475,12 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
 
     private ResultSet executeDelete(PreparedStatement statement, CassandraDatabaseParameters parameters, ID id) {
         TypeResolver<ID> resolver = resolverRegistry.getResolver(idClass);
-        resolver.insert(parameters, repositoryInformation.getPrimaryKey().name(), id);
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Cannot extract ID from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+        }
+
+        resolver.insert(parameters, primaryKey.name(), id);
 
         BoundStatement bind = statement.bind(parameters.getValues());
         ResultSet resultSet = session.execute(bind);
@@ -426,7 +518,13 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
                 }
             } else {
                 TypeResolver<ID> resolver = resolverRegistry.getResolver(idClass);
-                resolver.insert(parameters, repositoryInformation.getPrimaryKey().name(), entity);
+
+                FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+                if (primaryKey == null) {
+                    throw new IllegalArgumentException("Cannot know ID from " + repositoryInformation.getRepositoryName() + " because it has no id.");
+                }
+
+                resolver.insert(parameters, primaryKey.name(), entity);
             }
 
             BoundStatement bind = statement.bind(parameters.getValues());
@@ -465,7 +563,7 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
                 resolver.insert(parameters, entry.getKey(), value);
             }
 
-            for (SelectOption condition : query.conditions()) {
+            for (SelectOption condition : query.filters()) {
                 if (condition == null) continue;
                 TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(condition.value().getClass());
                 resolver.insert(parameters, condition.option(), condition.value());
@@ -503,7 +601,7 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     }
 
     @Override
-    public TransactionResult<Boolean> insertAll(List<T> value, TransactionContext<Session> _transactionContext) {
+    public TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext<Session> _transactionContext) {
         if (value.isEmpty()) return TransactionResult.success(true);
         return executeBatch(this.engine.parseInsert(), value);
     }
@@ -541,7 +639,7 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     }
 
     @Override
-    public TransactionResult<Boolean> insertAll(List<T> query) {
+    public TransactionResult<Boolean> insertAll(Collection<T> query) {
         return insertAll(query, null);
     }
     // -----------------------------------------------------------------------------
@@ -566,13 +664,28 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
     }
 
     @Override
-    public Class<ID> getIdType() {
+    public @NotNull Class<ID> getIdType() {
         return idClass;
+    }
+
+    @Override
+    public @NotNull OperationContext<Session> getOperationContext() {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public @NotNull OperationExecutor<Session> getOperationExecutor() {
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
     public @NotNull RepositoryInformation getRepositoryInformation() {
         return repositoryInformation;
+    }
+
+    @Override
+    public @NotNull TypeResolverRegistry getTypeResolverRegistry() {
+        return resolverRegistry;
     }
 
     @Override
@@ -587,7 +700,7 @@ public class CassandraRepositoryAdapter<T, ID> implements RepositoryAdapter<T, I
         this.cluster.close();
     }
 
-    public TransactionResult<Boolean> executeBatch(String cql, List<T> collection) {
+    public TransactionResult<Boolean> executeBatch(String cql, Collection<T> collection) {
         try {
             PreparedStatement prepared = getPreparedStatement(cql);
 
