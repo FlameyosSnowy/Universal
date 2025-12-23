@@ -5,6 +5,8 @@ import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.operation.Operation;
+import io.github.flameyossnowy.universal.api.operation.operations.*;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
@@ -15,13 +17,15 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Proxy;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.EnumSet;
 
 @SuppressWarnings("unused")
-public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
+public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID, C> {
     /**
      * Creates the repository table, if it does not exist.
      * <p>
@@ -44,7 +48,6 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * exists.</b>
      * @param ifNotExists Whether to create the table if it exists or not.
      */
-    @Contract(pure = true)
     TransactionResult<Boolean> createRepository(boolean ifNotExists);
 
     /**
@@ -61,7 +64,20 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      */
     @Contract(pure = true)
     @CheckReturnValue
+    @NotNull
     TransactionContext<C> beginTransaction();
+
+    /**
+     * Tries to map SelectQuery based results to a List<ID> instead of a List<User>
+     * Example query should look like:
+     *
+     * <p>SELECT id FROM courses WHERE user = ?;</p>
+     * @param query query
+     * @return a List<ID>, might fail if SelectQuery is wrong.
+     */
+    @CheckReturnValue
+    @NotNull
+    List<ID> findIds(SelectQuery query);
 
     /**
      * Creates a new session.
@@ -163,6 +179,9 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
     @CheckReturnValue
     T findById(ID key);
 
+    @CheckReturnValue
+    Map<ID, T> findAllById(Collection<ID> keys);
+
     /**
      * Finds and returns the first item that matches the given query.
      * <p>
@@ -208,7 +227,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param value The items to be inserted into the repository.
      * @param transactionContext The transaction context within which the operation is performed.
      */
-    TransactionResult<Boolean> insertAll(List<T> value, TransactionContext<C> transactionContext);
+    TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext<C> transactionContext);
 
     /**
      * Updates all items in the repository that match the given query within the given transaction context.
@@ -343,7 +362,7 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @param query The list of items to be inserted into the repository.
      */
     @SuppressWarnings("UnusedReturnValue")
-    TransactionResult<Boolean> insertAll(List<T> query);
+    TransactionResult<Boolean> insertAll(Collection<T> query);
 
     /**
      * Removes all items from the repository.
@@ -429,6 +448,8 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *
      * @return The class type of the identifier.
      */
+    @Override
+    @NotNull
     Class<ID> getIdType();
 
     /**
@@ -464,6 +485,31 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
     @CheckReturnValue
     default CompletableFuture<List<T>> findAsync() {
         return CompletableFuture.supplyAsync(this::find);
+    }
+
+    @CheckReturnValue
+    default CompletableFuture<T> firstAsync() {
+        return CompletableFuture.supplyAsync(this::first);
+    }
+
+    @CheckReturnValue
+    default CompletableFuture<T> firstAsync(SelectQuery query) {
+        return CompletableFuture.supplyAsync(() -> first(query));
+    }
+
+    @CheckReturnValue
+    default CompletableFuture<T> findByIdAsync(ID id) {
+        return CompletableFuture.supplyAsync(() -> findById(id));
+    }
+
+    @CheckReturnValue
+    default CompletableFuture<List<ID>> findIdsAsync(SelectQuery query) {
+        return CompletableFuture.supplyAsync(() -> this.findIds(query));
+    }
+
+    @CheckReturnValue
+    default CompletableFuture<Map<ID, T>> findAllByIdAsync(Collection<ID> ids) {
+        return CompletableFuture.supplyAsync(() -> this.findAllById(ids));
     }
 
     /**
@@ -597,8 +643,125 @@ public interface RepositoryAdapter<T, ID, C> extends AutoCloseable {
      *         metadata about the repository.
      */
     @ApiStatus.Internal
+    @Override
     @NotNull
     RepositoryInformation getRepositoryInformation();
 
+    /**
+     * Gets the element/entity type for this repository.
+     *
+     * @return The entity class
+     */
+    @Override
+    @NotNull
+    default Class<T> getEntityType() {
+        return getElementType();
+    }
+
+    /**
+     * Gets the element/entity type for this repository.
+     * Legacy method - use {@link #getEntityType()} instead.
+     *
+     * @return The entity class
+     */
     Class<T> getElementType();
+
+    // Default implementations for Operation-based API
+
+    /**
+     * Default implementation that wraps find(SelectQuery) as an Operation.
+     */
+    @Override
+    @NotNull
+    default <R> TransactionResult<R> execute(@NotNull Operation<R, C> operation) {
+        return executeOperation(operation);
+    }
+
+    /**
+     * Default implementation that wraps transaction-based operations.
+     */
+    @Override
+    @NotNull
+    default <R> TransactionResult<R> execute(
+            @NotNull Operation<R, C> operation,
+            @NotNull TransactionContext<C> transactionContext) {
+        return operation.executeWithTransaction(getOperationContext(), transactionContext);
+    }
+
+    /**
+     * Creates an operation for finding entities.
+     *
+     * @param query The select query
+     * @return A find operation
+     */
+    @NotNull
+    default Operation<List<T>, C> createFindOperation(@NotNull SelectQuery query) {
+        return new FindOperation<>(query, (q, ctx) -> find(q));
+    }
+
+    /**
+     * Creates an operation for inserting an entity.
+     *
+     * @param entity The entity to insert
+     * @return An insert operation
+     */
+    @NotNull
+    default Operation<Boolean, C> createInsertOperation(@NotNull T entity) {
+        return new InsertOperation<>(entity, (e, ctx) -> {
+            TransactionResult<Boolean> result = insert(e);
+            return result.getOr(false);
+        });
+    }
+
+    /**
+     * Creates an operation for updating an entity.
+     *
+     * @param entity The entity to update
+     * @return An update operation
+     */
+    @NotNull
+    default Operation<Boolean, C> createUpdateOperation(@NotNull T entity) {
+        return new UpdateOperation<>(entity, new UpdateOperation.UpdateExecutor<>() {
+            @Override
+            public boolean updateEntity(T e, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+                TransactionResult<Boolean> result = updateAll(e);
+                return result.getOr(false);
+            }
+
+            @Override
+            public boolean updateByQuery(UpdateQuery query, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+                TransactionResult<Boolean> result = updateAll(query);
+                return result.getOr(false);
+            }
+        });
+    }
+
+    /**
+     * Creates an operation for deleting an entity.
+     *
+     * @param entity The entity to delete
+     * @return A delete operation
+     */
+    @NotNull
+    default Operation<Boolean, C> createDeleteOperation(@NotNull T entity) {
+        return DeleteOperation.fromEntity(entity, new DeleteOperation.DeleteExecutor<T, ID, C>() {
+            @Override
+            public boolean deleteEntity(T e, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+                TransactionResult<Boolean> result = delete(e);
+                return result.getOr(false);
+            }
+
+            @Override
+            public boolean deleteById(ID id, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+                TransactionResult<Boolean> result = RepositoryAdapter.this.deleteById(id);
+                return result.getOr(false);
+            }
+
+            @Override
+            public boolean deleteByQuery(DeleteQuery query, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+                TransactionResult<Boolean> result = delete(query);
+                return result.getOr(false);
+            }
+        });
+    }
 }
