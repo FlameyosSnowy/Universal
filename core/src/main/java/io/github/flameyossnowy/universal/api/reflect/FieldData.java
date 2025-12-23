@@ -7,16 +7,20 @@ import io.github.flameyossnowy.universal.api.utils.Logging;
 import me.sunlan.fastreflection.FastField;
 import me.sunlan.fastreflection.FastMethod;
 import org.jetbrains.annotations.ApiStatus;
-import sun.misc.Unsafe;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
+import java.lang.reflect.Type;
+import java.util.Objects;
 
 @ApiStatus.Internal
 @SuppressWarnings({"unchecked", "unused"})
 public class FieldData<T> {
+    public static final Type[] TYPES = new Type[0];
     private RepositoryInformation declaringInformation;
+    private boolean indexed;
     private final String name;
     private final String tableName;
     private final FastField field;
@@ -38,25 +42,14 @@ public class FieldData<T> {
     private final OneToMany oneToMany;
     private final ManyToOne manyToOne;
     private final OneToOne oneToOne;
+    private final ExternalRepository externalRepository;
     private final Object defaultValue;
-
-    static final Unsafe UNSAFE;
-
-    static {
-        try {
-            Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
-            theUnsafe.setAccessible(true);
-            UNSAFE = (Unsafe) theUnsafe.get(null);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public FieldData(RepositoryInformation declaringInformation, String name, String fieldName, String tableName,
                      FastField field, Field rawField, Class<T> type, boolean primary, boolean autoIncrement,
                      boolean nonNull, boolean unique, boolean now, Constraint constraint, Condition condition,
                      OnUpdate onUpdate, OnDelete onDelete, OneToMany oneToMany, ManyToOne manyToOne,
-                     OneToOne oneToOne,
+                     OneToOne oneToOne, ExternalRepository externalRepository,
                      Object defaultValue) {
         this.declaringInformation = declaringInformation;
         this.name = name;
@@ -82,12 +75,13 @@ public class FieldData<T> {
         this.manyToOne = manyToOne;
         this.defaultValue = defaultValue;
         this.oneToOne = oneToOne;
+        this.externalRepository = externalRepository;
     }
 
     public FieldData(RepositoryInformation declaringInformation, String name, String fieldName, String tableName, RecordComponent rawField, Class<T> type, boolean primary, boolean autoIncrement,
                      boolean nonNull, boolean unique, boolean now, Constraint constraint, Condition condition,
                      OnUpdate onUpdate, OnDelete onDelete, OneToMany oneToMany, ManyToOne manyToOne,
-                     OneToOne oneToOne,
+                     OneToOne oneToOne, ExternalRepository externalRepository,
                      Object defaultValue) {
         this.declaringInformation = declaringInformation;
         this.name = name;
@@ -110,6 +104,7 @@ public class FieldData<T> {
         this.manyToOne = manyToOne;
         this.defaultValue = defaultValue;
         this.oneToOne = oneToOne;
+        this.externalRepository = externalRepository;
     }
 
     public boolean now() {
@@ -196,6 +191,10 @@ public class FieldData<T> {
         return oneToOne;
     }
 
+    public ExternalRepository externalRepository() {
+        return externalRepository;
+    }
+
     public <E> E getValue(Object obj) {
         try {
             Logging.deepInfo("Retrieving value from field: " +
@@ -214,24 +213,6 @@ public class FieldData<T> {
 
             field.set(obj, value);
         } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void modifyRecordComponent(Object instance, Object related) {
-        try {
-            long offset = UNSAFE.objectFieldOffset(rawField);
-            UNSAFE.putObject(related, offset, instance);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static <T> void modifyRecordComponent(T instance, OneToOneField backReference, Object related) {
-        try {
-            long offset = UNSAFE.objectFieldOffset(backReference.foundRelatedField().rawField());
-            UNSAFE.putObject(related, offset, instance);
-        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
@@ -256,15 +237,107 @@ public class FieldData<T> {
                 ", oneToMany=" + (oneToMany != null) +
                 ", manyToOne=" + (manyToOne != null) +
                 ", oneToOne=" + (oneToOne != null) +
+                ", externalRepository=" + (externalRepository != null) +
                 ", defaultValue=" + defaultValue +
+                ", indexed=" + indexed +
                 '}';
     }
 
     public boolean isRelationship() {
-        return oneToMany() != null || manyToOne() != null || oneToOne() != null;
+        return oneToMany != null || manyToOne != null || oneToOne != null || externalRepository != null;
+    }
+
+    public boolean isExternalRelationship() {
+        return externalRepository() != null;
     }
 
     public <E extends Annotation> E getAnnotation(Class<E> annotationClass) {
         return rawComponentField != null ? rawComponentField.getAnnotation(annotationClass) : rawField.getAnnotation(annotationClass);
+    }
+
+    @Override
+    public final boolean equals(Object o) {
+        if (!(o instanceof FieldData<?> fieldData)) return false;
+
+        return primary == fieldData.primary
+                && autoIncrement == fieldData.autoIncrement
+                && nonNull == fieldData.nonNull
+                && unique == fieldData.unique
+                && now == fieldData.now
+                && declaringInformation.equals(fieldData.declaringInformation)
+                && name.equals(fieldData.name)
+                && tableName.equals(fieldData.tableName)
+                && indexed == fieldData.indexed
+                && Objects.equals(field, fieldData.field)
+                && Objects.equals(rawField, fieldData.rawField)
+                && Objects.equals(rawComponentField, fieldData.rawComponentField)
+                && Objects.equals(componentFieldGetter, fieldData.componentFieldGetter)
+                && type.equals(fieldData.type)
+                && Objects.equals(constraint, fieldData.constraint)
+                && Objects.equals(condition, fieldData.condition)
+                && Objects.equals(onUpdate, fieldData.onUpdate)
+                && Objects.equals(onDelete, fieldData.onDelete)
+                && Objects.equals(oneToMany, fieldData.oneToMany)
+                && Objects.equals(manyToOne, fieldData.manyToOne)
+                && Objects.equals(oneToOne, fieldData.oneToOne)
+                && Objects.equals(externalRepository, fieldData.externalRepository)
+                && Objects.equals(defaultValue, fieldData.defaultValue);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = declaringInformation.hashCode();
+        result = 31 * result + name.hashCode();
+        result = 31 * result + tableName.hashCode();
+        result = 31 * result + type.hashCode();
+        result = 31 * result + Boolean.hashCode(primary);
+        result = 31 * result + Boolean.hashCode(autoIncrement);
+        result = 31 * result + Boolean.hashCode(nonNull);
+        result = 31 * result + Boolean.hashCode(unique);
+        result = 31 * result + Boolean.hashCode(now);
+        result = 31 * result + Objects.hashCode(field);
+        result = 31 * result + Objects.hashCode(rawField);
+        result = 31 * result + Objects.hashCode(rawComponentField);
+        result = 31 * result + Objects.hashCode(componentFieldGetter);
+        result = 31 * result + Objects.hashCode(constraint);
+        result = 31 * result + Objects.hashCode(condition);
+        result = 31 * result + Objects.hashCode(onUpdate);
+        result = 31 * result + Objects.hashCode(onDelete);
+        result = 31 * result + Objects.hashCode(oneToMany);
+        result = 31 * result + Objects.hashCode(manyToOne);
+        result = 31 * result + Objects.hashCode(oneToOne);
+        result = 31 * result + Objects.hashCode(externalRepository);
+        result = 31 * result + Objects.hashCode(defaultValue);
+        result = 31 * result + Boolean.hashCode(indexed);
+        return result;
+    }
+
+    public boolean notIndexed() {
+        return !indexed;
+    }
+
+    public boolean indexed() {
+        return indexed;
+    }
+
+    void setIndexed(boolean indexed) {
+        this.indexed = indexed;
+    }
+
+    public Type[] getGenericTypes() {
+        if (rawField != null) {
+            Type genericType = rawField.getGenericType();
+            if (genericType instanceof ParameterizedType parameterizedType) {
+                return parameterizedType.getActualTypeArguments();
+            }
+        }
+
+        if (rawComponentField != null) {
+            Type genericType = rawComponentField.getGenericType();
+            if (genericType instanceof ParameterizedType parameterizedType) {
+                return parameterizedType.getActualTypeArguments();
+            }
+        }
+        return TYPES;
     }
 }
