@@ -3,6 +3,8 @@ package io.github.flameyossnowy.universal.microservices.file;
 import io.github.flameyossnowy.universal.api.annotations.FileRepository;
 import io.github.flameyossnowy.universal.api.annotations.enums.CompressionType;
 import io.github.flameyossnowy.universal.api.annotations.enums.FileFormat;
+import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategies;
+import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategy;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
@@ -23,6 +25,8 @@ public class FileRepositoryBuilder<T, ID> {
     private CompressionType compressionType = CompressionType.GZIP;
     private boolean sharding = false;
     private int shardCount = 10;
+
+    private IndexPathStrategy indexPathStrategy = IndexPathStrategies.underBase();
 
     /**
      * Creates a new builder for the given entity and ID types.
@@ -49,6 +53,11 @@ public class FileRepositoryBuilder<T, ID> {
                 .compressionType(annotation.compression())
                 .sharding(annotation.sharding())
                 .shardCount(annotation.shardCount());
+    }
+
+    public FileRepositoryBuilder<T, ID> indexPathStrategy(IndexPathStrategy strategy) {
+        this.indexPathStrategy = strategy;
+        return this;
     }
 
     public FileRepositoryBuilder<T, ID> basePath(Path basePath) {
@@ -97,7 +106,8 @@ public class FileRepositoryBuilder<T, ID> {
                 compressed,
                 compressionType,
                 sharding,
-                shardCount
+                shardCount,
+                indexPathStrategy
         );
     }
 }

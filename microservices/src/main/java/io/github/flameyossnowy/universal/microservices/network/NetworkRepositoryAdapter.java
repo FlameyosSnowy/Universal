@@ -27,6 +27,7 @@ import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.net.URI;
@@ -254,6 +255,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         if (responseCache != null) {
             responseCache.clear();
         }
+        httpClient.close();
     }
 
     // HTTP request methods
@@ -542,7 +544,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     }
 
     @Override
-    public T first(SelectQuery query) {
+    public @Nullable T first(SelectQuery query) {
         List<T> results = find(query);
         return results.isEmpty() ? null : results.getFirst();
     }
@@ -650,7 +652,6 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     @Override
     public TransactionResult<Boolean> clear() {
-        // Network repositories typically don't support clearing all data via API
         return TransactionResult.failure(new UnsupportedOperationException("Clear operation not supported for network repositories"));
     }
 

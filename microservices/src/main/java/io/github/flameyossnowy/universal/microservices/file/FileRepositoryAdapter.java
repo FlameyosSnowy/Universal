@@ -9,6 +9,7 @@ import io.github.flameyossnowy.universal.api.RepositoryRegistry;
 import io.github.flameyossnowy.universal.api.annotations.FileRepository;
 import io.github.flameyossnowy.universal.api.annotations.enums.CompressionType;
 import io.github.flameyossnowy.universal.api.annotations.enums.FileFormat;
+import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
 import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
@@ -25,6 +26,9 @@ import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategies;
+import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategy;
+import io.github.flameyossnowy.universal.microservices.file.indexes.SecondaryIndex;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -64,9 +68,11 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private final int shardCount;
     private final RelationshipResolver relationshipResolver;
 
+    private final Map<String, SecondaryIndex<ID>> indexes = new ConcurrentHashMap<>();
 
     private static final int STRIPE_COUNT = 64;
     private final ReentrantReadWriteLock[] stripes = new ReentrantReadWriteLock[STRIPE_COUNT];
+    private final Path indexRoot;
 
     {
         for (int i = 0; i < STRIPE_COUNT; i++) {
@@ -86,11 +92,13 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             @NotNull Class < ID > idType,
             @NotNull Path basePath,
             FileFormat format,
-        boolean compressed,
-        CompressionType compressionType,
-        boolean sharding,
-        int shardCount
+            boolean compressed,
+            CompressionType compressionType,
+            boolean sharding,
+            int shardCount,
+            IndexPathStrategy indexPathStrategy
     ) {
+        this.indexRoot = indexPathStrategy.resolveIndexRoot(basePath, entityType);
         this.entityType = entityType;
         this.idType = idType;
         this.basePath = basePath;
@@ -147,7 +155,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             annotation.compressed(),
             annotation.compression(),
             annotation.sharding(),
-            annotation.shardCount()
+            annotation.shardCount(),
+            IndexPathStrategies.underBase()
         );
     }
 
@@ -202,8 +211,15 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public @NotNull List<ID> findIds(SelectQuery query) {
-        return List.of();
+    @NotNull
+    public List<ID> findIds(SelectQuery query) {
+        try {
+            return find(query).stream()
+                .map(this::extractId)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to find IDs", e);
+        }
     }
 
     @Override
@@ -275,7 +291,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
-    public @Nullable T readEntity (ID id) throws IOException {
+    public @Nullable T readEntity(ID id) throws IOException {
         // Check cache first
         T cached = cache.get(id);
         if (cached != null) {
@@ -314,7 +330,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
-    public void deleteEntity (ID id) throws IOException {
+    public void deleteEntity(ID id) throws IOException {
         ReentrantReadWriteLock idLock = getLockForId(id);
         idLock.writeLock().lock();
         try {
@@ -326,7 +342,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
-    public List<T> readAll () throws IOException {
+    public List<T> readAll() throws IOException {
         List<T> results = new ArrayList<>();
         if (sharding) {
             for (int i = 0; i < shardCount; i++) {
@@ -341,7 +357,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         return results;
     }
 
-    private List<T> readFromDirectory (Path directory) throws IOException {
+    private List<T> readFromDirectory(Path directory) throws IOException {
         if (!Files.exists(directory)) {
             return List.of();
         }
@@ -364,7 +380,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
-    private OutputStream wrapCompression (OutputStream os) throws IOException {
+    private OutputStream wrapCompression(OutputStream os) throws IOException {
         return switch (compressionType) {
             case GZIP -> new GZIPOutputStream(os);
             case ZIP, BZIP2, LZ4, ZSTD ->
@@ -372,7 +388,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         };
     }
 
-    private InputStream unwrapCompression (InputStream is) throws IOException {
+    private InputStream unwrapCompression(InputStream is) throws IOException {
         return switch (compressionType) {
             case GZIP -> new GZIPInputStream(is);
             case ZIP, BZIP2, LZ4, ZSTD ->
@@ -380,14 +396,14 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         };
     }
 
-    public Path getBasePath () {
+    public Path getBasePath() {
         return basePath;
     }
 
     // RepositoryAdapter interface implementation
 
     @Override
-    public TransactionResult<Boolean> createRepository ( boolean ifNotExists){
+    public TransactionResult<Boolean> createRepository(boolean ifNotExists){
         try {
             if (ifNotExists && Files.exists(basePath)) {
                 return TransactionResult.success(true);
@@ -405,17 +421,17 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public DatabaseSession<ID, T, FileContext> createSession () {
+    public DatabaseSession<ID, T, FileContext> createSession() {
         return createSession(EnumSet.noneOf(SessionOption.class));
     }
 
     @Override
-    public DatabaseSession<ID, T, FileContext> createSession (EnumSet < SessionOption > options) {
+    public DatabaseSession<ID, T, FileContext> createSession(EnumSet < SessionOption > options) {
         return new FileSession<>(this, options);
     }
 
     @Override
-    public List<T> find (SelectQuery query){
+    public List<T> find(SelectQuery query){
         try {
             List<T> all = readAll();
             if (query == null) {
@@ -435,16 +451,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             if (query.sortOptions() != null && !query.sortOptions().isEmpty()) {
                 Comparator<T> comparator = null;
                 for (SortOption sortOption : query.sortOptions()) {
-                    Comparator<T> currentComparator = Comparator.comparing(entity -> {
-                        try {
-                            return (Comparable) repositoryInformation.getField(sortOption.field()).getValue(entity);
-                        } catch (Exception e) {
-                            throw new RuntimeException("Failed to get sort field value", e);
-                        }
-                    });
-                    if (sortOption.order() == SortOrder.DESCENDING) {
-                        currentComparator = currentComparator.reversed();
-                    }
+                    Comparator<T> currentComparator = compareBySortField(sortOption);
                     if (comparator == null) {
                         comparator = currentComparator;
                     } else {
@@ -467,11 +474,29 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
-    private boolean matches (T entity, SelectOption filter){
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private @NotNull Comparator<T> compareBySortField(SortOption sortOption) {
+        Comparator currentComparator = Comparator.comparing(entity -> {
+            try {
+                return (Comparable) repositoryInformation.getField(sortOption.field()).getValue(entity);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to get sort field value", e);
+            }
+        });
+
+        if (sortOption.order() == SortOrder.DESCENDING) {
+            currentComparator = currentComparator.reversed();
+        }
+
+        return currentComparator;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private boolean matches(T entity, SelectOption filter){
         try {
             var field = repositoryInformation.getField(filter.option());
             if (field == null) {
-                return false; // Or throw an exception
+                return false;
             }
             Object value = field.getValue(entity);
             Object filterValue = filter.value();
@@ -481,52 +506,53 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
                 return filterValue == null;
             }
 
-            switch (operator) {
-                case "=":
-                    return value.equals(filterValue);
-                case "!=":
-                    return !value.equals(filterValue);
-                case ">":
+            return switch (operator) {
+                case "=" -> value.equals(filterValue);
+                case "!=" -> !value.equals(filterValue);
+                case ">" -> {
                     if (value instanceof Comparable) {
-                        return ((Comparable) value).compareTo(filterValue) > 0;
+                        yield ((Comparable) value).compareTo(filterValue) > 0;
                     }
-                    return false;
-                case "<":
+                    yield false;
+                }
+                case "<" -> {
                     if (value instanceof Comparable) {
-                        return ((Comparable) value).compareTo(filterValue) < 0;
+                        yield ((Comparable) value).compareTo(filterValue) < 0;
                     }
-                    return false;
-                case ">=":
+                    yield false;
+                }
+                case ">=" -> {
                     if (value instanceof Comparable) {
-                        return ((Comparable) value).compareTo(filterValue) >= 0;
+                        yield ((Comparable) value).compareTo(filterValue) >= 0;
                     }
-                    return false;
-                case "<=":
+                    yield false;
+                }
+                case "<=" -> {
                     if (value instanceof Comparable) {
-                        return ((Comparable) value).compareTo(filterValue) <= 0;
+                        yield ((Comparable) value).compareTo(filterValue) <= 0;
                     }
-                    return false;
-                case "IN":
+                    yield false;
+                }
+                case "IN" -> {
                     if (filterValue instanceof Collection) {
-                        return ((Collection<?>) filterValue).contains(value);
+                        yield ((Collection<?>) filterValue).contains(value);
                     }
-                    return false;
-                default:
-                    return false;
-            }
+                    yield false;
+                }
+                default -> false;
+            };
         } catch (Exception e) {
-            // Log error or handle it as per application's needs
             return false;
         }
     }
 
     @Override
-    public List<T> find () {
+    public List<T> find() {
         return find(null);
     }
 
     @Override
-    public T findById (ID key){
+    public T findById(ID key){
         try {
             return readEntity(key);
         } catch (IOException e) {
@@ -535,21 +561,33 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public Map<ID, T> findAllById (Collection < ID > keys) {
-        return Map.of();
+    public Map<ID, T> findAllById(Collection<ID> keys) {
+        Map<ID, T> result = new HashMap<>(keys.size());
+        for (ID id : keys) {
+            try {
+                T entity = readEntity(id);
+                if (entity != null) {
+                    result.put(id, entity);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read entity: " + id, e);
+            }
+        }
+        return result;
     }
 
     @Override
-    public @Nullable T first (SelectQuery query){
+    public @Nullable T first(SelectQuery query){
         List<T> results = find(query);
         return results.isEmpty() ? null : results.getFirst();
     }
 
     @Override
-    public TransactionResult<Boolean> insert (T value, TransactionContext < FileContext > transactionContext){
+    public TransactionResult<Boolean> insert(T value, TransactionContext < FileContext > transactionContext){
         try {
             ID id = extractId(value);
             writeEntity(value, id);
+            updateIndexes(value, id);
             return TransactionResult.success(true);
         } catch (Exception e) {
             return TransactionResult.failure(e);
@@ -557,13 +595,13 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public TransactionResult<Boolean> insertAll
-    (Collection < T > value, TransactionContext < FileContext > transactionContext){
+    public TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext <FileContext> transactionContext){
         try {
             for (T entity : value) {
                 ID id = extractId(entity);
                 writeEntity(entity, id);
             }
+            updateIndexesBatch(value);
             return TransactionResult.success(true);
         } catch (Exception e) {
             return TransactionResult.failure(e);
@@ -571,10 +609,11 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public TransactionResult<Boolean> updateAll (T entity, TransactionContext < FileContext > transactionContext){
+    public TransactionResult<Boolean> updateAll(T entity, TransactionContext<FileContext> transactionContext){
         try {
             ID id = extractId(entity);
             writeEntity(entity, id);
+            updateIndexes(entity, id);
             return TransactionResult.success(true);
         } catch (Exception e) {
             return TransactionResult.failure(e);
@@ -582,10 +621,11 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public TransactionResult<Boolean> delete (T entity, TransactionContext < FileContext > transactionContext){
+    public TransactionResult<Boolean> delete(T entity, TransactionContext<FileContext> transactionContext){
         try {
             ID id = extractId(entity);
             deleteEntity(id);
+            removeFromIndexes(id, entity);
             return TransactionResult.success(true);
         } catch (Exception e) {
             return TransactionResult.failure(e);
@@ -593,14 +633,21 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public TransactionResult<Boolean> delete (T value){
+    public TransactionResult<Boolean> delete(T value){
         return delete(value, beginTransaction());
     }
 
     @Override
-    public TransactionResult<Boolean> deleteById (ID entity, TransactionContext < FileContext > transactionContext){
+    public TransactionResult<Boolean> deleteById(ID entity, TransactionContext < FileContext > transactionContext){
         try {
+            if (indexes.isEmpty()) { // If we didn't do this then we would need to read the entity even if we don't have any indexes that need it.
+                deleteEntity(entity);
+                return TransactionResult.success(true);
+            }
+
+            final T value = findById(entity);
             deleteEntity(entity);
+            removeFromIndexes(entity, value);
             return TransactionResult.success(true);
         } catch (Exception e) {
             return TransactionResult.failure(e);
@@ -608,43 +655,202 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public TransactionResult<Boolean> deleteById(ID value){
+    public TransactionResult<Boolean> deleteById(ID value) {
         return deleteById(value, beginTransaction());
     }
 
     @Override
-    public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query, TransactionContext<FileContext> transactionContext) {
-        return null;
+    public TransactionResult<Boolean> updateAll(
+        @NotNull UpdateQuery query,
+        TransactionContext<FileContext> transactionContext
+    ) {
+        try {
+            List<T> all = readAll();
+            List<T> updatedElements = new ArrayList<>(all.size());
+            boolean updated = false;
+
+            for (T entity : all) {
+                if (!matchesAll(entity, query.filters())) {
+                    continue;
+                }
+
+                applyUpdates(entity, query);
+                ID id = extractId(entity);
+                writeEntity(entity, id);
+                updated = true;
+                updatedElements.add(entity);
+            }
+
+            updateIndexesBatch(updatedElements);
+            return TransactionResult.success(updated);
+        } catch (Exception e) {
+            return TransactionResult.failure(e);
+        }
+    }
+
+    private void removeFromIndexes(ID id, T entity) {
+        indexes.values().forEach(index -> {
+            try {
+                Object value = repositoryInformation
+                    .getField(index.field())
+                    .getValue(entity);
+
+                Set<ID> ids = index.map().get(value);
+                if (ids != null) {
+                    ids.remove(id);
+                    if (ids.isEmpty()) {
+                        index.map().remove(value);
+                    }
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private boolean matchesAll(T entity, List<SelectOption> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return true;
+        }
+        for (SelectOption filter : filters) {
+            if (!matches(entity, filter)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void applyUpdates(T entity, UpdateQuery query) {
+        Map<String, Object> updates = query.updates();
+        updates.forEach((fieldName, newValue) -> {
+            try {
+                var field = repositoryInformation.getField(fieldName);
+                if (field == null) {
+                    throw new IllegalArgumentException("Unknown field: " + fieldName);
+                }
+                field.setValue(entity, newValue);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to apply update on field: " + fieldName, e);
+            }
+        });
     }
 
     @Override
-    public TransactionResult<Boolean> updateAll (@NotNull UpdateQuery query){
+    public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query){
         return updateAll(query, beginTransaction());
     }
 
     @Override
-    public TransactionResult<Boolean> delete (DeleteQuery query, TransactionContext < FileContext > tx){
-        // TODO: Implement query-based deletes
-        return TransactionResult.failure(new UnsupportedOperationException("Query-based deletes not yet implemented for file repositories"));
+    public TransactionResult<Boolean> delete(
+        @NotNull DeleteQuery query,
+        TransactionContext<FileContext> tx
+    ) {
+        try {
+            List<T> all = readAll();
+            List<T> deletedElements = new ArrayList<>(all.size());
+            boolean deleted = false;
+
+            for (T entity : all) {
+                if (!matchesAll(entity, query.filters())) {
+                    continue;
+                }
+                ID id = extractId(entity);
+                deleteEntity(id);
+                deletedElements.add(entity);
+                deleted = true;
+            }
+
+            removeFromIndexesBatch(deletedElements);
+            return TransactionResult.success(deleted);
+        } catch (Exception e) {
+            return TransactionResult.failure(e);
+        }
+    }
+
+    private void updateIndexesBatch(Collection<T> entities) {
+        if (entities.isEmpty() || indexes.isEmpty()) return;
+
+        for (SecondaryIndex<ID> index : indexes.values()) {
+            var field = repositoryInformation.getField(index.field());
+
+            // Local aggregation: value -> IDs
+            Map<Object, Set<ID>> additions = new HashMap<>();
+
+            for (T entity : entities) {
+                try {
+                    Object value = field.getValue(entity);
+                    ID id = extractId(entity);
+
+                    additions
+                        .computeIfAbsent(value, k -> new HashSet<>())
+                        .add(id);
+
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // Apply to index map in bulk
+            additions.forEach((value, ids) ->
+                index.map()
+                    .computeIfAbsent(value, k -> ConcurrentHashMap.newKeySet())
+                    .addAll(ids)
+            );
+        }
+    }
+
+    private void removeFromIndexesBatch(Collection<T> entities) {
+        if (entities.isEmpty() || indexes.isEmpty()) return;
+
+        for (SecondaryIndex<ID> index : indexes.values()) {
+
+            var field = repositoryInformation.getField(index.field());
+
+            // value -> IDs to remove
+            Map<Object, Set<ID>> removals = new HashMap<>();
+
+            for (T entity : entities) {
+                try {
+                    Object value = field.getValue(entity);
+                    ID id = extractId(entity);
+
+                    removals
+                        .computeIfAbsent(value, k -> new HashSet<>())
+                        .add(id);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // Apply removals
+            removals.forEach((value, ids) -> {
+                Set<ID> existing = index.map().get(value);
+                if (existing == null) return;
+
+                existing.removeAll(ids);
+
+                if (existing.isEmpty()) {
+                    index.map().remove(value);
+                }
+            });
+        }
     }
 
     @Override
-    public TransactionResult<Boolean> delete (@NotNull DeleteQuery query){
+    public TransactionResult<Boolean> delete(@NotNull DeleteQuery query){
         return delete(query, beginTransaction());
     }
 
     @Override
-    public TransactionResult<Boolean> insert (T value){
+    public TransactionResult<Boolean> insert(T value){
         return insert(value, beginTransaction());
     }
 
     @Override
-    public TransactionResult<Boolean> updateAll (T entity){
+    public TransactionResult<Boolean> updateAll(T entity){
         return updateAll(entity, beginTransaction());
     }
 
     @Override
-    public TransactionResult<Boolean> insertAll (Collection < T > query) {
+    public TransactionResult<Boolean> insertAll(Collection < T > query) {
         return insertAll(query, beginTransaction());
     }
 
@@ -662,6 +868,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
                 deleteDirectory(basePath);
                 Files.createDirectories(basePath);
             }
+            indexes.clear();
             return TransactionResult.success(true);
         } catch (IOException e) {
             return TransactionResult.failure(e);
@@ -669,8 +876,57 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public TransactionResult<Boolean> createIndex (IndexOptions index){
-        return TransactionResult.success(false);
+    public TransactionResult<Boolean> createIndex(IndexOptions index) {
+        String field = index.indexName();
+
+        if (indexes.containsKey(field)) {
+            return TransactionResult.success(false);
+        }
+
+        try {
+            SecondaryIndex<ID> idx = new SecondaryIndex<>(field, index.type() == IndexType.UNIQUE);
+
+            for (T entity : readAll()) {
+                Object value = repositoryInformation.getField(field).getValue(entity);
+                ID id = extractId(entity);
+
+                Map<Object, Set<ID>> map = idx.map();
+                map.computeIfAbsent(value, k -> ConcurrentHashMap.newKeySet())
+                    .add(id);
+            }
+
+            indexes.put(field, idx);
+            persistIndex(idx);
+
+            return TransactionResult.success(true);
+        } catch (Exception e) {
+            return TransactionResult.failure(e);
+        }
+    }
+
+    private void persistIndex(SecondaryIndex<ID> index) throws IOException {
+        Files.createDirectories(indexRoot.getParent());
+
+        try (OutputStream os = Files.newOutputStream(indexRoot)) {
+            objectMapper.writeValue(os, index);
+        }
+    }
+
+    private void updateIndexes(T entity, ID id) {
+        if (indexes.isEmpty()) return;
+        indexes.values().forEach(index -> {
+            try {
+                Object value = repositoryInformation
+                    .getField(index.field())
+                    .getValue(entity);
+
+                Map<Object, Set<ID>> map = index.map();
+                map.computeIfAbsent(value, k -> ConcurrentHashMap.newKeySet())
+                    .add(id);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override
@@ -692,7 +948,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
-    private static void deleteDirectory (Path directory) throws IOException {
+    private static void deleteDirectory(Path directory) throws IOException {
         if (Files.exists(directory)) {
             try (var stream = Files.walk(directory)) {
                 stream.sorted(Comparator.reverseOrder())

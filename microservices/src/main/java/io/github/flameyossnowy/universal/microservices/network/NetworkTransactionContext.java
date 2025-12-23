@@ -78,7 +78,7 @@ public class NetworkTransactionContext implements TransactionContext<HttpClient>
         activeRequests.incrementAndGet();
 
         httpClient.sendAsync(request, responseHandler)
-                .whenComplete((response, throwable) -> {
+                .whenComplete((HttpResponse<T> response, Throwable throwable) -> {
                     try {
                         if (throwable != null) {
                             future.completeExceptionally(throwable);
