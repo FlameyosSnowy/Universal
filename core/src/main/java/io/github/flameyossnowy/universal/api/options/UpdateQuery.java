@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 @SuppressWarnings("unused")
-public record UpdateQuery(Map<String, Object> updates, List<SelectOption> conditions) implements Query {
+public record UpdateQuery(Map<String, Object> updates, List<SelectOption> filters) implements Query {
     public static class UpdateQueryBuilder {
         private final Map<String, Object> updates = new HashMap<>(3);
         private final List<SelectOption> conditions = new ArrayList<>(3);
