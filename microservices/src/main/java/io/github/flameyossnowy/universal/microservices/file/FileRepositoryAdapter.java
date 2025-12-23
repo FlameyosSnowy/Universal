@@ -88,8 +88,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private final Map<ID, T> cache = new ConcurrentHashMap<>(128);
 
     public FileRepositoryAdapter(
-            @NotNull Class < T > entityType,
-            @NotNull Class < ID > idType,
+            @NotNull Class<T> entityType,
+            @NotNull Class<ID> idType,
             @NotNull Path basePath,
             FileFormat format,
             boolean compressed,
@@ -170,43 +170,43 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     @Override
     @NotNull
-    public OperationContext<FileContext> getOperationContext () {
+    public OperationContext<FileContext> getOperationContext() {
         return operationContext;
     }
 
     @Override
     @NotNull
-    public OperationExecutor<FileContext> getOperationExecutor () {
+    public OperationExecutor<FileContext> getOperationExecutor() {
         return operationExecutor;
     }
 
     @Override
     @NotNull
-    public RepositoryInformation getRepositoryInformation () {
+    public RepositoryInformation getRepositoryInformation() {
         return repositoryInformation;
     }
 
     @Override
     @NotNull
-    public TypeResolverRegistry getTypeResolverRegistry () {
+    public TypeResolverRegistry getTypeResolverRegistry() {
         return resolverRegistry;
     }
 
     @Override
     @NotNull
-    public Class<T> getEntityType () {
+    public Class<T> getEntityType() {
         return entityType;
     }
 
     @Override
     @NotNull
-    public Class<ID> getIdType () {
+    public Class<ID> getIdType() {
         return idType;
     }
 
     @Override
     @NotNull
-    public TransactionContext<FileContext> beginTransaction () {
+    public TransactionContext<FileContext> beginTransaction() {
         return new FileTransactionContext();
     }
 
@@ -214,22 +214,73 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     @NotNull
     public List<ID> findIds(SelectQuery query) {
         try {
-            return find(query).stream()
-                .map(this::extractId)
-                .collect(Collectors.toList());
-        } catch (Exception e) {
+            int expectedSize = query != null && query.limit() > 0 ? query.limit() : 16;
+            List<ID> ids = new ArrayList<>(expectedSize);
+
+            if (sharding) {
+                for (int i = 0; i < shardCount; i++) {
+                    Path shardPath = basePath.resolve(String.valueOf(i));
+                    if (!Files.exists(shardPath)) continue;
+
+                    scanDirectoryForIds(shardPath, query, ids);
+                    if (query.limit() >= 0 && ids.size() >= query.limit()) {
+                        break;
+                    }
+                }
+            } else {
+                scanDirectoryForIds(basePath, query, ids);
+            }
+
+            return ids;
+        } catch (IOException e) {
             throw new RuntimeException("Failed to find IDs", e);
         }
     }
 
+    private void scanDirectoryForIds(
+        Path directory,
+        SelectQuery query,
+        List<ID> ids
+    ) throws IOException {
+
+        if (!Files.exists(directory)) return;
+
+        try (var files = Files.list(directory)) {
+            for (Path path : (Iterable<Path>) files::iterator) {
+                if (!Files.isRegularFile(path)) continue;
+                if (!path.getFileName().toString().endsWith(getFileExtension())) continue;
+
+                T entity = readEntity(path);
+
+                if (query != null && !matchesAll(entity, query.filters())) {
+                    continue;
+                }
+
+                ids.add(extractId(entity));
+
+                if (query != null && query.limit() >= 0 && ids.size() >= query.limit()) {
+                    return;
+                }
+            }
+        }
+    }
+
+    private T readEntity(Path path) throws IOException {
+        try (InputStream is = Files.newInputStream(path)) {
+            InputStream input = compressed ? unwrapCompression(is) : is;
+            T entity = objectMapper.readValue(input, entityType);
+            relationshipResolver.resolve(entity, repositoryInformation);
+            return entity;
+        }
+    }
+
     @Override
-    public void close () {
+    public void close() {
         cache.clear();
     }
 
     // File operations
-
-    public Path getEntityPath (ID id){
+    public Path getEntityPath(@NotNull ID id) {
         String fileName = id.toString();
         String extension = getFileExtension();
 
@@ -241,14 +292,9 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         return basePath.resolve(fileName + extension);
     }
 
-    private String getFileExtension () {
+    private String getFileExtension() {
         String ext = switch (format) {
             case JSON -> ".json";
-            case XML -> ".xml";
-            case CSV -> ".csv";
-            case YAML -> ".yaml";
-            case BINARY -> ".bin";
-            case CUSTOM -> ".dat";
         };
 
         if (compressed) {
@@ -274,10 +320,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             try (OutputStream os = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
                 OutputStream output = compressed ? wrapCompression(os) : os;
 
-                switch (format) {
-                    case JSON -> objectMapper.writeValue(output, entity);
-                    case XML, CSV, YAML, BINARY, CUSTOM ->
-                        throw new UnsupportedOperationException("Format " + format + " not yet implemented");
+                if (Objects.requireNonNull(format) == FileFormat.JSON) {
+                    objectMapper.writeValue(output, entity);
                 }
 
                 if (compressed) {
@@ -317,8 +361,6 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
                 T entity = switch (format) {
                     case JSON -> objectMapper.readValue(input, entityType);
-                    case XML, CSV, YAML, BINARY, CUSTOM ->
-                        throw new UnsupportedOperationException("Format " + format + " not yet implemented");
                 };
 
                 relationshipResolver.resolve(entity, repositoryInformation);
@@ -431,46 +473,83 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public List<T> find(SelectQuery query){
+    public List<T> find(SelectQuery query) {
         try {
-            List<T> all = readAll();
+            // Fast path
             if (query == null) {
-                return all;
+                return readAll();
             }
 
-            Stream<T> stream = all.stream();
+            int expectedSize = query.limit() > 0 ? query.limit() : 16;
+            List<T> results = new ArrayList<>(expectedSize);
 
-            // Apply filters
-            if (query.filters() != null && !query.filters().isEmpty()) {
-                for (SelectOption filter : query.filters()) {
-                    stream = stream.filter(entity -> matches(entity, filter));
-                }
-            }
+            if (sharding) {
+                for (int i = 0; i < shardCount; i++) {
+                    Path shardPath = basePath.resolve(String.valueOf(i));
+                    if (!Files.exists(shardPath)) continue;
 
-            // Apply sorting
-            if (query.sortOptions() != null && !query.sortOptions().isEmpty()) {
-                Comparator<T> comparator = null;
-                for (SortOption sortOption : query.sortOptions()) {
-                    Comparator<T> currentComparator = compareBySortField(sortOption);
-                    if (comparator == null) {
-                        comparator = currentComparator;
-                    } else {
-                        comparator = comparator.thenComparing(currentComparator);
+                    scanDirectory(shardPath, query, results);
+                    if (query.limit() >= 0 && results.size() >= query.limit()) {
+                        break;
                     }
                 }
-                if (comparator != null) {
-                    stream = stream.sorted(comparator);
-                }
+            } else {
+                scanDirectory(basePath, query, results);
             }
 
-            // Apply limit
-            if (query.limit() >= 0) {
-                stream = stream.limit(query.limit());
+            // Sorting happens AFTER filtering
+            applySortingIfNeeded(results, query);
+
+            // Hard limit enforcement (sorting may exceed limit)
+            if (query.limit() >= 0 && results.size() > query.limit()) {
+                return results.subList(0, query.limit());
             }
 
-            return stream.collect(Collectors.toList());
+            return results;
         } catch (IOException e) {
             throw new RuntimeException("Failed to find entities", e);
+        }
+    }
+
+    private void applySortingIfNeeded(List<T> results, SelectQuery query) {
+        if (query.sortOptions() == null || query.sortOptions().isEmpty()) return;
+
+        Comparator<T> comparator = null;
+
+        for (SortOption option : query.sortOptions()) {
+            Comparator<T> next = compareBySortField(option);
+            comparator = (comparator == null) ? next : comparator.thenComparing(next);
+        }
+
+        results.sort(comparator);
+    }
+
+    private void scanDirectory(
+        Path directory,
+        SelectQuery query,
+        List<T> results
+    ) throws IOException {
+
+        if (!Files.exists(directory)) return;
+
+        try (var files = Files.list(directory)) {
+            for (Path path : (Iterable<Path>) files::iterator) {
+                if (!Files.isRegularFile(path)) continue;
+                if (!path.getFileName().toString().endsWith(getFileExtension())) continue;
+
+                T entity = readEntity(path);
+
+                if (!matchesAll(entity, query.filters())) {
+                    continue;
+                }
+
+                results.add(entity);
+
+                // Early stop if limit reached
+                if (query.limit() >= 0 && results.size() >= query.limit()) {
+                    return;
+                }
+            }
         }
     }
 
