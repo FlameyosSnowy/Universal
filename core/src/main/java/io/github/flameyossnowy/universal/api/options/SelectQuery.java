@@ -1,14 +1,17 @@
 package io.github.flameyossnowy.universal.api.options;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
-public record SelectQuery(List<String> columns, List<SelectOption> filters, List<SortOption> sortOptions, int limit) implements Query {
+public record SelectQuery(List<String> columns, List<SelectOption> filters, List<SortOption> sortOptions, int limit,
+                          String joinTable) implements Query {
     public static class SelectQueryBuilder {
         private final List<String> columns;
         private final List<SelectOption> filters = new ArrayList<>(2);
         private final List<SortOption> sortOptions = new ArrayList<>(1);
         private int limit = -1;
+        private String joinTable;
 
         public SelectQueryBuilder(String... columns) {
             this.columns = List.of(columns);
@@ -58,7 +61,7 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
          * @param values the list of values to compare the field against
          * @return the updated SelectQueryBuilder instance
          */
-        public SelectQueryBuilder whereIn(String key, List<?> values) {
+        public SelectQueryBuilder whereIn(String key, Collection<?> values) {
             filters.add(new SelectOption(key, "IN", values));
             return this;
         }
@@ -93,7 +96,7 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
          * @return a new SelectQuery instance
          */
         public SelectQuery build() {
-            return new SelectQuery(columns, filters, sortOptions, limit);
+            return new SelectQuery(columns, filters, sortOptions, limit, joinTable);
         }
     }
 }
