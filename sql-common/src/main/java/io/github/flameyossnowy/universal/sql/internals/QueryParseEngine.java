@@ -7,20 +7,27 @@ import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.DatabaseImplementation;
-import io.github.flameyossnowy.universal.sql.annotations.SQLResolver;
-import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
 
+import io.github.flameyossnowy.universal.sql.query.SQLQueryValidator;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.List;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class QueryParseEngine {
@@ -51,7 +58,7 @@ public class QueryParseEngine {
         return String.format("CREATE %sINDEX `%s` ON `%s` (%s);", type, index.indexName(), repositoryInformation.getRepositoryName(), index.getJoinedFields());
     }
 
-    public @NotNull String parseSelect(SelectQuery query, boolean first) {
+    public @NotNull String parseSelect(SelectQuery query, boolean first, boolean ids) {
         String key = null;
 
         if (queryMap != null) {
@@ -67,6 +74,10 @@ public class QueryParseEngine {
         return queryString;
     }
 
+    public @NotNull String parseSelect(SelectQuery query, boolean first) {
+        return parseSelect(query, first, false);
+    }
+
     private @NotNull String parseQuery(SelectQuery query, boolean first) {
         String tableName = repositoryInformation.getRepositoryName();
 
@@ -74,6 +85,23 @@ public class QueryParseEngine {
             return "SELECT * FROM `" + tableName + "`" + (first ? " LIMIT 1" : "");
         }
         StringBuilder sql = new StringBuilder("SELECT * FROM `")
+                .append(tableName)
+                .append('`');
+
+        appendConditions(query, sql);
+        appendSortingAndLimit(query, sql, first);
+
+        return sql.toString();
+    }
+
+    private @NotNull String parseQueryIds(SelectQuery query, boolean first) {
+        String tableName = repositoryInformation.getRepositoryName();
+        String idName = repositoryInformation.getPrimaryKey().name();
+
+        if (query == null) {
+            return "SELECT " + idName  + " FROM `" + tableName + "`" + (first ? " LIMIT 1" : "");
+        }
+        StringBuilder sql = new StringBuilder("SELECT " + idName + " FROM `")
                 .append(tableName)
                 .append('`');
 
@@ -167,9 +195,9 @@ public class QueryParseEngine {
             String tableName = repositoryInformation.getRepositoryName();
             String setClause = generateSetClause(query);
 
-            return query.conditions().isEmpty()
+            return query.filters().isEmpty()
                     ? String.format("UPDATE %s SET %s;", tableName, setClause)
-                    : String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, buildConditions(query.conditions()));
+                    : String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, buildConditions(query.filters()));
         });
     }
 
@@ -303,7 +331,8 @@ public class QueryParseEngine {
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
-        if (Map.class.isAssignableFrom(type)) return; // not ignored, just handled differently and somewhere else, likely in DatabaseRelationshipHandler
+
+        if (Map.class.isAssignableFrom(type)) return; // not ignored, just handled differently and somewhere else, DatabaseRelationshipHandler
         if (type.isArray()) {
             if (!sqlType.supportsArrays()) return; // not ignored, just handled differently and somewhere else, likely in DatabaseRelationshipHandler
 
@@ -315,11 +344,16 @@ public class QueryParseEngine {
         String resolvedType = resolverRegistry.getType(type);
         if (resolvedType == null) {
             TypeResolver<?> resolver = createResolver(data);
-            if (resolver == null)
-                throw new IllegalArgumentException("Unsupported type: " + type);
-
             resolvedType = resolverRegistry.getType(resolver);
         }
+
+        RepositoryInformation metadata;
+        if (resolvedType == null && (metadata = RepositoryMetadata.getMetadata(type)) != null) {
+            // not created properly, last resort
+            resolvedType = resolverRegistry.getType(metadata.getPrimaryKey().type());
+        }
+
+        Objects.requireNonNull(resolvedType, "Unsupported type: " + type);
 
         appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
     }
@@ -343,19 +377,19 @@ public class QueryParseEngine {
         if (unique) fieldBuilder.append(" UNIQUE");
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     private <T> @Nullable TypeResolver<T> createResolver(final @NotNull FieldData<?> data) {
-        TypeResolver<?> resolver = parseResolver(data);
+        TypeResolver<?> resolver = parseNewResolver(data);
         return (TypeResolver<T>) resolver;
     }
 
     @SuppressWarnings("unchecked")
-    private @Nullable TypeResolver<Object> parseResolver(final @NotNull FieldData<?> data) {
-        SQLResolver annotation = data.getAnnotation(SQLResolver.class);
+    private @Nullable TypeResolver<Object>  parseNewResolver(final @NotNull FieldData<?> data) {
+        ResolveWith annotation = data.getAnnotation(ResolveWith.class);
         if (annotation == null) {
             return null;
         }
-        if (!SQLValueTypeResolver.class.isAssignableFrom(annotation.value())) {
+        if (!TypeResolver.class.isAssignableFrom(annotation.value())) {
             throw new IllegalArgumentException("Annotation value must be an SQLValueTypeResolver: " + annotation.value());
         }
         try {
@@ -446,6 +480,14 @@ public class QueryParseEngine {
         @Override
         public boolean supportsArrays() {
             return supportsArrays;
+        }
+
+        public SQLQueryValidator.SQLDialect getDialect() {
+            return switch (this) {
+                case MYSQL -> SQLQueryValidator.SQLDialect.MYSQL;
+                case POSTGRESQL -> SQLQueryValidator.SQLDialect.POSTGRESQL;
+                case SQLITE -> SQLQueryValidator.SQLDialect.SQLITE;
+            };
         }
     }
 }
