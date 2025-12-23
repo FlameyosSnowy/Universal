@@ -1,5 +1,7 @@
 package io.github.flameyossnowy.universal.api.cache;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Immutable snapshot of cache performance metrics.
  * 
@@ -16,8 +18,13 @@ public record CacheMetrics(
     long evictions,
     long puts,
     double hitRate,
-    double averageLoadTimeMs
+    double averageLoadTimeMs,
+    long opsPerMinute
 ) {
+    public static CacheMetrics empty() {
+        return new CacheMetrics(0, 0, 0, 0, 0.0, 0.0, 0);
+    }
+
     public long totalRequests() {
         return hits + misses;
     }
@@ -27,7 +34,7 @@ public record CacheMetrics(
     }
     
     @Override
-    public String toString() {
+    public @NotNull String toString() {
         return String.format(
             "CacheMetrics{requests=%d, hits=%d, misses=%d, hitRate=%.2f%%, avgLoadTime=%.2fms, evictions=%d}",
             totalRequests(), hits, misses, hitRate * 100, averageLoadTimeMs, evictions

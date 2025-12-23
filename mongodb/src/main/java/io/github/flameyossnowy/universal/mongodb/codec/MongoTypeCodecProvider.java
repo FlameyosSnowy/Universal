@@ -5,13 +5,16 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import org.bson.codecs.Codec;
 import org.bson.codecs.configuration.CodecProvider;
 import org.bson.codecs.configuration.CodecRegistry;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A CodecProvider that provides codecs for types registered in TypeResolverRegistry.
  */
 public record MongoTypeCodecProvider(TypeResolverRegistry typeResolverRegistry, RepositoryInformation information) implements CodecProvider {
     @Override
-    public <T> Codec<T> get(Class<T> clazz, CodecRegistry registry) {
+    public <T> @Nullable Codec<T> get(Class<T> clazz, CodecRegistry registry) {
         if (typeResolverRegistry.hasResolver(clazz)) {
             return new MongoTypeCodec<>(clazz, typeResolverRegistry, information);
         }
@@ -24,7 +27,8 @@ public record MongoTypeCodecProvider(TypeResolverRegistry typeResolverRegistry, 
      * @param typeResolverRegistry the type resolver registry to use
      * @return a new instance
      */
-    public static MongoTypeCodecProvider create(TypeResolverRegistry typeResolverRegistry, RepositoryInformation information) {
+    @Contract("_, _ -> new")
+    public static @NotNull MongoTypeCodecProvider create(TypeResolverRegistry typeResolverRegistry, RepositoryInformation information) {
         return new MongoTypeCodecProvider(typeResolverRegistry, information);
     }
 }

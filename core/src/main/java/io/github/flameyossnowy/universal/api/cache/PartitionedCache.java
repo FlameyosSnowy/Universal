@@ -5,6 +5,7 @@ import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFRUCache;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFUCache;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLRUCache;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param <V> the value type
  */
 @SuppressWarnings("unused")
-public class PartitionedCache<K, V> {
+public class PartitionedCache<K, V> implements SessionCache<K, V> {
     private final Map<K, V>[] partitions;
     private final int partitionCount;
     private final CacheStatistics statistics = new CacheStatistics();
@@ -48,6 +49,11 @@ public class PartitionedCache<K, V> {
     }
 
 
+    @Override
+    public Map<K, V> getInternalCache() {
+        return Arrays.stream(partitions).flatMap((map) -> map.entrySet().stream()).collect(()-> new ConcurrentHashMap<>(), (map, entry) -> map.put(entry.getKey(), entry.getValue()), ConcurrentHashMap::putAll);
+    }
+
     /**
      * Gets a value from the cache.
      * 
@@ -70,11 +76,12 @@ public class PartitionedCache<K, V> {
      * @param key the key
      * @param value the value
      */
-    public void put(K key, V value) {
+    public V put(K key, V value) {
         if (value != null) {
-            getPartition(key).put(key, value);
             statistics.recordPut();
+            return getPartition(key).put(key, value);
         }
+        return remove(key);
     }
     
     /**

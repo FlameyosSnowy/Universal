@@ -22,10 +22,9 @@ public class DatabaseRelationshipHandler<T, ID> extends AbstractRelationshipHand
     public DatabaseRelationshipHandler(
             RepositoryInformation repositoryInformation,
             Class<ID> idClass,
-            Map<Class<?>, RepositoryAdapter<?, ?, ?>> repositories,
             TypeResolverRegistry resolverRegistry,
             SQLConnectionProvider connectionProvider) {
-        super(repositoryInformation, idClass, repositories, resolverRegistry);
+        super(repositoryInformation, idClass, resolverRegistry);
         this.connectionProvider = connectionProvider;
     }
 

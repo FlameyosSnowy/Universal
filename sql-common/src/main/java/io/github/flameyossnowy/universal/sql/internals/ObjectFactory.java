@@ -1,24 +1,29 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
 import io.github.flameyossnowy.universal.api.RelationalObjectFactory;
+import io.github.flameyossnowy.universal.api.cache.LazyArrayList;
 import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
+import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.reflect.*;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
+import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.resolvers.*;
+import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
-import sun.misc.Unsafe;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
-import java.sql.PreparedStatement;
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.*;
 
 import static io.github.flameyossnowy.universal.api.handler.AbstractRelationshipHandler.getOneToOneField;
-import static io.github.flameyossnowy.universal.sql.internals.AbstractRelationalRepositoryAdapter.ADAPTERS;
 
 @ApiStatus.Internal
 @SuppressWarnings("unchecked")
@@ -30,18 +35,6 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
     protected final boolean hasPrimaryKey;
     protected final TypeResolverRegistry typeResolverRegistry;
 
-    static final Unsafe UNSAFE;
-
-    static {
-        try {
-            Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
-            theUnsafe.setAccessible(true);
-            UNSAFE = (Unsafe) theUnsafe.get(null);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public ObjectFactory(RepositoryInformation repoInfo,
                          SQLConnectionProvider connectionProvider,
                          @NotNull RelationalRepositoryAdapter<T, ID> adapter,
@@ -50,7 +43,7 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
         this.idClass = adapter.getIdType();
         this.connectionProvider = connectionProvider;
         this.typeResolverRegistry = typeResolverRegistry;
-        this.relationshipHandler = new DatabaseRelationshipHandler<>(repoInfo, adapter.getIdType(), ADAPTERS, typeResolverRegistry, connectionProvider);
+        this.relationshipHandler = new DatabaseRelationshipHandler<>(repoInfo, adapter.getIdType(), typeResolverRegistry, connectionProvider);
         this.hasPrimaryKey = repoInfo.getPrimaryKey() != null;
     }
 
@@ -120,9 +113,7 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
     }
 
     private @NotNull T populateWithPojo(ResultSet rs) throws Exception {
-        // Use MethodHandle for fast object creation if available
         T instance = (T) repoInfo.newInstance();
-        
         ID id = null;
 
         for (FieldData<?> field : repoInfo.getFields()) {
@@ -169,7 +160,7 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
 
         return instance;
     }
-    
+
     /**
      * Sets field value using MethodHandle if available, falls back to reflection.
      */
@@ -197,21 +188,17 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
                 field.setValue(instance, handleOneToManyField(field, primaryId));
             } else if (field.oneToOne() != null && hasPrimaryKey) {
                 Object related = relationshipHandler.handleOneToOneRelationship(primaryId, field);
-
-                OneToOneField backReference = getOneToOneField(
-                        Objects.requireNonNull(RepositoryMetadata.getMetadata(field.type())),
-                        repoInfo
-                );
-
-                if (backReference == null) {
-
-                    continue;
-                }
-
-                backReference.foundRelatedField().setValue(related, instance);
+                RepositoryInformation metadata = Objects.requireNonNull(RepositoryMetadata.getMetadata(field.type()));
                 field.setValue(instance, related);
+                if (related != null) {
+                    RepositoryInformation relatedInfo = Objects.requireNonNull(RepositoryMetadata.getMetadata(field.type()));
+                    OneToOneField backReference = getOneToOneField(relatedInfo, repoInfo);
+                    if (backReference != null) {
+                        backReference.foundRelatedField().setValue(related, instance);
+                    }
+                }
             } else if (field.manyToOne() != null) {
-                field.setValue(instance, relationshipHandler.handleManyToOneRelationship(rs, field));
+                field.setValue(instance, relationshipHandler.handleManyToOneRelationship(primaryId, field));
             } else if (DatabaseObjectFactory.isListField(field) && hasPrimaryKey) {
                 field.setValue(instance, handleGenericListField(field, primaryId, rs));
             } else if (DatabaseObjectFactory.isSetField(field) && hasPrimaryKey) {
@@ -231,29 +218,73 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
             }
         }
 
+
+
         return instance;
     }
 
     @Override
-    public void insertEntity(PreparedStatement stmt, T entity) throws Exception {
-        int paramIndex = 1;
-
+    public void insertEntity(DatabaseParameters stmt, T entity) throws Exception {
+        // First handle direct fields (non-relationships and foreign keys)
         for (FieldData<?> field : repoInfo.getFields()) {
-            if (field.autoIncrement()) continue;
-            if (DatabaseObjectFactory.isListField(field)
-                    || DatabaseObjectFactory.isMapField(field)
-                    || DatabaseObjectFactory.isSetField(field)) continue; // skip collections for now
+            if (field.autoIncrement() || field.oneToMany() != null) {
+                continue; // Skip auto-incrementing fields and collection-based relationships
+            }
 
-            Object valueToInsert = DatabaseObjectFactory.resolveInsertValue(field, entity);
-            SQLValueTypeResolver<Object> resolver = getValueResolver(field);
+            if (DatabaseObjectFactory.isListField(field) || DatabaseObjectFactory.isMapField(field) || DatabaseObjectFactory.isSetField(field)) {
+                continue; // Skip collections for now
+            }
 
-            Logging.deepInfo("Binding parameter " + paramIndex + ": " + valueToInsert);
-            resolver.insert(stmt, paramIndex++, valueToInsert);
+            Object valueToInsert = field.getValue(entity);
+            Logging.deepInfo("Processing field: " + field.name() + " with value: " + valueToInsert);
+
+            // Handle relationship fields (OneToOne, ManyToOne)
+            if ((field.oneToOne() != null || field.manyToOne() != null)) {
+                RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
+                if (relatedInfo != null) {
+                    FieldData<?> pkField = relatedInfo.getPrimaryKey();
+                    TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.resolve(pkField.type());
+                    Objects.requireNonNull(resolver);
+
+                    // If null, bind null explicitly
+                    if (valueToInsert == null) {
+                        resolver.insert(stmt, field.name(), null);
+                        continue;
+                    }
+
+                    // Otherwise: bind the foreign key ID value
+                    valueToInsert = pkField.getValue(valueToInsert);
+                    resolver.insert(stmt, field.name(), valueToInsert);
+                    continue;
+                }
+            }
+
+
+            // Get the appropriate type resolver
+            TypeResolver<Object> resolver = getTypeResolverForField(field, valueToInsert);
+            if (resolver == null) {
+                Logging.deepInfo("No resolver for " + field.type() + ", assuming it's a relationship handled elsewhere.");
+                continue;
+            }
+
+            Logging.deepInfo("Binding parameter " + field.name() + ": " + valueToInsert);
+            resolver.insert(stmt, field.name(), valueToInsert);
         }
     }
 
+    private TypeResolver<Object> getTypeResolverForField(FieldData<?> field, Object value) {
+        if ((field.oneToOne() != null || field.manyToOne() != null) && value != null) {
+            RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
+            if (relatedInfo != null) {
+                FieldData<?> pkField = relatedInfo.getPrimaryKey();
+                return (TypeResolver<Object>) typeResolverRegistry.resolve(pkField.type());
+            }
+        }
+        return (TypeResolver<Object>) typeResolverRegistry.resolve(field.type());
+    }
+
     @Override
-    public void insertCollectionEntities(T entity, ID id, PreparedStatement statement) throws Exception {
+    public void insertCollectionEntities(T entity, ID id, DatabaseParameters statement) throws Exception {
         for (FieldData<?> field : repoInfo.getFields()) {
             if ((DatabaseObjectFactory.isListField(field) || DatabaseObjectFactory.isSetField(field)) && !field.isRelationship()) {
                 handleLists(entity, id, field);
@@ -277,7 +308,7 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
             collectionTypeResolver.insert(id, map);
         } else {
             MapTypeResolver<Object, Object, ID> collectionTypeResolver =
-                    SQLCollections.INSTANCE.getMapResolver(keyType, valueType, idClass, connectionProvider, repoInfo,typeResolverRegistry);
+                    SQLCollections.INSTANCE.getMapResolver(keyType, valueType, idClass, connectionProvider, repoInfo, typeResolverRegistry);
 
             Map<Object, Object> map = field.getValue(entity);
             collectionTypeResolver.insert(id, map);
@@ -322,52 +353,66 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
         return relationshipHandler.handleOneToManyRelationship(field, primaryId);
     }
 
-    protected ID resolvePrimaryKey(ResultSet rs) throws Exception {
+    protected ID resolvePrimaryKey(ResultSet rs) {
         FieldData<?> pkField = repoInfo.getPrimaryKey();
-        SQLValueTypeResolver<ID> resolver = (SQLValueTypeResolver<ID>) typeResolverRegistry.getResolver(pkField.type());
-        return resolver.resolve(rs, pkField.name());
+        TypeResolver<ID> resolver = (TypeResolver<ID>) typeResolverRegistry.getResolver(pkField.type());
+        SQLDatabaseResult result = new SQLDatabaseResult(rs, typeResolverRegistry);
+        return resolver.resolve(result, pkField.name());
     }
 
-    void populateFieldInternal(ResultSet rs, FieldData<?> field, Object instance) throws Exception {
+    void populateFieldInternal(ResultSet rs, FieldData<?> field, Object instance) {
         Object value = resolveFieldValue(rs, field);
         if (value != null) field.setValue(instance, value);
     }
 
-    protected Object resolveFieldValue(ResultSet rs, FieldData<?> field) throws Exception {
-        SQLValueTypeResolver<Object> resolver = (SQLValueTypeResolver<Object>) typeResolverRegistry.getResolver(field.type());
-        return resolver.resolve(rs, field.name());
-    }
-
-    protected SQLValueTypeResolver<Object> getValueResolver(FieldData<?> field) {
+    protected Object resolveFieldValue(ResultSet rs, FieldData<?> field) {
         RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
 
         if (relatedInfo != null) {
             FieldData<?> pkField = relatedInfo.getPrimaryKey();
-            SQLValueTypeResolver<Object> resolver = (SQLValueTypeResolver<Object>)
-                    typeResolverRegistry.getResolver(pkField.type());
+            TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.getResolver(pkField.type());
+            SQLDatabaseResult result = new SQLDatabaseResult(rs, typeResolverRegistry);
+            return resolver.resolve(result, field.name());
+        }
+
+        TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.getResolver(field.type());
+        SQLDatabaseResult result = new SQLDatabaseResult(rs, typeResolverRegistry);
+        return resolver.resolve(result, field.name());
+    }
+
+    @Nullable
+    protected TypeResolver<Object> getValueResolver(@NotNull FieldData<?> field) {
+        RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
+
+        if (relatedInfo != null) {
+            FieldData<?> pkField = relatedInfo.getPrimaryKey();
+            var resolver = (TypeResolver<Object>) typeResolverRegistry.resolve(pkField.type());
 
             return new MySQLValueTypeResolver(pkField, resolver);
         }
 
-        return (SQLValueTypeResolver<Object>) typeResolverRegistry.getResolver(field.type());
+        return (TypeResolver<Object>) typeResolverRegistry.getResolver(field.type());
     }
 
-    private record MySQLValueTypeResolver(FieldData<?> pkField, SQLValueTypeResolver<Object> resolver) implements SQLValueTypeResolver<Object> {
+    private record MySQLValueTypeResolver(FieldData<?> pkField, TypeResolver<Object> resolver) implements TypeResolver<Object> {
         @Override
-        public void insert(PreparedStatement ps, int index, Object related) throws Exception {
-            Object relatedId = (related != null) ? pkField.getValue(related) : null;
-            resolver.insert(ps, index, relatedId);
-            Logging.deepInfo("Inserted related PK: " + relatedId);
+        public Class<Object> getType() {
+            return (Class<Object>) pkField.type();
         }
 
         @Override
-        public Class<?> encodedType() {
-            return null;
+        public Class<?> getDatabaseType() {
+            return pkField.type();
         }
 
         @Override
-        public Object resolve(ResultSet rs, String columnLabel) throws Exception {
-            return resolver.resolve(rs, columnLabel);
+        public Object resolve(DatabaseResult result, String columnName) {
+            return resolver.resolve(result, columnName);
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, Object value) {
+            resolver.insert(parameters, index, value);
         }
     }
 }

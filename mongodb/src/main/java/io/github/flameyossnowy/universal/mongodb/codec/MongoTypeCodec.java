@@ -30,7 +30,7 @@ public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolver
     
     /**
      * ThreadLocal to pass field context from ObjectFactory to the codec.
-     * This allows accurate field name tracking even when multiple fields share the same type.
+     * This allows accurate thread-safe field name tracking even when multiple fields share the same type.
      */
     private static final ThreadLocal<String> CURRENT_FIELD_NAME = new ThreadLocal<>();
     
@@ -56,6 +56,7 @@ public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolver
     public static String getCurrentFieldName() {
         return CURRENT_FIELD_NAME.get();
     }
+
     @Override
     public T decode(BsonReader reader, DecoderContext decoderContext) {
         Document document = Document.parse(reader.readString());

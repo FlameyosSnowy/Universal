@@ -197,9 +197,9 @@ public class CassandraQueryEngine {
             String tableName = repositoryInformation.getRepositoryName();
             String setClause = generateSetClause(query);
 
-            return query.conditions().isEmpty()
+            return query.filters().isEmpty()
                     ? String.format("UPDATE %s SET %s;", tableName, setClause)
-                    : String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, buildConditions(query.conditions()));
+                    : String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, buildConditions(query.filters()));
         });
     }
 

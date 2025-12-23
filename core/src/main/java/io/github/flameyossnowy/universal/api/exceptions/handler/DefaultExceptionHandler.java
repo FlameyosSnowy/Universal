@@ -13,32 +13,40 @@ import java.util.List;
 public class DefaultExceptionHandler<T, ID, C> implements ExceptionHandler<T, ID, C> {
     @Override
     public TransactionResult<Boolean> handleInsert(@NotNull Exception exception, @NotNull RepositoryInformation information, @NotNull RepositoryAdapter<T, ID, C> adapter) {
-        return handleException(exception, information, adapter);
+        return handleException(exception, information, adapter, "Insert");
     }
 
     @Override
     public TransactionResult<Boolean> handleDelete(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter) {
-        return handleException(exception, information, adapter);
+        return handleException(exception, information, adapter, "Delete");
     }
 
     @Override
     public TransactionResult<Boolean> handleUpdate(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter) {
-        return handleException(exception, information, adapter);
+        return handleException(exception, information, adapter, "Update");
     }
 
     @NotNull
-    private TransactionResult<Boolean> handleException(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter) {
-        String message = createExceptionMessage(exception, information, adapter);
+    private TransactionResult<Boolean> handleException(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter, String update) {
+        String message = createExceptionMessage(exception, information, adapter, update);
         checkForUnrecoverableErrors(exception, message);
-        Logging.error(message);
+        Logging.error(message, exception);
         return TransactionResult.failure(new RepositoryException(message, exception));
     }
 
     @Override
     public List<T> handleRead(@NotNull Exception exception, @NotNull RepositoryInformation information, SelectQuery query, @NotNull RepositoryAdapter<T, ID, C> adapter) {
-        String message = createExceptionMessage(exception, information, adapter);
+        String message = createExceptionMessage(exception, information, adapter, "Read elements");
         checkForUnrecoverableErrors(exception, message);
-        Logging.error(message);
+        Logging.error(message, exception);
+        return List.of();
+    }
+
+    @Override
+    public List<ID> handleReadIds(Exception exception, RepositoryInformation information, SelectQuery query, RepositoryAdapter<T, ID, C> adapter) {
+        String message = createExceptionMessage(exception, information, adapter, "Read ids");
+        checkForUnrecoverableErrors(exception, message);
+        Logging.error(message, exception);
         return List.of();
     }
 
@@ -49,8 +57,9 @@ public class DefaultExceptionHandler<T, ID, C> implements ExceptionHandler<T, ID
         }
     }
 
-    private static <T, ID, C> @NotNull String createExceptionMessage(@NotNull Exception exception, @NotNull RepositoryInformation information, @NotNull RepositoryAdapter<T, ID, C> adapter) {
-        return String.format("Exception in repository [%s] with adapter [%s]: %s",
+    private static <T, ID, C> @NotNull String createExceptionMessage(@NotNull Exception exception, @NotNull RepositoryInformation information, @NotNull RepositoryAdapter<T, ID, C> adapter, String update) {
+        return String.format("%s exception in repository [%s] with adapter [%s]: %s",
+                update,
                 information.getRepositoryName(),
                 adapter.getClass().getSimpleName(),
                 exception.getMessage());

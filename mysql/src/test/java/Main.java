@@ -14,7 +14,7 @@ public class Main {
         Logging.ENABLED = true;
         //Logging.DEEP = true;
 
-        MySQLCredentials credentials = new MySQLCredentials("localhost", 3306, "test", "flameyosflow", "...");
+        MySQLCredentials credentials = new MySQLCredentials("localhost", 3306, "main", "root", "secret");
         MySQLRepositoryAdapter<Faction, UUID> factions = MySQLRepositoryAdapter
                 .builder(Faction.class, UUID.class)
                 .withCredentials(credentials)
@@ -56,10 +56,8 @@ public class Main {
         faction2.warp = warp2;
         warp2.faction = faction2;
 
-        factions.insert(faction)
-                .and(factions.insert(faction2))
-                .and(warps.insert(warp))
-                .and(warps.insert(warp2))
+        factions.insert(faction).and(factions.insert(faction2))
+                .and(warps.insert(warp)).and(warps.insert(warp2))
                 .ifError(e -> System.out.println("error"));
 
         System.out.println("Finding factions");

@@ -1,0 +1,53 @@
+plugins {
+    id "java"
+    id "java-library"
+    id "maven-publish"
+    id("com.gradleup.shadow") version "9.0.0-beta12"
+}
+
+group = "io.github.flameyossnowy.universal"
+version = "3.0.0"
+
+repositories {
+    mavenCentral()
+    //maven { url = "https://repo.foxikle.dev/flameyos" }
+    maven {
+        name = "jitpack"
+        url = "https://jitpack.io"
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
+
+dependencies {
+    compileOnly "org.jetbrains:annotations:24.0.1"
+
+    compileOnly project(":core")
+    // jackson
+    compileOnly "com.fasterxml.jackson.core:jackson-databind:2.15.1"
+    compileOnly "com.fasterxml.jackson.core:jackson-annotations:2.15.1"
+    compileOnly "com.fasterxml.jackson.core:jackson-core:2.15.1"
+    // jackson datatypes
+    compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.2"
+    compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2"
+
+    // error prone
+    compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"
+
+    // byte buddy
+    compileOnly "net.bytebuddy:byte-buddy:1.14.9"
+
+    testImplementation "org.junit.jupiter:junit-jupiter-engine:5.11.0-M2"
+    testImplementation project(":core")
+
+    testImplementation "com.fasterxml.jackson.core:jackson-databind:2.15.1"
+    testImplementation "com.fasterxml.jackson.core:jackson-annotations:2.15.1"
+    testImplementation "com.fasterxml.jackson.core:jackson-core:2.15.1"
+    // jackson datatypes
+    testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.2"
+    testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2"
+
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+}

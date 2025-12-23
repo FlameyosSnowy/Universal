@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.api.handler;
 
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
+import io.github.flameyossnowy.universal.api.RepositoryRegistry;
 import io.github.flameyossnowy.universal.api.cache.LazyArrayList;
 import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
@@ -12,6 +13,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import static io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata.getMetadata;
 
@@ -23,69 +25,137 @@ import static io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata.g
 public abstract class AbstractRelationshipHandler<T, ID, R> implements RelationshipHandler<ID> {
     protected final RepositoryInformation repositoryInformation;
     protected final Class<ID> idClass;
-    protected final Map<Class<?>, RepositoryAdapter<?, ?, ?>> repositories;
     protected final TypeResolverRegistry resolverRegistry;
 
     private static final Map<String, String> nameCache = new ConcurrentHashMap<>(16);
-    
+
     // Relationship cache: "EntityType:ID:fieldName" -> cached result
     private final Map<String, Object> relationshipCache = new ConcurrentHashMap<>(64);
 
     protected AbstractRelationshipHandler(RepositoryInformation repositoryInformation,
                                           Class<ID> idClass,
-                                          Map<Class<?>, RepositoryAdapter<?, ?, ?>> repositories, TypeResolverRegistry resolverRegistry) {
+                                          TypeResolverRegistry resolverRegistry) {
         this.repositoryInformation = repositoryInformation;
         this.idClass = idClass;
-        this.repositories = repositories;
         this.resolverRegistry = resolverRegistry;
     }
 
     @Override
-    public Object handleManyToOneRelationship(Object relationKey, @NotNull FieldData<?> field) {
+    public Object handleManyToOneRelationship(ID primaryKeyValue, @NotNull FieldData<?> field) {
         RepositoryInformation parentInfo = Objects.requireNonNull(getMetadata(field.type()), "Unknown repository for type " + field.type());
-        String cacheKey = buildCacheKey(field, relationKey);
-        Object cached = relationshipCache.get(cacheKey);
-        if (cached != null) return cached == NULL_MARKER ? null : cached;
-
-        RepositoryAdapter<Object, Object, ?> adapter =
-                (RepositoryAdapter<Object, Object, ?>) repositories.get(parentInfo.getType());
-        if (adapter == null)
-            throw new IllegalStateException("Missing adapter for " + parentInfo.getType());
-
-        SelectQuery query = Query.select()
-                .where(parentInfo.getPrimaryKey().name(), relationKey)
-                .limit(1)
-                .build();
-
-        List<Object> result = adapter.find(query);
-        Object value = result.isEmpty() ? null : result.get(0);
-        relationshipCache.put(cacheKey, value == null ? NULL_MARKER : value);
-        return value;
-    }
-
-    @Override
-    public Object handleOneToOneRelationship(ID primaryKeyValue, @NotNull FieldData<?> field) {
-        RepositoryInformation targetInfo = Objects.requireNonNull(getMetadata(field.type()), "Unknown repository for type " + field.type());
         String cacheKey = buildCacheKey(field, primaryKeyValue);
         Object cached = relationshipCache.get(cacheKey);
         if (cached != null) return cached == NULL_MARKER ? null : cached;
 
+        RepositoryAdapter<Object, Object, ?> adapter = resolveAdapter(field, parentInfo);
+        if (adapter == null)
+            throw new IllegalStateException("Missing adapter for " + parentInfo.getType());
+
+        SelectQuery query = Query.select()
+                .where(parentInfo.getPrimaryKey().name(), primaryKeyValue)
+                .limit(1)
+                .build();
+
+        List<Object> result = adapter.find(query);
+        Object value = result.isEmpty() ? null : result.getFirst();
+        relationshipCache.put(cacheKey, value == null ? NULL_MARKER : value);
+        return value;
+    }
+
+    /**
+     * Attempts to convert a raw id object (from a join table) into expected idType.
+     * Supports common conversions for Number -> numeric types, UUID, String.
+     */
+    @SuppressWarnings("DuplicateExpressions")
+    @Nullable
+    private static Object convertId(@Nullable Object raw, @NotNull Class<?> idType) {
+        if (raw == null) return null;
+        if (idType.isInstance(raw)) return raw;
+
+        // Strings -> attempt parser
+        if (raw instanceof String s) {
+            if (UUID.class.equals(idType)) {
+                try {
+                    return UUID.fromString(s);
+                } catch (IllegalArgumentException ignored) { }
+            }
+            if (Number.class.isAssignableFrom(idType) || idType.isPrimitive()) {
+                try {
+                    if (Long.class.equals(idType) || long.class.equals(idType)) return Long.valueOf(s);
+                    if (Integer.class.equals(idType) || int.class.equals(idType)) return Integer.valueOf(s);
+                    if (Short.class.equals(idType) || short.class.equals(idType)) return Short.valueOf(s);
+                    if (Byte.class.equals(idType) || byte.class.equals(idType)) return Byte.valueOf(s);
+                    if (Double.class.equals(idType) || double.class.equals(idType)) return Double.valueOf(s);
+                    if (Float.class.equals(idType) || float.class.equals(idType)) return Float.valueOf(s);
+                } catch (NumberFormatException ignored) { }
+            }
+        }
+
+        // Numbers -> convert to primitive wrappers where possible
+        if (raw instanceof Number n) {
+            if (Long.class.equals(idType) || long.class.equals(idType)) return n.longValue();
+            if (Integer.class.equals(idType) || int.class.equals(idType)) return n.intValue();
+            if (Short.class.equals(idType) || short.class.equals(idType)) return n.shortValue();
+            if (Byte.class.equals(idType) || byte.class.equals(idType)) return n.byteValue();
+            if (Double.class.equals(idType) || double.class.equals(idType)) return n.doubleValue();
+            if (Float.class.equals(idType) || float.class.equals(idType)) return n.floatValue();
+        }
+
+        // Last resort: try casting (may throw ClassCastException)
+        try {
+            return idType.cast(raw);
+        } catch (ClassCastException ex) {
+            // give up; return raw
+            return raw;
+        }
+    }
+
+    @Override
+    public @Nullable Object handleOneToOneRelationship(ID primaryKeyValue, @NotNull FieldData<?> field) {
+        String cacheKey = buildCacheKey(field, primaryKeyValue);
+        Object cached = relationshipCache.get(cacheKey);
+        if (cached != null) return cached == NULL_MARKER ? null : cached;
+
+        // The field type is the "target" side (e.g. Warp for Faction.warp)
+        Class<?> targetType = field.type();
+        RepositoryInformation targetInfo = Objects.requireNonNull(
+                getMetadata(targetType),
+                "Unknown repository for type " + targetType
+        );
+
+        // Find the back-reference on the target that points back to this repository type,
+        // e.g. Warp.faction when resolving Faction.warp
         OneToOneField link = getOneToOneField(targetInfo, repositoryInformation);
         if (link == null) {
-            Logging.error("No link found for " + field.name() + " in " + repositoryInformation.getRepositoryName());
+            Logging.error("No OneToOne back-reference from " + targetInfo.getRepositoryName() +
+                    " to " + repositoryInformation.getRepositoryName() + " for field " + field.name());
+            relationshipCache.put(cacheKey, NULL_MARKER);
             return null;
         }
 
-        RepositoryAdapter<Object, Object, ?> adapter =
-                (RepositoryAdapter<Object, Object, ?>) repositories.get(targetInfo.getType());
-        if (adapter == null)
-            throw new IllegalStateException("Missing adapter for " + targetInfo.getType());
+        RepositoryAdapter<Object, Object, ?> adapter = resolveAdapter(field, targetInfo);
+        if (adapter == null) {
+            Logging.error("Missing adapter for type: " + targetType.getName());
+            relationshipCache.put(cacheKey, NULL_MARKER);
+            return null;
+        }
 
-        SelectQuery query = Query.select().where(link.name(), primaryKeyValue).limit(1).build();
+        try {
+            SelectQuery query = Query.select()
+                    .where(link.name(), primaryKeyValue)
+                    .limit(1)
+                    .build();
 
-        Object value = adapter.first(query);
-        relationshipCache.put(cacheKey, value == null ? NULL_MARKER : value);
-        return value;
+            List<Object> results = adapter.find(query);
+            Object result = (results == null || results.isEmpty()) ? null : results.getFirst();
+
+            relationshipCache.put(cacheKey, result == null ? NULL_MARKER : result);
+            return result;
+        } catch (Exception e) {
+            Logging.error("Error loading OneToOne relationship for field: " + field.name(), e);
+            relationshipCache.put(cacheKey, NULL_MARKER);
+            return null;
+        }
     }
 
     @Override
@@ -100,10 +170,11 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
         Class<?> mappedBy = field.oneToMany().mappedBy();
         RepositoryInformation relatedRepoInfo = Objects.requireNonNull(getMetadata(mappedBy), "Unknown repository for type " + mappedBy);
 
-        String relationName = getRelationName(relatedRepoInfo);
+        String relationName = getRelationName(relatedRepoInfo, repositoryInformation.getType());
 
-        RepositoryAdapter<Object, Object, ?> adapter = (RepositoryAdapter<Object, Object, ?>)
-                Objects.requireNonNull(repositories.get(relatedRepoInfo.getType()), "Missing adapter for " + relatedRepoInfo.getType());
+        RepositoryAdapter<Object, Object, ?> adapter = resolveAdapter(field, relatedRepoInfo);
+        if (adapter == null)
+            throw new IllegalStateException("Missing adapter for " + relatedRepoInfo.getType());
 
         if (!field.oneToMany().lazy()) return getResult(primaryKeyValue, adapter, relationName, cacheKey);
         return new LazyArrayList<>(() -> getResult(primaryKeyValue, adapter, relationName, cacheKey));
@@ -111,8 +182,9 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
 
     private List<Object> getResult(ID primaryKeyValue, @NotNull RepositoryAdapter<Object, Object, ?> adapter, String relationName, String cacheKey) {
         List<Object> result = adapter.find(Query.select().where(relationName, primaryKeyValue).build());
-        relationshipCache.put(cacheKey, result);
-        return result;
+        List<Object> immutable = result == null ? Collections.emptyList() : List.copyOf(result);
+        relationshipCache.put(cacheKey, immutable);
+        return immutable;
     }
 
     // ---- Helper methods ---- //
@@ -128,25 +200,59 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
         return null;
     }
 
-    protected static String getRelationName(@NotNull RepositoryInformation info) {
-        return nameCache.computeIfAbsent(info.getRepositoryName(), k -> {
+    /**
+     * Find the field name on `info` that references parentType. This is the usual "mapped
+     * by" side for one-to-many relationships.
+     */
+    protected static String getRelationName(@NotNull RepositoryInformation info, @NotNull Class<?> parentType) {
+        // Use cache key composed of repo + parent type to avoid collisions
+        String cacheKey = info.getRepositoryName() + "#" + parentType.getName();
+        return nameCache.computeIfAbsent(cacheKey, k -> {
             for (FieldData<?> field : info.getFields()) {
-                if (field.type() == info.getType())
+                if (field.type() == parentType)
                     return field.name();
             }
-            return null;
+            // If not found, fall back to primary key (safeguard) — caller should probably fail earlier
+            Logging.deepInfo("Relation name for parent type " + parentType.getName() + " not found in " + info.getRepositoryName());
+            return info.getPrimaryKey().name();
         });
     }
-    
+
     // ---- Cache Management ---- //
-    
+
     private static final Object NULL_MARKER = new Object();
-    
+
     /**
      * Builds a cache key for relationship caching.
      */
     @NotNull
     private String buildCacheKey(@NotNull FieldData<?> field, Object id) {
         return repositoryInformation.getType().getSimpleName() + ":" + id + ":" + field.name();
+    }
+
+    /**
+     * Resolves the appropriate adapter for a field, supporting both local and external repositories.
+     *
+     * @param field the field containing relationship information
+     * @param targetInfo the target repository information
+     * @return the resolved adapter, or null if not found
+     */
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private static RepositoryAdapter<Object, Object, ?> resolveAdapter(@NotNull FieldData<?> field, @NotNull RepositoryInformation targetInfo) {
+        if (field.isExternalRelationship()) {
+            String adapterName = field.externalRepository().adapter();
+            RepositoryAdapter<Object, Object, ?> externalAdapter = RepositoryRegistry.get(adapterName);
+
+            if (externalAdapter == null) {
+                Logging.error("External adapter '" + adapterName + "' not found in RepositoryRegistry for field " + field.name());
+                return null;
+            }
+
+            Logging.deepInfo("Using external adapter '" + adapterName + "' for field " + field.name());
+            return externalAdapter;
+        }
+
+        return (RepositoryAdapter<Object, Object, ?>) RepositoryRegistry.get(targetInfo.getType());
     }
 }

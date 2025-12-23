@@ -1,23 +1,20 @@
 package io.github.flameyossnowy.universal.mongodb;
 
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.model.Filters;
+import io.github.flameyossnowy.universal.api.RepositoryRegistry;
 import io.github.flameyossnowy.universal.api.exceptions.ConstructorThrewException;
 import io.github.flameyossnowy.universal.api.options.Query;
+import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodec;
 import org.bson.Document;
-import org.bson.conversions.Bson;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.util.*;
-
-import static io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter.ADAPTERS;
 
 @ApiStatus.Internal
 @SuppressWarnings("unchecked")
@@ -129,77 +126,80 @@ public class ObjectFactory<T, ID> {
     }
 
     private void loadManyToOne(FieldData<?> field, Object entity, ID id) {
-        var adapter = ADAPTERS.get(field.type());
+        var adapter = RepositoryRegistry.get(field.type());
         if (adapter == null) return;
 
         Object result = adapter.first(Query.select().where(field.name(), id).build());
         if (result != null) field.setValue(entity, result);
     }
 
-    private void loadOneToOne(@NotNull FieldData<?> field, Object entity, ID id) {
-        var adapter = ADAPTERS.get(field.type());
+    private void loadOneToOne(@NotNull FieldData<?> field, @NotNull Object entity, ID id) {
+        RepositoryInformation metadata = RepositoryMetadata.getMetadata(entity.getClass());
+        var adapter = RepositoryRegistry.get(field.type());
         if (adapter == null) return;
 
-        Bson filter = createOneToManyFilter(adapter.getRepositoryInformation(), id);
-        Document document = adapter.getCollection().find(filter).first();
-        Object child = instantiateChildOneToOne(document, adapter.getRepositoryInformation(), entity);
+        RepositoryInformation repositoryInformation = adapter.getRepositoryInformation();
+        SelectQuery filter = createOneToManyFilter(repositoryInformation, id);
+        Object document = adapter.first(filter);
+        Object child = instantiateChildOneToOne(document, repositoryInformation, entity, metadata);
         field.setValue(entity, child);
     }
 
-    private void loadOneToMany(FieldData<?> field, Object parentEntity, Object parentId) {
+    private void loadOneToMany(@NotNull FieldData<?> field, Object parentEntity, Object parentId) {
         Class<?> childType = field.oneToMany().mappedBy();
         RepositoryInformation childInfo = RepositoryMetadata.getMetadata(childType);
         Objects.requireNonNull(childInfo, "Child repository metadata not found for type: " + childType);
 
-        var adapter = ADAPTERS.get(childType);
+        var adapter = RepositoryRegistry.get(childType);
         if (adapter == null) return;
 
-        Bson filter = createOneToManyFilter(childInfo, parentId);
+        SelectQuery filter = createOneToManyFilter(childInfo, parentId);
+        List<Object> parentList = (List<Object>) adapter.find(filter);
+        List<Object> children = new ArrayList<>(parentList.size());
 
-        try (MongoCursor<Document> iterable = adapter.getCollection().find(filter).iterator()) {
-            int available = iterable.available();
-            List<Object> children = new ArrayList<>(available);
-
-            while (iterable.hasNext()) {
-                Document childDoc = iterable.next();
-                Object child = instantiateChildManyToOne(childDoc, childInfo, parentEntity);
-                children.add(child);
-            }
-
-            field.setValue(parentEntity, children);
+        for (Object childObject : parentList) {
+            Object child = instantiateChildManyToOne(childObject, childInfo, parentEntity, childInfo);
+            children.add(child);
         }
+
+        field.setValue(parentEntity, children);
     }
 
-    private static @NotNull Object instantiateChildManyToOne(Document doc, RepositoryInformation childInfo, Object parentEntity) {
+    private static @NotNull Object instantiateChildManyToOne(
+            Object doc, @NotNull RepositoryInformation childInfo,
+            Object parentEntity, RepositoryInformation info
+    ) {
         Object child = childInfo.newInstance();
         for (FieldData<?> field : childInfo.getFields()) {
             if (field.manyToOne() != null) {
                 field.setValue(child, parentEntity);
             } else {
-                field.setValue(child, doc.get(field.name()));
+                field.setValue(child, info.getField(field.name()).getValue(doc));
             }
         }
         return child;
     }
 
-    private static @NotNull Object instantiateChildOneToOne(Document doc, RepositoryInformation childInfo, Object parentEntity) {
+    private static @NotNull Object instantiateChildOneToOne(
+            Object doc, RepositoryInformation childInfo,
+            Object parentEntity, RepositoryInformation info
+    ) {
         Object child = childInfo.newInstance();
         for (FieldData<?> field : childInfo.getFields()) {
             if (field.oneToOne() != null) {
                 field.setValue(child, parentEntity);
             } else {
-                field.setValue(child, doc.get(field.name()));
+                field.setValue(child, info.getField(field.name()).getValue(doc));
             }
         }
         return child;
     }
 
-    private @NotNull Bson createOneToManyFilter(RepositoryInformation childInfo, Object parentId) {
+    private @NotNull SelectQuery createOneToManyFilter(RepositoryInformation childInfo, Object parentId) {
         return childInfo.getManyToOneCache().values().stream()
                 .filter(field -> field.type() == repoInfo.getType())
                 .findFirst()
-                .map(field -> Filters.eq(field.name(), parentId))
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "No matching many-to-one field found in " + childInfo.getType()));
+                .map(field -> Query.select().where(field.name(), parentId).build())
+                .orElseThrow(() -> new IllegalArgumentException("No matching many-to-one field found in " + childInfo.getType()));
     }
 }

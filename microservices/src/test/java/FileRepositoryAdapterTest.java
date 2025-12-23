@@ -1,7 +1,7 @@
-import io.github.flameyossnowy.universal.api.annotations.FileRepository;
 import io.github.flameyossnowy.universal.api.annotations.enums.CompressionType;
 import io.github.flameyossnowy.universal.api.annotations.enums.FileFormat;
 import io.github.flameyossnowy.universal.microservices.file.FileRepositoryAdapter;
+import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategies;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -27,8 +27,8 @@ class FileRepositoryAdapterTest {
                 false,
                 CompressionType.GZIP,
                 false,
-                0
-        );
+                0,
+            IndexPathStrategies.underBase());
         adapter.createRepository(true);
     }
 

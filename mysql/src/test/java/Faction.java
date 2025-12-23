@@ -10,7 +10,7 @@ public class Faction {
 
     public String name;
 
-    @OneToOne
+    @OneToOne(mappedBy = "faction")
     public Warp warp;
 
     public Faction() {}
@@ -24,6 +24,7 @@ public class Faction {
         return "Faction{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
+                ", warp='" + warp + "'" +
                 '}';
     }
 }

@@ -1,21 +1,25 @@
-import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
+import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
+import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-
-public class PasswordConverter implements SQLValueTypeResolver<Password> {
+public class PasswordConverter implements TypeResolver<Password> {
     @Override
-    public Password resolve(final ResultSet resultSet, final String columnLabel) throws Exception {
-        return new Password(resultSet.getString(columnLabel));
+    public Class<Password> getType() {
+        return Password.class;
     }
 
     @Override
-    public void insert(final PreparedStatement statement, final int parameterIndex, final Password value) throws Exception {
-        statement.setString(parameterIndex, value.password());
-    }
-
-    @Override
-    public Class<?> encodedType() {
+    public Class<?> getDatabaseType() {
         return String.class;
+    }
+
+    @Override
+    public Password resolve(DatabaseResult result, String columnName) {
+        return new Password(result.get(columnName, String.class));
+    }
+
+    @Override
+    public void insert(DatabaseParameters parameters, String index, Password value) {
+        parameters.set(index, value.password(), String.class);
     }
 }

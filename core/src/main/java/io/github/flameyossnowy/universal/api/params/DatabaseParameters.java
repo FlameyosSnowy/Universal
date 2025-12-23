@@ -19,6 +19,17 @@ public interface DatabaseParameters {
      * @throws IllegalArgumentException if the type is not supported
      */
     <T> void set(@NotNull String name, @Nullable T value, @NotNull Class<?> type);
+
+    /**
+     * Sets a parameter value by name but does not check for type and immediately tries to insert it.
+     *
+     * @param name the name of the parameter
+     * @param value the value to set
+     * @param type the type of the value
+     * @param <T> the type of the value
+     * @throws IllegalArgumentException if the type is not supported
+     */
+    <T> void setRaw(@NotNull String name, @Nullable T value, @NotNull Class<?> type);
     
     /**
      * Sets a parameter to NULL by name.

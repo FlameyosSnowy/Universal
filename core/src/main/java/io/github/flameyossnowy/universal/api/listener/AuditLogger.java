@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.api.listener;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface AuditLogger<T> {
@@ -19,7 +20,7 @@ public interface AuditLogger<T> {
      *
      * @param entities The list of entities that were inserted.
      */
-    void onInsert(List<T> entities);
+    void onInsert(Collection<T> entities);
 
     /**
      * Called when an entity is updated in the repository.

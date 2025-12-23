@@ -21,7 +21,7 @@ public class DefaultResultCache<Q, T, ID> {
     private static final long DEFAULT_TTL_MILLIS = 120_000; // 2 minutes
 
     private final Map<Q, CacheEntry<T>> cache;
-    private final Map<ID, Set<Q>> idToQueries = new ConcurrentHashMap<>();
+    private final Map<ID, Set<Q>> idToQueries = new ConcurrentLRUCache<>(16);
     private final CacheStatistics statistics = new CacheStatistics();
     private final long ttlMillis;
     
@@ -46,9 +46,11 @@ public class DefaultResultCache<Q, T, ID> {
      * @return the cached results, or null if not found or expired
      */
     public List<T> fetch(Q query) {
+        long start = System.currentTimeMillis();
         CacheEntry<T> entry = cache.get(query);
+        long duration = System.currentTimeMillis() - start;
         if (entry == null) {
-            statistics.recordMiss(0);
+            statistics.recordMiss(duration);
             return null;
         }
         

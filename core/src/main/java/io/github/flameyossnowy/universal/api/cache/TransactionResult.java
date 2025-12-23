@@ -8,14 +8,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public final class TransactionResult<T> {
-    private final T result;
-    private final Throwable error;
-
-    private TransactionResult(T result, Throwable error) {
-        this.result = result;
-        this.error = error;
-    }
+public record TransactionResult<T>(T result, Throwable error) {
 
     /**
      * Returns a successful TransactionResult with the given value.
@@ -46,10 +39,12 @@ public final class TransactionResult<T> {
      * <p></p>
      * Please do not use this method unless you know what you're doing.
      */
-    public void swallow() {}
+    public void swallow() {
+    }
 
     /**
      * Checks if the transaction resulted in a success.
+     *
      * @return true if the transaction was successful, false otherwise
      */
     public boolean isSuccess() {
@@ -69,7 +64,7 @@ public final class TransactionResult<T> {
      * Retrieves the result of the transaction if it was successful.
      *
      * @return an Optional containing the result if the transaction was successful,
-     *         or an empty Optional if the transaction resulted in an error.
+     * or an empty Optional if the transaction resulted in an error.
      */
     @Contract(pure = true)
     public @NotNull Optional<T> getResult() {
@@ -80,7 +75,7 @@ public final class TransactionResult<T> {
      * Retrieves the error of the transaction if it resulted in an error.
      *
      * @return an Optional containing the error if the transaction resulted in an error,
-     *         or an empty Optional if the transaction was successful.
+     * or an empty Optional if the transaction was successful.
      */
     @Contract(pure = true)
     public @NotNull Optional<Throwable> getError() {
@@ -114,8 +109,8 @@ public final class TransactionResult<T> {
      *
      * @param function the function to apply to the result of the transaction
      * @return a new TransactionResult containing the result of applying the given
-     *         function to the result of the transaction, or a failed TransactionResult
-     *         with the same error if the transaction resulted in an error.
+     * function to the result of the transaction, or a failed TransactionResult
+     * with the same error if the transaction resulted in an error.
      */
     public <E> TransactionResult<E> map(Function<T, E> function) {
         if (isSuccess()) return TransactionResult.success(function.apply(result));
@@ -132,9 +127,9 @@ public final class TransactionResult<T> {
      * @param function the function to apply to the error of the transaction to
      *                 obtain a new result
      * @return a new TransactionResult containing the result of applying the
-     *         given function to the error of the transaction if the transaction
-     *         resulted in an error, or this TransactionResult unchanged if the
-     *         transaction was successful.
+     * given function to the error of the transaction if the transaction
+     * resulted in an error, or this TransactionResult unchanged if the
+     * transaction was successful.
      */
     public TransactionResult<T> mapErrToResult(Function<Throwable, T> function) {
         if (isError()) return TransactionResult.success(function.apply(error));
@@ -148,8 +143,8 @@ public final class TransactionResult<T> {
      *
      * @param function the function to apply to the result of the transaction
      * @return a new TransactionResult containing the result of applying the given
-     *         function to the result of the transaction, or a failed TransactionResult
-     *         with the same error if the transaction resulted in an error.
+     * function to the result of the transaction, or a failed TransactionResult
+     * with the same error if the transaction resulted in an error.
      */
     public <E> TransactionResult<E> flatMap(Function<T, TransactionResult<E>> function) {
         if (isSuccess()) return function.apply(result);
@@ -162,7 +157,7 @@ public final class TransactionResult<T> {
      *
      * @param other the transaction result to return if this transaction result was successful
      * @return the given transaction result if this transaction result was successful,
-     *         or this transaction result if it resulted in an error.
+     * or this transaction result if it resulted in an error.
      */
     public TransactionResult<T> and(TransactionResult<T> other) {
         if (isError()) return this;
@@ -189,7 +184,7 @@ public final class TransactionResult<T> {
      *
      * @param result the value to return if the transaction resulted in an error
      * @return the result of the transaction if it was successful, or the given value
-     *         if the transaction resulted in an error
+     * if the transaction resulted in an error
      */
     public T getOr(T result) {
         if (isSuccess()) return this.result;
@@ -202,7 +197,7 @@ public final class TransactionResult<T> {
      *
      * @param other the transaction result to return if this transaction result resulted in an error
      * @return this transaction result if it was successful, or the given transaction result
-     *         if this transaction result resulted in an error.
+     * if this transaction result resulted in an error.
      */
     public TransactionResult<T> or(TransactionResult<T> other) {
         if (isSuccess()) return this;

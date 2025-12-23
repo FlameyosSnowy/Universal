@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.NOPLogger;
 
+import java.util.logging.Level;
+
 @ApiStatus.Internal
 public final class Logging {
     public static boolean ENABLED = false;
@@ -37,7 +39,20 @@ public final class Logging {
     public static void error(String string) {
         if (LOGGER != null) LOGGER.error(string);
         else FALLBACK.severe(string);
+    }
 
+    /**
+     * Debugs an error message but does not require debugging to be enabled.
+     * @param string the message
+     */
+    public static void error(String string, Exception exception) {
+        if (LOGGER != null) LOGGER.error(string, exception);
+        else FALLBACK.log(Level.SEVERE, string, exception);
+    }
+
+    public static void warn(String string) {
+        if (LOGGER != null) LOGGER.warn(string);
+        else FALLBACK.warning(string);
     }
 
     /**

@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.apache.cassandra:cassandra-all:5.0.5")
+    implementation("org.apache.cassandra:cassandra-all:5.0.4")
     compileOnly("org.jetbrains:annotations:24.0.1")
 
     compileOnly(project(":core"))

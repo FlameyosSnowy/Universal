@@ -66,9 +66,10 @@ public class MultiMapTypeResolver<K, V, ID> {
     }
 
     public Map<K, List<V>> resolve(ID id) {
+        String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connection.prepareStatement("SELECT * FROM " + tableName + " WHERE id = ?;")) {
-            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry);
+             PreparedStatement stmt = connection.prepareStatement(query)) {
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query);
             idResolver.insert(params, "id", id);
             ResultSet resultSet = stmt.executeQuery();
 

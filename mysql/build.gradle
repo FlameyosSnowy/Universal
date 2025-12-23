@@ -30,6 +30,9 @@ dependencies {
 
     testImplementation 'com.zaxxer:HikariCP:6.2.1'
     testImplementation 'mysql:mysql-connector-java:8.0.28'
+    testImplementation(platform("org.junit:junit-bom:5.10.0"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     compileOnly 'mysql:mysql-connector-java:8.0.28'
     // 'com.github.FlameyosSnowy:Velocis:1.1.0'
@@ -46,6 +49,10 @@ sourceSets {
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
     }
+}
+
+test {
+    useJUnitPlatform()
 }
 
 /*
