@@ -17,6 +17,7 @@ import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.SortOption;
@@ -246,7 +247,12 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     @Override
     public @NotNull List<ID> findIds(SelectQuery query) {
-        return List.of();
+        List<T> entities = find(query);
+        List<ID> ids = new ArrayList<>(entities.size());
+        for (T entity : entities) {
+            ids.add(extractId(entity));
+        }
+        return ids;
     }
 
     @Override
@@ -614,9 +620,32 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     }
 
     @Override
-    public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query, TransactionContext<HttpClient> transactionContext) {
-        // TODO: Implement query-based updates for network repositories
-        return TransactionResult.failure(new UnsupportedOperationException("Query-based updates not yet implemented for network repositories"));
+    public TransactionResult<Boolean> updateAll(
+        @NotNull UpdateQuery query,
+        TransactionContext<HttpClient> transactionContext) {
+
+        try {
+            List<T> targets = find(Query.select().where(query.filters()).build());
+            if (targets.isEmpty()) {
+                return TransactionResult.success(true);
+            }
+
+            for (T entity : targets) {
+                // Apply field mutations
+                for (var assignment : query.filters()) {
+                    var field = repositoryInformation.getField(assignment.option());
+                    if (field == null) continue;
+                    field.setValue(entity, assignment.value());
+                }
+
+                ID id = extractId(entity);
+                update(id, entity);
+            }
+
+            return TransactionResult.success(true);
+        } catch (Exception e) {
+            return TransactionResult.failure(e);
+        }
     }
 
     @Override
@@ -625,9 +654,22 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     }
 
     @Override
-    public TransactionResult<Boolean> delete(DeleteQuery query, TransactionContext<HttpClient> tx) {
-        // TODO: Implement query-based deletes for network repositories
-        return TransactionResult.failure(new UnsupportedOperationException("Query-based deletes not yet implemented for network repositories"));
+    public TransactionResult<Boolean> delete(
+        DeleteQuery query,
+        TransactionContext<HttpClient> tx) {
+
+        try {
+            SelectQuery select = Query.select().where(query.filters()).build();
+            List<ID> ids = findIds(select);
+
+            for (ID id : ids) {
+                deleteInternal(id);
+            }
+
+            return TransactionResult.success(true);
+        } catch (Exception e) {
+            return TransactionResult.failure(e);
+        }
     }
 
     @Override
