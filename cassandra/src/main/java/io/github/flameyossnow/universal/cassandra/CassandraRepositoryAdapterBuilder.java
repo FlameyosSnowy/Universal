@@ -54,7 +54,7 @@ public class CassandraRepositoryAdapterBuilder<T, ID> {
 
     /**
      * Sets the cache warmer for this repository adapter.
-     * The cache warmer will be used to pre-load frequently accessed data into the cache.
+     * The cache warmer will be used to preload frequently accessed data into the cache.
      *
      * @param cacheWarmer The cache warmer to use
      * @return This builder for method chaining
