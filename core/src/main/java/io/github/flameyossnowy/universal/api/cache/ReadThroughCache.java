@@ -4,6 +4,7 @@ import io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmTyp
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFRUCache;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFUCache;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLRUCache;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,7 +17,7 @@ import java.util.function.Function;
  * @param <K> the key type
  * @param <V> the value type
  */
-public class ReadThroughCache<K, V> {
+public class ReadThroughCache<K, V> implements SessionCache<K, V> {
     private final Map<K, V> cache;
     private final Function<K, V> loader;
     private final Function<List<K>, Map<K, V>> batchLoader;
@@ -41,7 +42,12 @@ public class ReadThroughCache<K, V> {
             case NONE -> new ConcurrentHashMap<>(maxSize);
         };
     }
-    
+
+    @Override
+    public Map<K, V> getInternalCache() {
+        return cache;
+    }
+
     /**
      * Gets a value from the cache, loading it if necessary.
      * 
@@ -74,8 +80,8 @@ public class ReadThroughCache<K, V> {
      * @return map of key to value
      */
     public Map<K, V> getAll(List<K> keys) {
-        Map<K, V> result = new HashMap<>();
-        List<K> toLoad = new ArrayList<>();
+        Map<K, V> result = new HashMap<>(keys.size());
+        List<K> toLoad = new ArrayList<>(keys.size());
         
         // Check cache first
         for (K key : keys) {
@@ -97,7 +103,7 @@ public class ReadThroughCache<K, V> {
                 loaded = batchLoader.apply(toLoad);
             } else {
                 // Fallback to individual loading
-                loaded = new HashMap<>();
+                loaded = new HashMap<>(keys.size());
                 for (K key : toLoad) {
                     V value = loader.apply(key);
                     if (value != null) {
@@ -121,17 +127,29 @@ public class ReadThroughCache<K, V> {
     
     /**
      * Puts a value into the cache.
-     * 
+     *
      * @param key the key
      * @param value the value
      */
-    public void put(K key, V value) {
+    @Override
+    public @Nullable V put(K key, V value) {
         if (value != null) {
-            cache.put(key, value);
             statistics.recordPut();
+            return cache.put(key, value);
         }
+        return null;
     }
-    
+
+    @Override
+    public @Nullable V remove(K k) {
+        V remove = cache.remove(k);
+        if (remove != null) {
+            statistics.recordEviction();
+            return remove;
+        }
+        return null;
+    }
+
     /**
      * Invalidates a specific key.
      * 

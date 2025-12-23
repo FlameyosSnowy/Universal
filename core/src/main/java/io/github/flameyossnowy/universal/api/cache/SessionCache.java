@@ -171,4 +171,10 @@ public interface SessionCache<ID, T> {
         put(id, value);
         return value;
     }
+
+    int size();
+
+    CacheStatistics getStatistics();
+
+    CacheMetrics getMetrics();
 }

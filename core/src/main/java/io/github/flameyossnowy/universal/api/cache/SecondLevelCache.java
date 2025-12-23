@@ -7,6 +7,7 @@ import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLRUCache;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Second-level cache (L2) that stores entities with TTL support.
@@ -16,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param <T> the type of the entity
  */
 @SuppressWarnings("unused")
-public class SecondLevelCache<ID, T> {
+public class SecondLevelCache<ID, T> implements SessionCache<ID, T> {
     private final Map<ID, CachedEntity<T>> cache;
     private final long ttlMillis;
     private final CacheStatistics statistics = new CacheStatistics();
@@ -30,7 +31,15 @@ public class SecondLevelCache<ID, T> {
             case NONE -> new ConcurrentHashMap<>(maxSize);
         };
     }
-    
+
+    @Override
+    public Map<ID, T> getInternalCache() {
+        return this.cache.entrySet()
+                .stream()
+                .map((entry) -> Map.entry(entry.getKey(), entry.getValue().entity))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
     /**
      * Gets an entity from the cache.
      * 
@@ -38,9 +47,11 @@ public class SecondLevelCache<ID, T> {
      * @return the cached entity, or null if not found or expired
      */
     public T get(ID id) {
+        long start = System.currentTimeMillis();
         CachedEntity<T> cached = cache.get(id);
+        long duration = System.currentTimeMillis() - start;
         if (cached == null) {
-            statistics.recordMiss(0);
+            statistics.recordMiss(duration);
             return null;
         }
         
@@ -57,18 +68,36 @@ public class SecondLevelCache<ID, T> {
     
     /**
      * Puts an entity into the cache with TTL.
-     * 
-     * @param id the entity identifier
+     *
+     * @param id     the entity identifier
      * @param entity the entity to cache
+     * @return the previous cached entity, or null if not found
      */
-    public void put(ID id, T entity) {
-        if (entity == null) return;
+    @Override
+    public T put(ID id, T entity) {
+        if (entity == null) {
+            return remove(id);
+        }
         
         long expiresAt = ttlMillis > 0 ? System.currentTimeMillis() + ttlMillis : Long.MAX_VALUE;
-        cache.put(id, new CachedEntity<>(entity, expiresAt));
         statistics.recordPut();
+        CachedEntity<T> old = cache.put(id, new CachedEntity<>(entity, expiresAt));
+        if (old == null) {
+            return null;
+        }
+        return old.entity;
     }
-    
+
+    @Override
+    public T remove(ID id) {
+        CachedEntity<T> remove = cache.remove(id);
+        if (remove != null) {
+            statistics.recordEviction();
+            return remove.entity;
+        }
+        return null;
+    }
+
     /**
      * Invalidates a specific entity in the cache.
      * 
@@ -83,6 +112,7 @@ public class SecondLevelCache<ID, T> {
     /**
      * Clears all entries from the cache.
      */
+    @Override
     public void clear() {
         int size = cache.size();
         cache.clear();
@@ -94,6 +124,7 @@ public class SecondLevelCache<ID, T> {
     /**
      * Gets the current size of the cache.
      */
+    @Override
     public int size() {
         return cache.size();
     }
@@ -101,6 +132,7 @@ public class SecondLevelCache<ID, T> {
     /**
      * Gets cache statistics.
      */
+    @Override
     public CacheStatistics getStatistics() {
         return statistics;
     }
@@ -108,6 +140,7 @@ public class SecondLevelCache<ID, T> {
     /**
      * Gets cache metrics snapshot.
      */
+    @Override
     public CacheMetrics getMetrics() {
         return statistics.getMetrics();
     }
