@@ -3,6 +3,8 @@ package io.github.flameyossnowy.universal.sql.result;
 import io.github.flameyossnowy.universal.api.handler.DataHandler;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,21 +14,16 @@ import java.sql.SQLException;
  * for type conversion.
  */
 public record SQLDatabaseResult(ResultSet resultSet, TypeResolverRegistry typeRegistry) implements DatabaseResult {
+    @Nullable
     @Override
     @SuppressWarnings("unchecked")
-    public <T> T get(String columnName, Class<T> type) {
+    public <T> T get(@NotNull String columnName, @NotNull Class<T> type) {
         try {
-            if (resultSet.wasNull()) {
-                return null;
-            }
-
-            // Get the appropriate data handler
             DataHandler<T> handler = typeRegistry.getHandler(type);
             if (handler != null) {
                 return handler.fromDatabase(this, columnName);
             }
 
-            // Fall back to direct JDBC access for unhandled types
             return (T) resultSet.getObject(columnName);
 
         } catch (SQLException e) {

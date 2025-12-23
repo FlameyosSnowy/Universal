@@ -58,6 +58,7 @@ public class SQLiteSimpleConnectionProvider implements SQLConnectionProvider {
     public void close() {
     }
 
+    @SuppressWarnings("SqlSourceToSinkFlow") // Don't worry, we ONLY ever use prepared statements and in the correct way :)
     @Override
     public PreparedStatement prepareStatement(String sql, Connection connection) throws Exception {
         if (!cachePreparedStatements) {
