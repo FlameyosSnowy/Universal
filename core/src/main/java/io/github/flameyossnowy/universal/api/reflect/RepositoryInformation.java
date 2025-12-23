@@ -10,6 +10,7 @@ import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
 import me.sunlan.fastreflection.FastConstructor;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -42,9 +43,10 @@ public class RepositoryInformation {
     private final boolean isRecord;
     private final Constructor<?> recordConstructor;
     private final RecordComponent[] recordComponents;
+
     public RepositoryInformation(String tableName,
                                  Constraint[] constraints, Index[] indexes, Cacheable cacheable,
-                                 Class<?> entityClass, int fetchPageSize,
+                                 @NotNull Class<?> entityClass, int fetchPageSize,
                                  Map<String, FieldData<?>> fieldDataMap,
                                  Map<String, FieldData<?>> oneToManyCache,
                                  Map<String, FieldData<?>> manyToOneCache,
@@ -72,18 +74,7 @@ public class RepositoryInformation {
         this.exceptionHandler = exceptionHandler;
 
         this.isRecord = entityClass.isRecord();
-        
-        List<FieldData<?>> keys = fieldDataMap.values().stream()
-                .filter(FieldData::primary)
-                .sorted(Comparator.comparing(FieldData::name))
-                .toList();
-        
-        if (keys.isEmpty()) {
-            throw new IllegalArgumentException("No primary key found for entity " + entityClass.getSimpleName());
-        }
-        
-        this.primaryKeys.addAll(keys);
-        
+
         if (isRecord) {
             try {
                 this.recordComponents = entityClass.getRecordComponents();
@@ -103,11 +94,11 @@ public class RepositoryInformation {
         return tableName;
     }
 
-    public FieldData<?> getPrimaryKey() {
+    public @Nullable FieldData<?> getPrimaryKey() {
         if (primaryKeys.isEmpty()) {
             return null;
         }
-        return primaryKeys.get(0);
+        return primaryKeys.getFirst();
     }
     
     public List<FieldData<?>> getPrimaryKeys() {

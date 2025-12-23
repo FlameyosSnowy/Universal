@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.api;
 
 import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
+import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -18,7 +19,7 @@ public interface RelationalObjectFactory<T, ID> extends DatabaseObjectFactory<T,
      * @param entity    The entity to be inserted.
      * @throws Exception If an error occurs.
      */
-    void insertEntity(PreparedStatement statement, T entity) throws Exception;
+    void insertEntity(DatabaseParameters statement, T entity) throws Exception;
 
     /**
      * Inserts all collection fields of the given entity using the given PreparedStatement.
@@ -30,5 +31,5 @@ public interface RelationalObjectFactory<T, ID> extends DatabaseObjectFactory<T,
      * @param statement The prepared statement to be used to insert the collections.
      * @throws Exception If an error occurs.
      */
-    void insertCollectionEntities(T entity, ID id, PreparedStatement statement) throws Exception;
+    void insertCollectionEntities(T entity, ID id, DatabaseParameters statement) throws Exception;
 }

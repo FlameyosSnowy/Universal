@@ -12,9 +12,8 @@ public class CassandraRelationshipHandler<T, ID> extends AbstractRelationshipHan
     public CassandraRelationshipHandler(
             RepositoryInformation repositoryInformation,
             Class<ID> idClass,
-            Map<Class<?>, RepositoryAdapter<?, ?, ?>> repositories,
             TypeResolverRegistry resolverRegistry
     ) {
-        super(repositoryInformation, idClass, repositories, resolverRegistry);
+        super(repositoryInformation, idClass, resolverRegistry);
     }
 }

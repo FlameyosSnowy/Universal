@@ -1,15 +1,18 @@
 package io.github.flameyossnowy.universal.postgresql.internals;
 
 import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
+import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.ImmutableList;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.sql.internals.ObjectFactory;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
-import io.github.flameyossnowy.universal.sql.resolvers.SQLValueTypeResolver;
+import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.*;
@@ -54,7 +57,7 @@ public class PostgresObjectFactory<T, ID> extends ObjectFactory<T, ID> {
     }
 
     @Override
-    public void insertEntity(PreparedStatement stmt, T entity) throws Exception {
+    public void insertEntity(DatabaseParameters stmt, T entity) throws Exception {
         int paramIndex = 0;
 
         for (FieldData<?> field : repoInfo.getFields()) {
@@ -63,46 +66,51 @@ public class PostgresObjectFactory<T, ID> extends ObjectFactory<T, ID> {
             paramIndex++;
             if (checkCollection(stmt, entity, field, paramIndex)) continue;
             if (checkArray(stmt, entity, field, paramIndex)) continue;
+
             appendField(stmt, entity, field, paramIndex);
         }
     }
 
-    private void appendField(PreparedStatement stmt, T entity, FieldData<?> field, int paramIndex) throws Exception {
+    private void appendField(DatabaseParameters stmt, T entity, FieldData<?> field, int paramIndex) throws Exception {
         Objects.requireNonNull(field, "Field cannot be null");
         Objects.requireNonNull(entity, "Entity cannot be null");
         Objects.requireNonNull(stmt, "Statement cannot be null");
 
         Object valueToInsert = DatabaseObjectFactory.resolveInsertValue(field, entity);
 
-        SQLValueTypeResolver<Object> resolver = getValueResolver(field);
+        TypeResolver<Object> resolver = getValueResolver(field);
         Objects.requireNonNull(resolver, "Missing resolver for field " + field.name());
 
         Logging.deepInfo("Binding parameter " + paramIndex + ": " + valueToInsert);
-        resolver.insert(stmt, paramIndex, valueToInsert);
+        resolver.insert(stmt, field.name(), valueToInsert);
     }
 
-    private boolean checkArray(PreparedStatement stmt, T entity, @NotNull FieldData<?> field, int paramIndex) throws SQLException {
+    private boolean checkArray(DatabaseParameters stmt, T entity, @NotNull FieldData<?> field, int paramIndex) throws SQLException {
         if (!field.type().isArray()) return false;
+
         Object[] valueToInsert = field.getValue(entity);
         if (valueToInsert == null) return true;
 
-        Array sqlArray = stmt.getConnection().createArrayOf(
+        PreparedStatement statement = ((SQLDatabaseParameters) stmt).getStatement();
+        Array sqlArray = statement.getConnection().createArrayOf(
                 this.typeResolverRegistry.getType(valueToInsert.getClass().getComponentType()),
                 valueToInsert
         );
-        stmt.setArray(paramIndex, sqlArray);
+        statement.setArray(paramIndex, sqlArray);
         return true;
     }
 
-    private static <T> boolean checkCollection(PreparedStatement stmt, T entity, FieldData<?> field, int paramIndex) throws SQLException {
+    private static <T> boolean checkCollection(DatabaseParameters stmt, T entity, FieldData<?> field, int paramIndex) throws SQLException {
         if (!DatabaseObjectFactory.isListField(field) || !DatabaseObjectFactory.isSetField(field)) return false;
 
         Collection<Object> valueToInsert = field.getValue(entity);
         if (valueToInsert == null) return false;
 
+        SQLDatabaseParameters parameters = (SQLDatabaseParameters) stmt;
+        PreparedStatement statement = parameters.getStatement();
         Object[] array = valueToInsert.toArray();
-        Array sqlArray = stmt.getConnection().createArrayOf(field.name(), array);
-        stmt.setArray(paramIndex, sqlArray);
+        Array sqlArray = statement.getConnection().createArrayOf(field.name(), array);
+        statement.setArray(paramIndex, sqlArray);
         return true;
     }
 }

@@ -16,6 +16,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("unchecked")
 @ApiStatus.Internal
@@ -67,6 +68,8 @@ public class RepositoryMetadata {
         RepositoryExceptionHandler repositoryExceptionHandler = entityClass.getAnnotation(RepositoryExceptionHandler.class);
         RepositoryEventLifecycleListener repositoryEventLifecycleListener = entityClass.getAnnotation(RepositoryEventLifecycleListener.class);
 
+        Set<String> indexedFields = Arrays.stream(indexes).map(Index::fields).flatMap(Arrays::stream).collect(Collectors.toUnmodifiableSet());
+
         int length = fields.length + recordComponents.length;
         Map<String, FieldData<?>> data = new LinkedHashMap<>(length);
         Map<String, FieldData<?>> oneToManyCache = new LinkedHashMap<>(length);
@@ -85,6 +88,8 @@ public class RepositoryMetadata {
         if (recordComponents.length > 0) processRecordComponents(recordComponents, information, tableName, data);
 
         for (FieldData<?> fieldData : data.values()) {
+            fieldData.setIndexed(indexedFields.contains(fieldData.name()));
+
             if (fieldData.primary()) {
                 information.addPrimaryKey(fieldData);
             }
@@ -100,6 +105,7 @@ public class RepositoryMetadata {
             if (fieldData.manyToOne() != null) {
                 manyToOneCache.put(fieldData.name(), fieldData);
             }
+
         }
 
         return information;
@@ -181,6 +187,11 @@ public class RepositoryMetadata {
         OneToMany oneToMany = field.getAnnotation(OneToMany.class);
         ManyToOne manyToOne = field.getAnnotation(ManyToOne.class);
         OneToOne oneToOne = field.getAnnotation(OneToOne.class);
+        ExternalRepository externalRepository = field.getAnnotation(ExternalRepository.class);
+
+        if (oneToOne != null || manyToOne != null || externalRepository != null || oneToMany != null) {
+            information.setHasRelationships(true);
+        }
 
         boolean id = field.isAnnotationPresent(Id.class);
         boolean autoIncrement = isAutoIncrement(field.getType(), field.getAnnotation(AutoIncrement.class), id);
@@ -200,7 +211,7 @@ public class RepositoryMetadata {
                 field.getAnnotation(Condition.class),
                 field.getAnnotation(OnUpdate.class),
                 field.getAnnotation(OnDelete.class),
-                oneToMany, manyToOne, oneToOne,
+                oneToMany, manyToOne, oneToOne, externalRepository,
                 resolveDefaultValue(defaultValue, defaultValueProvider)
         );
     }
@@ -218,6 +229,11 @@ public class RepositoryMetadata {
         OneToMany oneToMany = recordComponent.getAnnotation(OneToMany.class);
         ManyToOne manyToOne = recordComponent.getAnnotation(ManyToOne.class);
         OneToOne oneToOne = recordComponent.getAnnotation(OneToOne.class);
+        ExternalRepository externalRepository = recordComponent.getAnnotation(ExternalRepository.class);
+
+        if (oneToOne != null || manyToOne != null || externalRepository != null || oneToMany != null) {
+            information.setHasRelationships(true);
+        }
 
         boolean id = recordComponent.isAnnotationPresent(Id.class);
         boolean autoIncrement = RepositoryMetadata.isAutoIncrement(
@@ -237,7 +253,7 @@ public class RepositoryMetadata {
                 recordComponent.getAnnotation(Condition.class),
                 recordComponent.getAnnotation(OnUpdate.class),
                 recordComponent.getAnnotation(OnDelete.class),
-                oneToMany, manyToOne, oneToOne,
+                oneToMany, manyToOne, oneToOne, externalRepository,
                 resolveDefaultValue(defaultValue, defaultValueProvider)
         );
     }

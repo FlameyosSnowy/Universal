@@ -9,7 +9,7 @@ import java.util.List;
  * Defines abstract relationship accessors that any backend can implement.
  */
 public interface RelationshipHandler<ID> {
-    Object handleManyToOneRelationship(Object relationKey, FieldData<?> field);
+    Object handleManyToOneRelationship(ID primaryKeyValue, FieldData<?> field);
 
     Object handleOneToOneRelationship(ID primaryKeyValue, FieldData<?> field);
 
