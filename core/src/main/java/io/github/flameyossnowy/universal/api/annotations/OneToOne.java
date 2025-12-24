@@ -16,6 +16,4 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 public @interface OneToOne {
     boolean lazy() default false;
-
-    String mappedBy() default "";
 }

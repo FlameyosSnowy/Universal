@@ -13,7 +13,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import static io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata.getMetadata;
 
@@ -62,54 +61,6 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
         return value;
     }
 
-    /**
-     * Attempts to convert a raw id object (from a join table) into expected idType.
-     * Supports common conversions for Number -> numeric types, UUID, String.
-     */
-    @SuppressWarnings("DuplicateExpressions")
-    @Nullable
-    private static Object convertId(@Nullable Object raw, @NotNull Class<?> idType) {
-        if (raw == null) return null;
-        if (idType.isInstance(raw)) return raw;
-
-        // Strings -> attempt parser
-        if (raw instanceof String s) {
-            if (UUID.class.equals(idType)) {
-                try {
-                    return UUID.fromString(s);
-                } catch (IllegalArgumentException ignored) { }
-            }
-            if (Number.class.isAssignableFrom(idType) || idType.isPrimitive()) {
-                try {
-                    if (Long.class.equals(idType) || long.class.equals(idType)) return Long.valueOf(s);
-                    if (Integer.class.equals(idType) || int.class.equals(idType)) return Integer.valueOf(s);
-                    if (Short.class.equals(idType) || short.class.equals(idType)) return Short.valueOf(s);
-                    if (Byte.class.equals(idType) || byte.class.equals(idType)) return Byte.valueOf(s);
-                    if (Double.class.equals(idType) || double.class.equals(idType)) return Double.valueOf(s);
-                    if (Float.class.equals(idType) || float.class.equals(idType)) return Float.valueOf(s);
-                } catch (NumberFormatException ignored) { }
-            }
-        }
-
-        // Numbers -> convert to primitive wrappers where possible
-        if (raw instanceof Number n) {
-            if (Long.class.equals(idType) || long.class.equals(idType)) return n.longValue();
-            if (Integer.class.equals(idType) || int.class.equals(idType)) return n.intValue();
-            if (Short.class.equals(idType) || short.class.equals(idType)) return n.shortValue();
-            if (Byte.class.equals(idType) || byte.class.equals(idType)) return n.byteValue();
-            if (Double.class.equals(idType) || double.class.equals(idType)) return n.doubleValue();
-            if (Float.class.equals(idType) || float.class.equals(idType)) return n.floatValue();
-        }
-
-        // Last resort: try casting (may throw ClassCastException)
-        try {
-            return idType.cast(raw);
-        } catch (ClassCastException ex) {
-            // give up; return raw
-            return raw;
-        }
-    }
-
     @Override
     public @Nullable Object handleOneToOneRelationship(ID primaryKeyValue, @NotNull FieldData<?> field) {
         String cacheKey = buildCacheKey(field, primaryKeyValue);
@@ -140,22 +91,14 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
             return null;
         }
 
-        try {
-            SelectQuery query = Query.select()
-                    .where(link.name(), primaryKeyValue)
-                    .limit(1)
-                    .build();
-
-            List<Object> results = adapter.find(query);
-            Object result = (results == null || results.isEmpty()) ? null : results.getFirst();
-
-            relationshipCache.put(cacheKey, result == null ? NULL_MARKER : result);
-            return result;
-        } catch (Exception e) {
-            Logging.error("Error loading OneToOne relationship for field: " + field.name(), e);
-            relationshipCache.put(cacheKey, NULL_MARKER);
-            return null;
-        }
+        return OneToOneLazyProxy.createOrFetch(
+            field,
+            primaryKeyValue,
+            link,
+            adapter,
+            cacheKey,
+            () -> relationshipCache.put(cacheKey, NULL_MARKER) // Cache setter
+        );
     }
 
     @Override
