@@ -5,6 +5,7 @@ Universal is a powerful and fully featured Object-Relational Mapper (ORM) and Ob
 ## Features
 
 - **Cross-Database Compatibility**: Supports both relational (SQL) and document-based (NoSQL) databases.
+- **Cross-Platform Repository Linking**: Link entities across different database adapters (e.g., MySQL ↔ Cassandra ↔ MongoDB).
 - **Type Resolution System**: Handles type conversions seamlessly between Java objects and database representations.
 - **Caching and Lazy loading**: Allows for automatic lazy loading and automatic caching.
 - **Annotation-Based Configuration**: Define repositories, constraints, and conditions using a SQL-like syntax for both MongoDB and SQL.
@@ -96,15 +97,13 @@ To include Universal in your project, add it as a dependency in your `pom.xml` (
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifact>core</artifactId>
-  <version>5.0.0</version>
+  <version>4.0.0</version>
 </dependency>
-
-<!-- if you're using sql, add sql-common-->
 
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifactId>PLATFORM</artifactId>
-  <version>5.0.0</version>
+  <version>4.0.0</version>
 </dependency>
 ```
 
@@ -114,9 +113,8 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.FlameyosSnowy.Universal:core:5.0.0")
-    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:5.0.0")
-    // implementation("com.github.FlameyosSnowy.Universal:sql-common:5.0.0")
+    implementation("com.github.FlameyosSnowy.Universal:core:4.0.0")
+    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:4.0.0")
 }
 ```
 
@@ -182,8 +180,58 @@ for (User user : minors) {
 }
 ```
 
+## Cross-Platform Repository Linking
+
+Universal now supports **cross-platform repository linking**, allowing entities backed by different storage systems to reference each other seamlessly.
+
+### Example: User with External Cache
+
+```java
+// User entity in MySQL
+@Repository(name = "users")
+public class User {
+    @Id
+    private UUID id;
+    
+    private String username;
+    
+    // Reference to PathEntry stored in Cassandra
+    @ExternalRepository(adapter = "cache-adapter")
+    @OneToOne
+    private PathEntry cachePath;
+}
+
+// PathEntry entity in Cassandra
+@Repository(name = "path_entries")
+public record PathEntry(
+    @Id Path entry,
+    @OneToMany(mappedBy = Path.class) List<Path> directories,
+    FileAttributes attributes
+) {}
+
+// Register adapters
+MySQLRepositoryAdapter<User, UUID> userAdapter = MySQLRepositoryAdapter
+    .builder(User.class, UUID.class)
+    .withCredentials(mySQLCredentials)
+    .build();
+
+CassandraRepositoryAdapter<PathEntry, Path> cacheAdapter = CassandraRepositoryAdapter
+    .builder(PathEntry.class, Path.class)
+    .withCredentials(cassandraCredentials)
+    .build();
+
+RepositoryRegistry.register("user-adapter", userAdapter);
+RepositoryRegistry.register("cache-adapter", cacheAdapter);
+
+// Use cross-platform relationships
+User user = userAdapter.findById(userId);
+PathEntry cache = user.getCachePath(); // Automatically fetched from Cassandra!
+```
+
+**See [CROSS_PLATFORM_LINKING.md](CROSS_PLATFORM_LINKING.md) for complete documentation.**
+
 ## Supported Databases
-- **SQL Databases**: MySQL, PostgreSQL, SQLite, MariaDB (If you use MySQL, lol)
+- **SQL Databases**: MySQL, PostgreSQL, SQLite
 - **NoSQL Databases**: MongoDB, Cassandra
 
 ## Contributing
