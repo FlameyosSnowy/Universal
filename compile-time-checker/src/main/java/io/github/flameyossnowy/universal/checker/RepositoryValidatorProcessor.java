@@ -34,7 +34,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             OnUpdate.class,
             Constraint.class,
             DefaultValue.class,
-            DefaultValueProvider.class
+            DefaultValueProvider.class,
+            ExternalRepository.class
     );
 
     //private boolean enableOptimizationHints;
@@ -57,7 +58,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 "io.github.flameyossnowy.universal.api.annotations.OneToMany",
                 "io.github.flameyossnowy.universal.api.annotations.OneToOne",
                 "io.github.flameyossnowy.universal.api.annotations.Constraint",
-                "io.github.flameyossnowy.universal.api.annotations.Index");
+                "io.github.flameyossnowy.universal.api.annotations.Index",
+                "io.github.flameyossnowy.universal.api.annotations.ExternalRepository");
     }
 
     @Override
@@ -226,6 +228,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         OneToOne oneToOne = enclosedElement.getAnnotation(OneToOne.class);
         OneToMany oneToMany = enclosedElement.getAnnotation(OneToMany.class);
         ManyToOne manyToOne = enclosedElement.getAnnotation(ManyToOne.class);
+        ExternalRepository externalRepository = enclosedElement.getAnnotation(ExternalRepository.class);
 
         int relationshipCount = 0;
         if (oneToOne != null) relationshipCount++;
@@ -250,7 +253,10 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                                 + " is annotated with @OneToOne, but the field type is a collection type.",
                         enclosedElement);
 
-            } else checkDeclared(fieldType, enclosedElement, element, " is annotated with @OneToOne, but the referenced type '");
+            } else if (externalRepository == null) {
+                // Only check @Repository annotation if not using external repository
+                checkDeclared(fieldType, enclosedElement, element, " is annotated with @OneToOne, but the referenced type '");
+            }
         }
 
         if (manyToOne != null) {
@@ -263,7 +269,10 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                                 + " is annotated with @ManyToOne, but the field type is a collection type.",
                         enclosedElement);
 
-            } else checkDeclared(fieldType, enclosedElement, element, " is annotated with @ManyToOne, but the referenced type '");
+            } else if (externalRepository == null) {
+                // Only check @Repository annotation if not using external repository
+                checkDeclared(fieldType, enclosedElement, element, " is annotated with @ManyToOne, but the referenced type '");
+            }
         }
 
         if (oneToMany != null) {
@@ -275,10 +284,29 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                                 + " is annotated with @OneToMany, but the field type is not a collection type.",
                         enclosedElement);
 
-            } else if (mappedBy.getAnnotation(Repository.class) == null) {
+            } else if (externalRepository == null && mappedBy.getAnnotation(Repository.class) == null) {
+                // Only check @Repository annotation if not using external repository
                 messager.printMessage(Diagnostic.Kind.ERROR,
                         "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
                                 + " is annotated with @OneToMany, but the referenced type '" + ((DeclaredType) mappedBy).asElement().getSimpleName() + "' is not annotated with @Repository.",
+                        enclosedElement);
+            }
+        }
+        
+        // Validate @ExternalRepository usage
+        if (externalRepository != null) {
+            if (oneToOne == null && oneToMany == null && manyToOne == null) {
+                messager.printMessage(Diagnostic.Kind.WARNING,
+                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
+                                + " is annotated with @ExternalRepository but has no relationship annotation (@OneToOne, @OneToMany, @ManyToOne). "
+                                + "@ExternalRepository should be used with relationship annotations.",
+                        enclosedElement);
+            }
+            
+            if (externalRepository.adapter().isBlank()) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
+                                + " has @ExternalRepository with an empty adapter name.",
                         enclosedElement);
             }
         }
