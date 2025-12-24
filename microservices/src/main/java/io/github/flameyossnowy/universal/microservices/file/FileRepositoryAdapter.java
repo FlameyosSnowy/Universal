@@ -29,6 +29,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategies;
 import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategy;
 import io.github.flameyossnowy.universal.microservices.file.indexes.SecondaryIndex;
+import io.github.flameyossnowy.universal.microservices.relationship.MicroserviceRelationshipHandler;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -66,7 +67,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private final CompressionType compressionType;
     private final boolean sharding;
     private final int shardCount;
-    private final RelationshipResolver relationshipResolver;
+    private final RelationshipResolver<ID> relationshipResolver;
 
     private final Map<String, SecondaryIndex<ID>> indexes = new ConcurrentHashMap<>();
 
@@ -127,7 +128,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             operationExecutor
         );
 
-        this.relationshipResolver = new RelationshipResolver();
+        this.relationshipResolver = new RelationshipResolver<>(new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry));
         RepositoryRegistry.register(repositoryInformation.getRepositoryName(), this);
 
         // Create base directory if it doesn't exist

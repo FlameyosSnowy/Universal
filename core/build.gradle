@@ -26,6 +26,8 @@ dependencies {
 
     implementation "me.sunlan:fast-reflection:1.0.3"
 
+    implementation "net.bytebuddy:byte-buddy:1.14.9"
+
     // error prone
     compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"
 }

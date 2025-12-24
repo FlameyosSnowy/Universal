@@ -26,6 +26,7 @@ import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.microservices.relationship.MicroserviceRelationshipHandler;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -67,7 +68,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private final Supplier<String> credentialsProvider;
     private final Map<String, String> customHeaders;
     private final EndpointConfig endpointConfig;
-    private final RelationshipResolver relationshipResolver;
+    private final RelationshipResolver<ID> relationshipResolver;
     
     // Response cache
     private final Map<String, CompletableFuture<CachedResponse>> responseCache;
@@ -122,7 +123,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
         this.responseCache = cacheEnabled ? new ConcurrentHashMap<>(3) : null;
 
-        this.relationshipResolver = new RelationshipResolver();
+        this.relationshipResolver = new RelationshipResolver<>(new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry));
         RepositoryRegistry.register(this.repositoryInformation.getRepositoryName(), this);
     }
 
