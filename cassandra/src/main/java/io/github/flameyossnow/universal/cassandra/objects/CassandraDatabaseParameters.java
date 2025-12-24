@@ -20,6 +20,11 @@ public class CassandraDatabaseParameters implements DatabaseParameters {
     }
 
     @Override
+    public <T> void setRaw(@NotNull String name, @Nullable T value, @NotNull Class<?> type) {
+        set(name, value, type);
+    }
+
+    @Override
     public void setNull(@NotNull String name, @NotNull Class<?> type) {
         set(name, null, type);
     }
