@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.flameyossnowy.universal"
-version = "3.0.0b1"
+version = '6.0.0'
 
 repositories {
     mavenCentral()

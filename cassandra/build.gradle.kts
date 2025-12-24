@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.flameyossnow.universal.cassandra"
-version = "4.0.0"
+version = "6.0.0"
 
 repositories {
     mavenCentral()
