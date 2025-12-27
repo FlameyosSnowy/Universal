@@ -25,7 +25,6 @@ import java.util.Objects;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,7 +54,14 @@ public class QueryParseEngine {
 
     public String parseIndex(final @NotNull IndexOptions index) {
         String type = index.type() == IndexType.NORMAL ? "" : index.type().name() + " ";
-        return String.format("CREATE %sINDEX `%s` ON `%s` (%s);", type, index.indexName(), repositoryInformation.getRepositoryName(), index.getJoinedFields());
+        return String.format("CREATE %sINDEX %s%s%s ON %s%s%s (%s);", type,
+            sqlType.quoteChar(),
+            index.indexName(),
+            sqlType.quoteChar(),
+            sqlType.quoteChar(),
+            repositoryInformation.getRepositoryName(),
+            sqlType.quoteChar(),
+            index.getJoinedFields());
     }
 
     public @NotNull String parseSelect(SelectQuery query, boolean first, boolean ids) {
@@ -82,11 +88,11 @@ public class QueryParseEngine {
         String tableName = repositoryInformation.getRepositoryName();
 
         if (query == null) {
-            return "SELECT * FROM `" + tableName + "`" + (first ? " LIMIT 1" : "");
+            return "SELECT * FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + (first ? " LIMIT 1" : "");
         }
-        StringBuilder sql = new StringBuilder("SELECT * FROM `")
+        StringBuilder sql = new StringBuilder("SELECT * FROM " + sqlType.quoteChar())
                 .append(tableName)
-                .append('`');
+                .append(sqlType.quoteChar());
 
         appendConditions(query, sql);
         appendSortingAndLimit(query, sql, first);
@@ -96,14 +102,20 @@ public class QueryParseEngine {
 
     private @NotNull String parseQueryIds(SelectQuery query, boolean first) {
         String tableName = repositoryInformation.getRepositoryName();
-        String idName = repositoryInformation.getPrimaryKey().name();
+
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Cannot find Id because it doesn't exist.");
+        }
+
+        String idName = primaryKey.name();
 
         if (query == null) {
-            return "SELECT " + idName  + " FROM `" + tableName + "`" + (first ? " LIMIT 1" : "");
+            return "SELECT " + idName  + " FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + (first ? " LIMIT 1" : "");
         }
-        StringBuilder sql = new StringBuilder("SELECT " + idName + " FROM `")
+        StringBuilder sql = new StringBuilder("SELECT " + idName + " FROM " + sqlType.quoteChar())
                 .append(tableName)
-                .append('`');
+                .append(sqlType.quoteChar());
 
         appendConditions(query, sql);
         appendSortingAndLimit(query, sql, first);
@@ -143,6 +155,10 @@ public class QueryParseEngine {
     }
 
     public @NotNull String parseDelete(Object value) {
+        if (value == null) {
+            throw new NullPointerException("Value must not be null");
+        }
+
         if (value.getClass() != repositoryInformation.getType())
             throw new IllegalArgumentException("Value must be of type " + repositoryInformation.getType());
 
@@ -170,8 +186,8 @@ public class QueryParseEngine {
     public @NotNull String parseInsert0() {
         StringJoiner columnJoiner = new StringJoiner(", ");
 
-        StringBuilder queryBuilder = new StringBuilder("INSERT INTO ");
-        queryBuilder.append(repositoryInformation.getRepositoryName()).append(" (");
+        StringBuilder queryBuilder = new StringBuilder("INSERT INTO " + sqlType.quoteChar());
+        queryBuilder.append(repositoryInformation.getRepositoryName()).append(sqlType.quoteChar()).append(" (");
 
         StringJoiner joiner = new StringJoiner(", ");
         for (FieldData<?> data : repositoryInformation.getFields()) {
@@ -196,8 +212,8 @@ public class QueryParseEngine {
             String setClause = generateSetClause(query);
 
             return query.filters().isEmpty()
-                    ? String.format("UPDATE %s SET %s;", tableName, setClause)
-                    : String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, buildConditions(query.filters()));
+                    ? String.format("UPDATE %s%s%s SET %s;", sqlType.quoteChar(), tableName, sqlType.quoteChar(), setClause)
+                    : String.format("UPDATE %s%s%s SET %s WHERE %s;", sqlType.quoteChar(), tableName, sqlType.quoteChar(), setClause, buildConditions(query.filters()));
         });
     }
 
@@ -213,10 +229,10 @@ public class QueryParseEngine {
                 for (FieldData<?> keyField : repositoryInformation.getPrimaryKeys()) {
                     whereClause.add(keyField.name() + " = ?");
                 }
-                return String.format("UPDATE %s SET %s WHERE %s;", tableName, setClause, whereClause);
+                return String.format("UPDATE %s%s%s SET %s WHERE %s;", sqlType.quoteChar(), tableName, sqlType.quoteChar(), setClause, whereClause);
             } else {
                 // For single primary key
-                return String.format("UPDATE %s SET %s WHERE %s = ?;", tableName, setClause, repositoryInformation.getPrimaryKey().name());
+                return String.format("UPDATE %s%s%s SET %s WHERE %s = ?;", sqlType.quoteChar(), tableName, sqlType.quoteChar(), setClause, repositoryInformation.getPrimaryKey().name());
             }
         });
     }
@@ -240,7 +256,12 @@ public class QueryParseEngine {
      */
 
     public @NotNull String parseRepository(boolean ifNotExists) {
-        StringJoiner joiner = new StringJoiner(", ", "CREATE TABLE " + (ifNotExists ? "IF NOT EXISTS " : "") + repositoryInformation.getRepositoryName() + " (", ");");
+        StringJoiner joiner = new StringJoiner(", ",
+            "CREATE TABLE " +
+                    (ifNotExists ? "IF NOT EXISTS " + sqlType.quoteChar() : sqlType.quoteChar())
+            + repositoryInformation.getRepositoryName() + sqlType.quoteChar() + " (",
+            ");"
+        );
 
         Constraint[] constraints = repositoryInformation.getConstraints();
         Set<String> constrainedFields = constraints.length > 0 ? new HashSet<>(constraints.length) : Collections.emptySet();
@@ -433,7 +454,7 @@ public class QueryParseEngine {
             // Handle IN clause specially
             if ("IN".equalsIgnoreCase(filter.operator())) {
                 Object value = filter.value();
-                if (value instanceof List<?> list) {
+                if (value instanceof Collection<?> list) {
                     String placeholders = String.join(", ", Collections.nCopies(list.size(), "?"));
                     joiner.add(filter.option() + " IN (" + placeholders + ")");
                 } else {
@@ -453,18 +474,20 @@ public class QueryParseEngine {
     }
 
     public enum SQLType implements DatabaseImplementation {
-        MYSQL("MySQL", "AUTO_INCREMENT", false),
-        SQLITE("SQLite", "AUTOINCREMENT", false),
-        POSTGRESQL("PostgreSQL", "GENERATED ALWAYS AS IDENTITY", true);
+        MYSQL("MySQL", "AUTO_INCREMENT", false, '`'),
+        SQLITE("SQLite", "AUTOINCREMENT", false, '"'),
+        POSTGRESQL("PostgreSQL", "GENERATED ALWAYS AS IDENTITY", true, '"');
 
         private final boolean supportsArrays;
         private final String name;
         private final String autoIncrementKeyword;
+        private final char quotesChar;
 
-        SQLType(String name, String autoIncrementKeyword, boolean supportsArrays) {
+        SQLType(String name, String autoIncrementKeyword, boolean supportsArrays, char quotesChar) {
             this.supportsArrays = supportsArrays;
             this.name = name;
             this.autoIncrementKeyword = autoIncrementKeyword;
+            this.quotesChar = quotesChar;
         }
 
         @Override
@@ -475,6 +498,11 @@ public class QueryParseEngine {
         @Override
         public String autoIncrementKeyword() {
             return autoIncrementKeyword;
+        }
+
+        @Override
+        public char quoteChar() {
+            return quotesChar;
         }
 
         @Override
