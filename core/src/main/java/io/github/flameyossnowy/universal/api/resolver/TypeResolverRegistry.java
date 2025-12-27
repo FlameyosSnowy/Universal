@@ -47,7 +47,7 @@ public class TypeResolverRegistry {
 
     private final Map<Class<?>, String> encodedTypeMappers = new ConcurrentHashMap<>(
             Map.ofEntries(
-                    Map.entry(String.class, "VARCHAR(255)"),
+                    Map.entry(String.class, "TEXT"),
                     Map.entry(Integer.class, "INT"),
                     Map.entry(int.class, "INT"),
                     Map.entry(Long.class, "BIGINT"),
