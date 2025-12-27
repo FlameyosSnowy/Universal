@@ -94,7 +94,8 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         if (repositoryInformation == null)
             throw new IllegalArgumentException("Unable to find repository information for " + repo.getSimpleName());
 
-        if (NUMBERS.contains(repositoryInformation.getPrimaryKey().type()) || repositoryInformation.getPrimaryKey().autoIncrement())
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey != null && (NUMBERS.contains(primaryKey.type()) || primaryKey.autoIncrement()))
             throw new IllegalArgumentException("Primary key must not be of type number and/or must not be auto-increment");
 
         this.idType = idType;

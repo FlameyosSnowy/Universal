@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.mongodb.result;
 
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import org.bson.Document;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * MongoDB implementation of DatabaseResult that wraps a BSON Document.
@@ -14,7 +15,7 @@ public class MongoDatabaseResult implements DatabaseResult {
         this.document = document;
     }
 
-    private String[] getColumnNames() {
+    private String[] getColumnNamesLazy() {
         if (columnNames == null) {
             columnNames = document.keySet().toArray(new String[0]);
         }
@@ -22,7 +23,7 @@ public class MongoDatabaseResult implements DatabaseResult {
     }
 
     @Override
-    public <T> T get(String fieldName, Class<T> type) {
+    public <T> @Nullable T get(String fieldName, Class<T> type) {
         if (document == null) return null;
         return document.get(fieldName, type);
     }
@@ -38,7 +39,7 @@ public class MongoDatabaseResult implements DatabaseResult {
     }
 
     @Override
-    public String getColumnName(int columnIndex) {
-        return document != null ? this.getColumnNames()[columnIndex] : null;
+    public @Nullable String getColumnName(int columnIndex) {
+        return document != null ? this.getColumnNamesLazy()[columnIndex] : null;
     }
 }
