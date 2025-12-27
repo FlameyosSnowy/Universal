@@ -82,7 +82,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     private ReentrantReadWriteLock getLockForId(ID id) {
-        return stripes[(id.hashCode() & 0x7fffffff) % STRIPE_COUNT];
+        return stripes[(id.hashCode() & Integer.MAX_VALUE) % STRIPE_COUNT];
     }
 
     // In-memory cache for quick access
@@ -214,16 +214,52 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     @Override
     @NotNull
     public List<ID> findIds(SelectQuery query) {
+        if (query == null) {
+            return findAllIdsFast();
+        }
+        if (query.limit() == 0) {
+            return List.of();
+        }
+        return findIdsWithQuery(query);
+    }
+
+
+    private List<ID> findAllIdsFast() {
         try {
-            int expectedSize = query != null && query.limit() > 0 ? query.limit() : 16;
+            List<ID> ids = new ArrayList<>();
+
+            if (sharding) {
+                for (int i = 0; i < shardCount; i++) {
+                    Path shardPath = basePath.resolve(String.valueOf(i));
+                    if (!Files.exists(shardPath)) {
+                        continue;
+                    }
+                    scanDirectoryForIds(shardPath, null, ids);
+                }
+            } else {
+                scanDirectoryForIds(basePath, null, ids);
+            }
+
+            return ids;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to find all IDs", e);
+        }
+    }
+
+    private List<ID> findIdsWithQuery(@NotNull SelectQuery query) {
+        try {
+            int expectedSize = query.limit() > 0 ? query.limit() : 16;
             List<ID> ids = new ArrayList<>(expectedSize);
 
             if (sharding) {
                 for (int i = 0; i < shardCount; i++) {
                     Path shardPath = basePath.resolve(String.valueOf(i));
-                    if (!Files.exists(shardPath)) continue;
+                    if (!Files.exists(shardPath)) {
+                        continue;
+                    }
 
                     scanDirectoryForIds(shardPath, query, ids);
+
                     if (query.limit() >= 0 && ids.size() >= query.limit()) {
                         break;
                     }
@@ -311,7 +347,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         return ext;
     }
 
-    public void writeEntity (T entity, ID id) throws IOException {
+    public void writeEntity(T entity, ID id) throws IOException {
         ReentrantReadWriteLock idLock = getLockForId(id);
         idLock.writeLock().lock();
         try {
