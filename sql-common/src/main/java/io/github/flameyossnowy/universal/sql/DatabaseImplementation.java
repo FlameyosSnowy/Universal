@@ -39,4 +39,11 @@ public interface DatabaseImplementation {
      * @return the keyword for auto-incrementing fields
      */
     String autoIncrementKeyword();
+
+    /**
+     * Retrieves the way to add quotes
+     * <p>
+     * In MySQL the default (without ANSI enabled) is backticks, while in others following MySQL standard it's double quotes
+     */
+    char quoteChar();
 }
