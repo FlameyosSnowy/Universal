@@ -50,7 +50,7 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
     @Override
     public ValidationEstimation validateSelectQuery(SelectQuery query) {
         // Validate limit
-        if (query.limit() > 0 && query.limit() < 1) {
+        if (query.limit() < 1) {
             return ValidationEstimation.fail("Limit must be greater than 0");
         }
 
@@ -73,7 +73,7 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
 
             // Validate operator
             String operator = filter.operator();
-            if (!isValidSQLOperator(operator)) {
+            if (isInvalidSQLOperator(operator)) {
                 return ValidationEstimation.fail(
                     "Operator '" + operator + "' is not a valid SQL operator. " +
                     "Valid operators: =, !=, <>, <, <=, >, >=, IN, NOT IN, LIKE, NOT LIKE, IS NULL, IS NOT NULL, BETWEEN"
@@ -81,8 +81,7 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
             }
 
             // Check for potential SQL injection in string values
-            if (filter.value() instanceof String) {
-                String value = (String) filter.value();
+            if (filter.value() instanceof String value) {
                 if (containsSQLInjectionRisk(value)) {
                     return ValidationEstimation.fail(
                         "Filter value for field '" + filter.option() + "' contains potentially dangerous characters. " +
@@ -100,9 +99,8 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
             }
 
             // Warn about leading wildcard in LIKE
-            if (operator.equalsIgnoreCase("LIKE") && filter.value() instanceof String) {
-                String value = (String) filter.value();
-                if (value.startsWith("%")) {
+            if (operator.equalsIgnoreCase("LIKE") && filter.value() instanceof String value) {
+                if (!value.isEmpty() && value.charAt(0) == '%') {
                     Logging.warn(
                         "LIKE query with leading wildcard on field '" + filter.option() + "' cannot use indexes. " +
                         "This will result in a full table scan."
@@ -167,15 +165,14 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
             }
 
             // Validate operator
-            if (!isValidSQLOperator(filter.operator())) {
+            if (isInvalidSQLOperator(filter.operator())) {
                 return ValidationEstimation.fail(
                     "Operator '" + filter.operator() + "' is not a valid SQL operator"
                 );
             }
 
             // Check for SQL injection
-            if (filter.value() instanceof String) {
-                String value = (String) filter.value();
+            if (filter.value() instanceof String value) {
                 if (containsSQLInjectionRisk(value)) {
                     return ValidationEstimation.fail(
                         "Filter value contains potentially dangerous characters. " +
@@ -187,7 +184,7 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
 
         // Warn about unindexed deletes
         if (filters.size() == 1) {
-            SelectOption filter = filters.get(0);
+            SelectOption filter = filters.getFirst();
             FieldData<?> field = repositoryInformation.getField(filter.option());
             if (field != null && !field.primary() && field.notIndexed()) {
                 Logging.warn(
@@ -229,8 +226,7 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
             }
 
             // Check for SQL injection in string values
-            if (value instanceof String) {
-                String strValue = (String) value;
+            if (value instanceof String strValue) {
                 if (containsSQLInjectionRisk(strValue)) {
                     return ValidationEstimation.fail(
                         "Update value for field '" + fieldName + "' contains potentially dangerous characters. " +
@@ -256,15 +252,14 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
             }
 
             // Validate operator
-            if (!isValidSQLOperator(condition.operator())) {
+            if (isInvalidSQLOperator(condition.operator())) {
                 return ValidationEstimation.fail(
                     "Operator '" + condition.operator() + "' is not a valid SQL operator"
                 );
             }
 
             // Check for SQL injection
-            if (condition.value() instanceof String) {
-                String value = (String) condition.value();
+            if (condition.value() instanceof String value) {
                 if (containsSQLInjectionRisk(value)) {
                     return ValidationEstimation.fail(
                         "Condition value contains potentially dangerous characters. " +
@@ -276,7 +271,7 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
 
         // Warn about unindexed updates
         if (conditions.size() == 1) {
-            SelectOption condition = conditions.get(0);
+            SelectOption condition = conditions.getFirst();
             FieldData<?> field = repositoryInformation.getField(condition.option());
             if (field != null && !field.primary() && field.notIndexed()) {
                 Logging.warn(
@@ -292,21 +287,21 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
     /**
      * Validates if the operator is supported in SQL.
      */
-    private boolean isValidSQLOperator(String operator) {
+    private static boolean isInvalidSQLOperator(String operator) {
         return switch (operator.toUpperCase()) {
             // Comparison operators
-            case "=", "!=", "<>", "<", "<=", ">", ">=" -> true;
+            case "=", "!=", "<>", "<", "<=", ">", ">=" -> false;
             // Pattern matching
-            case "LIKE", "NOT LIKE", "ILIKE", "SIMILAR TO", "~", "~*" -> true;
+            case "LIKE", "NOT LIKE", "ILIKE", "SIMILAR TO", "~", "~*" -> false;
             // Range operators
-            case "BETWEEN", "NOT BETWEEN" -> true;
+            case "BETWEEN", "NOT BETWEEN" -> false;
             // Set operators
-            case "IN", "NOT IN" -> true;
+            case "IN", "NOT IN" -> false;
             // NULL checks
-            case "IS NULL", "IS NOT NULL" -> true;
+            case "IS NULL", "IS NOT NULL" -> false;
             // Boolean operators (handled in WHERE clause)
-            case "AND", "OR", "NOT" -> true;
-            default -> false;
+            case "AND", "OR", "NOT" -> false;
+            default -> true;
         };
     }
 
@@ -314,7 +309,7 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
      * Checks if a string value contains potential SQL injection patterns.
      * Note: This is a basic check. Always use parameterized queries!
      */
-    private boolean containsSQLInjectionRisk(String value) {
+    private static boolean containsSQLInjectionRisk(String value) {
         if (value == null || value.isEmpty()) {
             return false;
         }
@@ -335,7 +330,7 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
         };
     }
 
-    private ValidationEstimation validateMySQLSelect(SelectQuery query) {
+    private static ValidationEstimation validateMySQLSelect(SelectQuery query) {
         // MySQL-specific validations
         if (query.limit() > 0 && query.sortOptions().isEmpty()) {
             // LIMIT without ORDER BY can return unpredictable results
@@ -347,13 +342,13 @@ public record SQLQueryValidator(RepositoryInformation repositoryInformation, SQL
         return ValidationEstimation.PASS;
     }
 
-    private ValidationEstimation validatePostgreSQLSelect(SelectQuery query) {
+    private static ValidationEstimation validatePostgreSQLSelect(SelectQuery ignoredQuery) {
         // PostgreSQL-specific validations
         // PostgreSQL has excellent query planner, fewer warnings needed
         return ValidationEstimation.PASS;
     }
 
-    private ValidationEstimation validateSQLiteSelect(SelectQuery query) {
+    private static ValidationEstimation validateSQLiteSelect(SelectQuery query) {
         // SQLite-specific validations
         if (query.limit() > 10000) {
             Logging.warn(
