@@ -3,7 +3,6 @@ package io.github.flameyossnowy.universal.api;
 import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 /**

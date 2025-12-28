@@ -33,9 +33,9 @@ public class MultiMapTypeResolver<K, V, ID> {
         this.resolverRegistry = resolverRegistry;
 
         this.tableName = information.getRepositoryName() + "_" + valueType.getSimpleName().toLowerCase() + "_map";
-        this.keyResolver = resolverRegistry.getResolver(keyType);
-        this.valueResolver = resolverRegistry.getResolver(valueType);
-        this.idResolver = resolverRegistry.getResolver(idType);
+        this.keyResolver = resolverRegistry.resolve(keyType);
+        this.valueResolver = resolverRegistry.resolve(valueType);
+        this.idResolver = resolverRegistry.resolve(idType);
 
         if (keyResolver == null || valueResolver == null || idResolver == null) {
             throw new IllegalStateException("No resolver found for one of the types: " + keyType.getSimpleName() + ", " + valueType.getSimpleName() + ", or " + idType.getSimpleName());
@@ -44,18 +44,7 @@ public class MultiMapTypeResolver<K, V, ID> {
     }
 
     private void ensureTableExists() {
-        String query = String.format("""
-        CREATE TABLE IF NOT EXISTS %s (
-            id %s NOT NULL,
-            map_key %s NOT NULL,
-            map_value %s NOT NULL,
-            FOREIGN KEY (id) REFERENCES %s (id)
-        );
-        """, tableName,
-                resolverRegistry.getType(idResolver),
-                resolverRegistry.getType(keyResolver),
-                resolverRegistry.getType(valueResolver),
-                information.getRepositoryName());
+        String query = "CREATE TABLE IF NOT EXISTS " + tableName + " (\n    id " + resolverRegistry.getType(idResolver) + " NOT NULL,\n    map_key " + resolverRegistry.getType(keyResolver) + " NOT NULL,\n    map_value " + resolverRegistry.getType(valueResolver) + " NOT NULL,\n    FOREIGN KEY (id) REFERENCES " + information.getRepositoryName() + " (id)\n);\n";
 
         try (Connection conn = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, conn)) {
@@ -124,7 +113,7 @@ public class MultiMapTypeResolver<K, V, ID> {
 
     // Delete a key-value pair (key -> List<V>)
     public void delete(final ID id, final K key) throws Exception {
-        String query = String.format("DELETE FROM %s WHERE id = ? AND map_key = ?;", tableName);
+        String query = "DELETE FROM " + tableName + " WHERE id = ? AND map_key = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry);
@@ -136,7 +125,7 @@ public class MultiMapTypeResolver<K, V, ID> {
 
     // Delete all entries for a given ID
     public void delete(final ID id) throws Exception {
-        String query = String.format("DELETE FROM %s WHERE id = ?;", tableName);
+        String query = "DELETE FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry);

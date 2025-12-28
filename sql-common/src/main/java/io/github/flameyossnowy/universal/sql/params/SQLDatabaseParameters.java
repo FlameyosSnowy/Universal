@@ -181,7 +181,7 @@ public class SQLDatabaseParameters implements DatabaseParameters {
             return;
         }
 
-        TypeResolver<Object> resolver = (TypeResolver<Object>) typeRegistry.getResolver(Primitives.asWrapper(type));
+        TypeResolver<Object> resolver = (TypeResolver<Object>) typeRegistry.resolve(Primitives.asWrapper(type));
         if (resolver != null) {
             resolver.insert(this, name, value);
             return;
