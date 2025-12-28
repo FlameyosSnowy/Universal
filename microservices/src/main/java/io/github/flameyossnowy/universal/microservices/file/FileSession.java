@@ -33,9 +33,9 @@ public class FileSession<T, ID> implements DatabaseSession<ID, T, FileContext> {
     private final EnumSet<SessionOption> options;
     private final SessionCache<ID, T> cache;
     private final List<Operation> operations;
-    private final Map<ID, T> insertBatch = new ConcurrentHashMap<>();
-    private final Map<ID, T> updateBatch = new ConcurrentHashMap<>();
-    private final List<ID> deleteBatch = new ArrayList<>();
+    private final Map<ID, T> insertBatch = new ConcurrentHashMap<>(5);
+    private final Map<ID, T> updateBatch = new ConcurrentHashMap<>(5);
+    private final List<ID> deleteBatch = new ArrayList<>(5);
     private final int batchSize;
     private boolean closed = false;
     private boolean autoFlush;
