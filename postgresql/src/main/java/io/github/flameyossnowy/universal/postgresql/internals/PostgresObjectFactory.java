@@ -4,6 +4,7 @@ import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.resolver.SqlEncoding;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.ImmutableList;
@@ -93,7 +94,10 @@ public class PostgresObjectFactory<T, ID> extends ObjectFactory<T, ID> {
 
         PreparedStatement statement = ((SQLDatabaseParameters) stmt).getStatement();
         Array sqlArray = statement.getConnection().createArrayOf(
-                this.typeResolverRegistry.getType(valueToInsert.getClass().getComponentType()),
+                this.typeResolverRegistry.getType(
+                    valueToInsert.getClass().getComponentType(),
+                    field.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL
+                ),
                 valueToInsert
         );
         statement.setArray(paramIndex, sqlArray);

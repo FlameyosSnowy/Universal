@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.api.handler;
 
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
+import io.github.flameyossnowy.universal.api.resolver.SqlEncoding;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 
 /**
@@ -89,5 +90,9 @@ public interface DataHandler<T> {
     @FunctionalInterface
     interface DatabaseWriter<T> {
         void write(DatabaseParameters parameters, String index, T value);
+    }
+
+    default SqlEncoding getEncoding() {
+        return SqlEncoding.VISUAL;
     }
 }

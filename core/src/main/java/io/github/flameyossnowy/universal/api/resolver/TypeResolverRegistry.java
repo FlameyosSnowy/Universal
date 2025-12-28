@@ -41,9 +41,31 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class TypeResolverRegistry {
-    private final Map<Class<?>, TypeResolver<?>> resolvers = new ConcurrentHashMap<>(24);
+    private final Map<ResolverKey, TypeResolver<?>> resolvers = new ConcurrentHashMap<>(24);
     private final Map<Class<?>, DataHandler<?>> dataHandlers = new ConcurrentHashMap<>(24);
-    private final LRUCache<Class<?>, TypeResolver<?>> assignableCache = new LRUCache<>(32);
+    private final LRUCache<ResolverKey, TypeResolver<?>> assignableCache = new LRUCache<>(32);
+
+    private static final TypeResolver<?> NULL_MARKER = new TypeResolver<>() {
+        @Override
+        public @Nullable Class<Object> getType() {
+            return null;
+        }
+
+        @Override
+        public @Nullable Class<?> getDatabaseType() {
+            return null;
+        }
+
+        @Override
+        public @Nullable Object resolve(DatabaseResult result, String columnName) {
+            return null;
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, Object value) {
+
+        }
+    };
 
     private final Map<Class<?>, SqlTypeMapping> sqlTypeMappings =
         new ConcurrentHashMap<>(
@@ -156,13 +178,16 @@ public class TypeResolverRegistry {
         if (resolver == null) {
             throw new IllegalArgumentException("Resolver cannot be null");
         }
-        resolvers.put(resolver.getType(), resolver);
+        resolvers.put(
+            new ResolverKey(resolver.getType(), resolver.getEncoding()),
+            resolver
+        );
     }
 
     public <T> void register(TypeResolver<T> resolver) {
         registerInternal(resolver);
         sqlTypeMappings.put(resolver.getType(), sqlTypeMappings.get(resolver.getDatabaseType()));
-        assignableCache.remove(resolver.getType());
+        assignableCache.remove(new ResolverKey(resolver.getType(), resolver.getEncoding()));
     }
 
     public <T> void register(DataHandler<T> handler) {
@@ -184,50 +209,52 @@ public class TypeResolverRegistry {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> TypeResolver<T> getResolver(Class<T> type) {
-        return (TypeResolver<T>) resolvers.get(type);
-    }
-
-    @SuppressWarnings("unchecked")
     public <T> DataHandler<T> getHandler(Class<?> type) {
         return (DataHandler<T>) dataHandlers.get(type);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public <T> @Nullable TypeResolver<T> resolve(Class<T> type) {
-        var resolver = (TypeResolver<T>) resolvers.get(type);
-        if (resolver != null) {
-            return resolver;
-        }
+    public <T> TypeResolver<T> resolve(Class<T> type) {
+        TypeResolver<T> visual = resolve(type, SqlEncoding.VISUAL);
+        return visual != null ? visual : resolve(type, SqlEncoding.BINARY);
+    }
 
-        var typeResolver = (TypeResolver<T>) assignableCache.get(type);
-        if (typeResolver != null) {
-            return typeResolver;
-        }
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public <T> @Nullable TypeResolver<T> resolve(Class<T> type, SqlEncoding encoding) {
+        ResolverKey key = new ResolverKey(type, encoding);
+
+        var direct = (TypeResolver<T>) resolvers.get(key);
+        if (direct == NULL_MARKER) return null;
+        if (direct != null) return direct;
+
+        var cached = (TypeResolver<T>) assignableCache.get(key);
+        if (cached != null) return cached;
 
         if (type.isEnum()) {
-            // SAFETY: Raw types work fine here and are tested.
-            TypeResolver<T> enumResolver = (TypeResolver<T>) TypeResolver.forEnum((Class<? extends Enum>) type);
-            registerInternal(enumResolver);
+            TypeResolver<T> enumResolver =
+                (TypeResolver<T>) TypeResolver.forEnum((Class<? extends Enum>) type);
+
+            resolvers.put(key, enumResolver);
             return enumResolver;
         }
 
-        for (Map.Entry<Class<?>, TypeResolver<?>> entry : resolvers.entrySet()) {
-            Class<?> registered = entry.getKey();
+        for (var entry : resolvers.entrySet()) {
+            ResolverKey registered = entry.getKey();
 
-            if (registered.isAssignableFrom(type)) {
-                TypeResolver<?> newResolver = entry.getValue();
-                assignableCache.put(type, newResolver);
-                return (TypeResolver<T>) newResolver;
+            if (registered.encoding == encoding &&
+                registered.type.isAssignableFrom(type)) {
+
+                TypeResolver<?> resolver = entry.getValue();
+                assignableCache.put(key, resolver);
+                return (TypeResolver<T>) resolver;
             }
         }
 
-        assignableCache.put(type, null);
+        assignableCache.put(key, NULL_MARKER);
         return null;
     }
 
     public boolean hasResolver(Class<?> type) {
-        return resolvers.containsKey(type) || resolve(type) != null;
+        return resolve(type) != null;
     }
 
     private void registerDefaultHandlers() {
@@ -315,6 +342,7 @@ public class TypeResolverRegistry {
 
     private void registerUuid() {
         registerInternal(new UuidTypeResolver());
+        registerInternal(new BinaryUuidTypeResolver());
     }
 
     private void registerModernTimeTypes() {
@@ -375,6 +403,7 @@ public class TypeResolverRegistry {
 
     private void registerInetAddressType() {
         registerInternal(new InetAddressTypeResolver());
+        registerInternal(new BinaryInetAddressTypeResolver());
     }
 
     private void registerPatternType() {
@@ -598,28 +627,6 @@ public class TypeResolverRegistry {
         }
     }
 
-    public static final class InetAddressTypeResolver implements TypeResolver<InetAddress> {
-        private static final Map<String, InetAddress> CACHE = new ConcurrentHashMap<>(3);
-
-        @Override public Class<InetAddress> getType() { return InetAddress.class; }
-        @Override public Class<String> getDatabaseType() { return String.class; }
-
-        @Override
-        public @Nullable InetAddress resolve(DatabaseResult result, String columnName) {
-            String hostAddress = result.get(columnName, String.class);
-            if (hostAddress == null) return null;
-            return CACHE.computeIfAbsent(hostAddress, s -> {
-                try { return InetAddress.getByName(s); }
-                catch (UnknownHostException e) { throw new RuntimeException("Invalid IP address in database: " + s, e); }
-            });
-        }
-
-        @Override
-        public void insert(DatabaseParameters parameters, String index, InetAddress value) {
-            parameters.set(index, value != null ? value.getHostAddress() : null, String.class);
-        }
-    }
-
     public static final class PatternTypeResolver implements TypeResolver<Pattern> {
         private static final Map<String, Pattern> CACHE = new ConcurrentHashMap<>(3);
 
@@ -764,6 +771,74 @@ public class TypeResolverRegistry {
         }
     }
 
+    public static final class BinaryInetAddressTypeResolver
+        implements TypeResolver<InetAddress> {
+
+        @Override public Class<InetAddress> getType() { return InetAddress.class; }
+        @Override public Class<byte[]> getDatabaseType() { return byte[].class; }
+
+        @Override
+        public @Nullable InetAddress resolve(DatabaseResult result, String columnName) {
+            byte[] bytes = result.get(columnName, byte[].class);
+            if (bytes == null) return null;
+
+            try {
+                return InetAddress.getByAddress(bytes);
+            } catch (UnknownHostException e) {
+                throw new RuntimeException("Invalid binary IP address", e);
+            }
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, InetAddress value) {
+            parameters.set(
+                index,
+                value != null ? value.getAddress() : null,
+                byte[].class
+            );
+        }
+
+        @Override
+        public SqlEncoding getEncoding() {
+            return SqlEncoding.BINARY;
+        }
+    }
+
+    public static final class BinaryUuidTypeResolver implements TypeResolver<UUID> {
+
+        @Override public Class<UUID> getType() { return UUID.class; }
+        @Override public Class<byte[]> getDatabaseType() { return byte[].class; }
+
+        @Override
+        public @Nullable UUID resolve(@NotNull DatabaseResult result, String columnName) {
+            byte[] bytes = result.get(columnName, byte[].class);
+            if (bytes == null) return null;
+
+            ByteBuffer buf = ByteBuffer.wrap(bytes);
+            long most = buf.getLong();
+            long least = buf.getLong();
+            return new UUID(most, least);
+        }
+
+        @Override
+        public void insert(@NotNull DatabaseParameters parameters, String index, UUID value) {
+            if (value == null) {
+                parameters.set(index, null, byte[].class);
+                return;
+            }
+
+            ByteBuffer buf = ByteBuffer.allocate(16);
+            buf.putLong(value.getMostSignificantBits());
+            buf.putLong(value.getLeastSignificantBits());
+            parameters.set(index, buf.array(), byte[].class);
+        }
+
+        @Override
+        public SqlEncoding getEncoding() {
+            return SqlEncoding.BINARY;
+        }
+    }
+
     public static final class UuidTypeResolver implements TypeResolver<UUID> {
         @Override public Class<UUID> getType() { return UUID.class; }
         @Override public Class<String> getDatabaseType() { return String.class; }
@@ -777,6 +852,28 @@ public class TypeResolverRegistry {
         @Override
         public void insert(@NotNull DatabaseParameters parameters, String index, UUID value) {
             parameters.set(index, value != null ? value.toString() : null, String.class);
+        }
+    }
+
+    public static final class InetAddressTypeResolver implements TypeResolver<InetAddress> {
+        private static final Map<String, InetAddress> CACHE = new ConcurrentHashMap<>(3);
+
+        @Override public Class<InetAddress> getType() { return InetAddress.class; }
+        @Override public Class<String> getDatabaseType() { return String.class; }
+
+        @Override
+        public @Nullable InetAddress resolve(DatabaseResult result, String columnName) {
+            String hostAddress = result.get(columnName, String.class);
+            if (hostAddress == null) return null;
+            return CACHE.computeIfAbsent(hostAddress, s -> {
+                try { return InetAddress.getByName(s); }
+                catch (UnknownHostException e) { throw new RuntimeException("Invalid IP address in database: " + s, e); }
+            });
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, InetAddress value) {
+            parameters.set(index, value != null ? value.getHostAddress() : null, String.class);
         }
     }
 
@@ -822,11 +919,6 @@ public class TypeResolverRegistry {
         }
     }
 
-    public enum SqlEncoding {
-        VISUAL,
-        BINARY
-    }
-
     public record SqlTypeMapping(
         String visual,
         @Nullable String binary
@@ -846,4 +938,6 @@ public class TypeResolverRegistry {
             return new SqlTypeMapping(visual, binary);
         }
     }
+
+    private record ResolverKey(Class<?> type, SqlEncoding encoding) {}
 }

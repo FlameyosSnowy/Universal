@@ -79,4 +79,9 @@ public interface TypeResolver<T> {
                 parameters.set(index, value != null ? value.name() : null, String.class)
         ));
     }
+
+    default SqlEncoding getEncoding() {
+        return SqlEncoding.VISUAL;
+    }
+
 }

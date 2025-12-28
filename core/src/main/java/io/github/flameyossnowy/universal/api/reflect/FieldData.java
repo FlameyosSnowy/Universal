@@ -43,6 +43,7 @@ public class FieldData<T> {
     private final ManyToOne manyToOne;
     private final OneToOne oneToOne;
     private final ExternalRepository externalRepository;
+    private final Binary binary;
     private final Object defaultValue;
 
     public FieldData(RepositoryInformation declaringInformation, String name, String fieldName, String tableName,
@@ -50,7 +51,7 @@ public class FieldData<T> {
                      boolean nonNull, boolean unique, boolean now, Constraint constraint, Condition condition,
                      OnUpdate onUpdate, OnDelete onDelete, OneToMany oneToMany, ManyToOne manyToOne,
                      OneToOne oneToOne, ExternalRepository externalRepository,
-                     Object defaultValue) {
+                     Object defaultValue, Binary binary) {
         this.declaringInformation = declaringInformation;
         this.name = name;
         this.tableName = tableName;
@@ -76,13 +77,14 @@ public class FieldData<T> {
         this.defaultValue = defaultValue;
         this.oneToOne = oneToOne;
         this.externalRepository = externalRepository;
+        this.binary = binary;
     }
 
     public FieldData(RepositoryInformation declaringInformation, String name, String fieldName, String tableName, RecordComponent rawField, Class<T> type, boolean primary, boolean autoIncrement,
                      boolean nonNull, boolean unique, boolean now, Constraint constraint, Condition condition,
                      OnUpdate onUpdate, OnDelete onDelete, OneToMany oneToMany, ManyToOne manyToOne,
                      OneToOne oneToOne, ExternalRepository externalRepository,
-                     Object defaultValue) {
+                     Object defaultValue, Binary binary) {
         this.declaringInformation = declaringInformation;
         this.name = name;
         this.tableName = tableName;
@@ -105,6 +107,7 @@ public class FieldData<T> {
         this.defaultValue = defaultValue;
         this.oneToOne = oneToOne;
         this.externalRepository = externalRepository;
+        this.binary = binary;
     }
 
     public boolean now() {
@@ -177,6 +180,10 @@ public class FieldData<T> {
 
     public void setDeclaringInformation(RepositoryInformation declaringInformation) {
         this.declaringInformation = declaringInformation;
+    }
+
+    public boolean binary() {
+        return binary != null;
     }
 
     public OneToMany oneToMany() {

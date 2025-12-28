@@ -182,6 +182,7 @@ public class RepositoryMetadata {
 
     private static <T> @NotNull FieldData<T> createFieldDataFromField(@NotNull RepositoryInformation information, @NotNull Field field, String tableName, String fieldName) {
         Named name = field.getAnnotation(Named.class);
+        Binary binary = field.getAnnotation(Binary.class);
         DefaultValue defaultValue = field.getAnnotation(DefaultValue.class);
         DefaultValueProvider defaultValueProvider = field.getAnnotation(DefaultValueProvider.class);
         OneToMany oneToMany = field.getAnnotation(OneToMany.class);
@@ -212,7 +213,8 @@ public class RepositoryMetadata {
                 field.getAnnotation(OnUpdate.class),
                 field.getAnnotation(OnDelete.class),
                 oneToMany, manyToOne, oneToOne, externalRepository,
-                resolveDefaultValue(defaultValue, defaultValueProvider)
+                resolveDefaultValue(defaultValue, defaultValueProvider),
+                binary
         );
     }
 
@@ -254,7 +256,8 @@ public class RepositoryMetadata {
                 recordComponent.getAnnotation(OnUpdate.class),
                 recordComponent.getAnnotation(OnDelete.class),
                 oneToMany, manyToOne, oneToOne, externalRepository,
-                resolveDefaultValue(defaultValue, defaultValueProvider)
+                resolveDefaultValue(defaultValue, defaultValueProvider),
+                recordComponent.getAnnotation(Binary.class)
         );
     }
 
