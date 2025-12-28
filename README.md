@@ -236,11 +236,9 @@ User user = userAdapter.findById(userId);
 PathEntry cache = user.getCachePath(); // Automatically fetched from Cassandra!
 ```
 
-**See [CROSS_PLATFORM_LINKING.md](CROSS_PLATFORM_LINKING.md) for complete documentation.**
-
 ## Supported Databases
 - **SQL Databases**: MySQL, PostgreSQL, SQLite
-- **NoSQL Databases**: MongoDB, Cassandra
+- **NoSQL Databases**: MongoDB
 
 ## Contributing
 
