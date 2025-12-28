@@ -14,6 +14,6 @@ import java.lang.annotation.Target;
  * @version 6.0.1
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
+@Target(ElementType.FIELD)
 public @interface Binary {
 }
