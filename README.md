@@ -1,17 +1,23 @@
-# Universal ORM/ODM
+# Universal Relational Distributed Object Runtime
 
-Universal is a powerful and fully featured Object-Relational Mapper (ORM) and Object-Document Mapper (ODM) designed to work seamlessly with both SQL and NoSQL databases. It provides a unified API to handle database interactions efficiently, making it easier to manage data persistence across different database types.
+Universal is a powerful and fully featured Relational Distributed Object Runtime designed to work seamlessly with both SQL and NoSQL databases, and even File/Network repository adapters.
+It provides a unified API to handle database interactions efficiently, making it easier to manage data persistence across different database types.
 
 ## Features
-
 - **Cross-Database Compatibility**: Supports both relational (SQL) and document-based (NoSQL) databases.
-- **Cross-Platform Repository Linking**: Link entities across different database adapters (e.g., MySQL ↔ Cassandra ↔ MongoDB).
+- **Cross-Platform Repository Linking**: Link entities across different database adapters (e.g., MySQL ↔ MongoDB ↔ File ↔ Network).
 - **Type Resolution System**: Handles type conversions seamlessly between Java objects and database representations.
 - **Caching and Lazy loading**: Allows for automatic lazy loading and automatic caching.
 - **Annotation-Based Configuration**: Define repositories, constraints, and conditions using a SQL-like syntax for both MongoDB and SQL.
-- **MongoDB & SQL Support**: Provides adapters for both MongoDB and SQL databases.
 - **Efficient Query Handling**: Uses built-in MongoDB methods and SQL functions without unnecessary query parsing.
-- **Lightweight**: Only ~400kb for one Platform + Core.
+- **Fully thread-safe**: Use Universal however you want, whenever you want, from any thread, and Universal will ensure it is fully safe.
+- **High performance**: We take high performance measures to ensure:
+    - **N + 1 Queries**: aggressive relationship cache to attempt solving N+1 query problem for relationships and reduce it to the minimum
+    - **Query parsing**: We cache query building to ensure you never build something more than one time
+    - **Connection pooling support**: Allowing connection pools is a primary goal for Universal to thrive on high concurrency.
+    - **Reflection caching**: Despite Universal being heavily reflection-based, it takes extreme measures to ensure that reflection is not a big overhead by caching metadata and being [ASM](https://github.com/daniellansun/fast-reflection)-based.
+    - **Batched relationships**: Universal tries to batch all relationship data, to use as little queries and achieve the highest throughput.
+    - **Caching support**: Lots of caching, from Session caches, to Result caches, to Global caches, all being evicted and controlled.
 
 ## Supported Types
 ```java
@@ -228,11 +234,9 @@ User user = userAdapter.findById(userId);
 PathEntry cache = user.getCachePath(); // Automatically fetched from Cassandra!
 ```
 
-**See [CROSS_PLATFORM_LINKING.md](CROSS_PLATFORM_LINKING.md) for complete documentation.**
-
 ## Supported Databases
 - **SQL Databases**: MySQL, PostgreSQL, SQLite
-- **NoSQL Databases**: MongoDB, Cassandra
+- **NoSQL Databases**: MongoDB
 
 ## Contributing
 
