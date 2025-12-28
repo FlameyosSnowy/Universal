@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.sql.resolvers;
 
+import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
@@ -53,13 +54,7 @@ public class CollectionTypeResolver<T, ID> {
     }
 
     private void ensureTableExists() {
-        String query = String.format("""
-        CREATE TABLE IF NOT EXISTS %s (
-            id %s NOT NULL,
-            value %s NOT NULL,
-            FOREIGN KEY (id) REFERENCES %s (id)
-        );
-        """, tableName, resolverRegistry.getType(idType), resolverRegistry.getType(elementType), information.getRepositoryName());
+        String query = "CREATE TABLE IF NOT EXISTS " + tableName + " (\n    id " + resolverRegistry.getType(idType) + " NOT NULL,\n    value " + resolverRegistry.getType(elementType) + " NOT NULL,\n    FOREIGN KEY (id) REFERENCES " + information.getRepositoryName() + " (id)\n);\n";
 
         try (Connection conn = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, conn)) {
@@ -91,11 +86,16 @@ public class CollectionTypeResolver<T, ID> {
     }
 
     public T[] resolveArray(ID id) {
+        FieldData<?> primaryKey = information.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + information.getRepositoryName());
+        }
+
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query);
-            idResolver.insert(parameters, information.getPrimaryKey().name(), id);
+            idResolver.insert(parameters, primaryKey.name(), id);
 
             ResultSet resultSet = stmt.executeQuery();
             if (!resultSet.next()) return (T[]) OBJECTS;
@@ -121,11 +121,16 @@ public class CollectionTypeResolver<T, ID> {
     }
 
     public Collection<T> resolveSet(ID id) {
+        FieldData<?> primaryKey = information.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + information.getRepositoryName());
+        }
+
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query);
-            idResolver.insert(parameters, information.getPrimaryKey().name(), id);
+            idResolver.insert(parameters, primaryKey.name(), id);
 
             ResultSet resultSet = stmt.executeQuery();
             if (!resultSet.next()) return Set.of();
@@ -144,8 +149,7 @@ public class CollectionTypeResolver<T, ID> {
     }
 
     public void insert(ID id, @NotNull Collection<T> collection) throws Exception {
-        String query = "INSERT INTO %s (id, value) VALUES (?, ?)";
-        String insertQuery = String.format(query, tableName);
+        String insertQuery = "INSERT INTO " + tableName + " (id, value) VALUES (?, ?)";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery);
@@ -162,8 +166,7 @@ public class CollectionTypeResolver<T, ID> {
     }
 
     public void insert(ID id, T value) throws Exception {
-        String query = "INSERT INTO %s (id, value) VALUES (?, ?)";
-        String insertQuery = String.format(query, tableName);
+        String insertQuery = "INSERT INTO " + tableName + " (id, value) VALUES (?, ?)";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry);
@@ -173,25 +176,25 @@ public class CollectionTypeResolver<T, ID> {
     }
 
     public void delete(final ID id, final T value) throws Exception {
-        String query = String.format("DELETE FROM %s WHERE id = ? AND value = ?;", tableName);
+        String query = "DELETE FROM " + tableName + " WHERE id = ? AND value = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query);
-            TypeResolver<ID> typeResolver = resolverRegistry.getResolver(idType);
+            TypeResolver<ID> typeResolver = resolverRegistry.resolve(idType);
             typeResolver.insert(parameters, "id", id);
 
-            TypeResolver<T> resolver = resolverRegistry.getResolver(elementType);
+            TypeResolver<T> resolver = resolverRegistry.resolve(elementType);
             resolver.insert(parameters, "value", value);
             stmt.executeUpdate();
         }
     }
 
     public void delete(final ID id) throws Exception {
-        String query = String.format("DELETE FROM %s WHERE id = ?;", tableName);
+        String query = "DELETE FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry,query);
-            TypeResolver<ID> typeResolver = resolverRegistry.getResolver(idType);
+            TypeResolver<ID> typeResolver = resolverRegistry.resolve(idType);
             typeResolver.insert(parameters, "id", id);
             stmt.executeUpdate();
         }
@@ -203,10 +206,10 @@ public class CollectionTypeResolver<T, ID> {
 
     private void addElement(final T value, final ID id, final PreparedStatement insertStmt, SQLDatabaseParameters parameters) {
 
-        TypeResolver<ID> primaryKeyResolver = resolverRegistry.getResolver(idType);
+        TypeResolver<ID> primaryKeyResolver = resolverRegistry.resolve(idType);
         primaryKeyResolver.insert(parameters, "id", id);
 
-        TypeResolver<T> resolver = resolverRegistry.getResolver(elementType);
+        TypeResolver<T> resolver = resolverRegistry.resolve(elementType);
         resolver.insert(parameters, "value", value);
     }
 }
