@@ -7,6 +7,8 @@ import java.lang.annotation.Target;
 
 /**
  * The condition for the field to be inserted into the database.
+ * @author flameyosflow
+ * @version 2.0.0
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

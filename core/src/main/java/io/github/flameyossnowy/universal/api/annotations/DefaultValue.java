@@ -7,6 +7,8 @@ import java.lang.annotation.Target;
 
 /**
  * Set the default value of a field when it is null (in a string)
+ * @author flameyosflow
+ * @version 3.0.0
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

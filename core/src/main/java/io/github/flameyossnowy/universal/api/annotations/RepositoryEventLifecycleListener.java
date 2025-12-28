@@ -9,6 +9,9 @@ import java.lang.annotation.Target;
 
 /**
  * The repository event lifecycle listener for the entity.
+ * <p>
+ * An event lifecycle listener is used to perform any actions
+ * associated with the insertion, update, or deletion of entities.
  * @author FlameyosFlow
  */
 @Retention(RetentionPolicy.RUNTIME)

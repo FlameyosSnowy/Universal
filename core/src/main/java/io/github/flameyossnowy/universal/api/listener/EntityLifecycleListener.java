@@ -2,6 +2,10 @@ package io.github.flameyossnowy.universal.api.listener;
 
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Entity lifecycle listener to listen to entity lifecycle events.
+ * @param <T>
+ */
 @SuppressWarnings("unused")
 public interface EntityLifecycleListener<T> {
     /**

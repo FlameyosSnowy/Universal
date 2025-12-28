@@ -4,12 +4,13 @@ import com.mongodb.client.ClientSession;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.exceptions.TransactionClosedException;
+import org.jetbrains.annotations.NotNull;
 
 public class SimpleTransactionContext implements TransactionContext<ClientSession> {
     private final ClientSession connection;
     private boolean commited = false;
 
-    public SimpleTransactionContext(ClientSession connection) {
+    public SimpleTransactionContext(@NotNull ClientSession connection) {
         this.connection = connection;
         connection.startTransaction();
     }

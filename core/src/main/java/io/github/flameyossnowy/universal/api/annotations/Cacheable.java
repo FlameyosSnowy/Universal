@@ -26,7 +26,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface Cacheable {
-    int maxCacheSize() default 100;
+    int maxCacheSize() default 1024;
 
     CacheAlgorithmType algorithm() default CacheAlgorithmType.LEAST_FREQUENTLY_USED;
 }

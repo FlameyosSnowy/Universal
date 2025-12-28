@@ -16,20 +16,20 @@ import java.util.function.Supplier;
 @SuppressWarnings("unchecked")
 public interface DatabaseObjectFactory<T, S> {
     Map<Class<?>, Supplier<Object>> NOW_MAPPERS = Map.ofEntries(
-            Map.entry(Instant.class, Instant::now),
-            Map.entry(Date.class, Date::new),
-            Map.entry(java.sql.Time.class, () -> java.sql.Time.valueOf(LocalTime.now())),
-            Map.entry(Timestamp.class, () -> new Timestamp(System.currentTimeMillis())),
-            Map.entry(Year.class, Year::now),
-            Map.entry(java.sql.Date.class, () -> new java.sql.Date(System.currentTimeMillis())),
-            Map.entry(TimeZone.class, TimeZone::getDefault),
-            Map.entry(Calendar.class, Calendar::getInstance),
-            Map.entry(LocalDate.class, LocalDate::now),
-            Map.entry(LocalDateTime.class, LocalDateTime::now),
-            Map.entry(LocalTime.class, LocalTime::now),
-            Map.entry(ZoneId.class, ZoneId::systemDefault),
-            Map.entry(ZoneOffset.class, ZoneOffset::systemDefault),
-            Map.entry(ZonedDateTime.class, ZonedDateTime::now)
+        Map.entry(Instant.class, Instant::now),
+        Map.entry(Date.class, Date::new),
+        Map.entry(java.sql.Time.class, () -> java.sql.Time.valueOf(LocalTime.now())),
+        Map.entry(Timestamp.class, () -> new Timestamp(System.currentTimeMillis())),
+        Map.entry(Year.class, Year::now),
+        Map.entry(java.sql.Date.class, () -> new java.sql.Date(System.currentTimeMillis())),
+        Map.entry(TimeZone.class, TimeZone::getDefault),
+        Map.entry(Calendar.class, Calendar::getInstance),
+        Map.entry(LocalDate.class, LocalDate::now),
+        Map.entry(LocalDateTime.class, LocalDateTime::now),
+        Map.entry(LocalTime.class, LocalTime::now),
+        Map.entry(ZoneId.class, ZoneId::systemDefault),
+        Map.entry(ZoneOffset.class, ZoneOffset::systemDefault),
+        Map.entry(ZonedDateTime.class, ZonedDateTime::now)
     );
 
     /**

@@ -3,6 +3,14 @@ package io.github.flameyossnowy.universal.api.listener;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * The interface used to define an audit logger.
+ * <p>
+ * An audit logger is used to perform any audit or logging actions
+ * associated with the insertion, update, or deletion of entities.
+ * @author FlameyosFlow
+ * @author 4.0.0
+ */
 public interface AuditLogger<T> {
     /**
      * Called when an entity is inserted into the repository.

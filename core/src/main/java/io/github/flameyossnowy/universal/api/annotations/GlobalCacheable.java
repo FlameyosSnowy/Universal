@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
 
 /**
  * Indicates that the class is cacheable, and it may be cached via ID.
- *
+ * <p>
  * It may work something like this:
  *
  * <pre>
@@ -25,7 +25,8 @@ import java.lang.annotation.Target;
  * // the above class will be automatically cached in memory by ID.
  * // such as: "4" -> "Person{id=4, name=':name', age=..., ...}"
  * </pre>
- *
+ * @author flameyosflow
+ * @version 4.0.0
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

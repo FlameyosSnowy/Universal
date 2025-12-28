@@ -1,5 +1,11 @@
 package io.github.flameyossnowy.universal.api.defvalues;
 
+/**
+ * A dynamic default type provider to provide a default value for a type.
+ * @param <T> The type of the default value.
+ * @author flameyosflow
+ * @version 5.0.0
+ */
 public interface DefaultTypeProvider<T> {
     /**
      * Supplies a default value of type {@link #getType()}.

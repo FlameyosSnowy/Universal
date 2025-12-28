@@ -19,7 +19,7 @@ import java.lang.annotation.Target;
  *     @Id
  *     private UUID id;
  *     
- *     @ExternalRepository(adapter = "cache-adapter")
+ *     @ExternalRepository(adapter = "path_entries")
  *     @OneToOne
  *     private PathEntry cachePath;
  * }
@@ -28,7 +28,8 @@ import java.lang.annotation.Target;
  * public record PathEntry(
  *     @Id Path entry,
  *     @OneToMany(mappedBy = Path.class) List<Path> directories,
- *     FileAttributes attributes
+ *     FileAttributes attributes,
+ *     @OneToOne @ExternalRepository(adapter = "users") User associatedUser
  * ) {}
  * }</pre>
  * 

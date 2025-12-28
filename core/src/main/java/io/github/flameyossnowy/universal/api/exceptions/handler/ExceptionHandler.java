@@ -7,6 +7,14 @@ import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 
 import java.util.List;
 
+/**
+ * An exception handler for handling custom exceptions.
+ * @param <T> The element
+ * @param <ID> the ID
+ * @param <C> The connection
+ * @author flameyosflow
+ * @version 3.0.0
+ */
 public interface ExceptionHandler<T, ID, C> {
     /**
      * Called when an exception is thrown in a read operation.

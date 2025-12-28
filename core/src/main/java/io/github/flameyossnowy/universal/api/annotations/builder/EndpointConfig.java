@@ -4,6 +4,17 @@ import io.github.flameyossnowy.universal.api.annotations.enums.HttpMethod;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Configuration for endpoints.
+ * @param findAll API link for all elements.
+ * @param findById API link for an element with an ID.
+ * @param create API link to create/insert an element.
+ * @param update API link to update an element.
+ * @param delete API link to delete an element
+ * @param updateMethod PUT or PATCH.
+ * @author flameyosflow
+ * @version 6.0.0
+ */
 public record EndpointConfig(String findAll, String findById, String create, String update, String delete,
                              HttpMethod updateMethod) {
     public EndpointConfig(

@@ -2,6 +2,14 @@ package io.github.flameyossnowy.universal.api.connection;
 
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 
+/**
+ * TransactionContext is used to manage a transaction for a connection.
+ * <p>
+ * It is best suited for repositories that use a connection to perform operations that can be batched and can be used to perform a commit or rollback.
+ * @param <C> The type of connection being managed by this transaction context.
+ * @author flameyosflow
+ * @version 3.0.0
+ */
 public interface TransactionContext<C> extends AutoCloseable {
     /**
      * Get the connection being managed by this transaction context.
