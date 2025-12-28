@@ -40,7 +40,7 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
     }
 
     @Override
-    public Object handleManyToOneRelationship(ID primaryKeyValue, @NotNull FieldData<?> field) {
+    public @Nullable Object handleManyToOneRelationship(ID primaryKeyValue, @NotNull FieldData<?> field) {
         RepositoryInformation parentInfo = Objects.requireNonNull(getMetadata(field.type()), "Unknown repository for type " + field.type());
         String cacheKey = buildCacheKey(field, primaryKeyValue);
         Object cached = relationshipCache.get(cacheKey);
@@ -50,8 +50,11 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
         if (adapter == null)
             throw new IllegalStateException("Missing adapter for " + parentInfo.getType());
 
+        FieldData<?> primaryKey = parentInfo.getPrimaryKey();
+        if (primaryKey == null) throw new IllegalStateException("Missing primary key for " + parentInfo.getType());
+
         SelectQuery query = Query.select()
-                .where(parentInfo.getPrimaryKey().name(), primaryKeyValue)
+                .where(primaryKey.name(), primaryKeyValue)
                 .limit(1)
                 .build();
 
@@ -150,6 +153,9 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
     protected static String getRelationName(@NotNull RepositoryInformation info, @NotNull Class<?> parentType) {
         // Use cache key composed of repo + parent type to avoid collisions
         String cacheKey = info.getRepositoryName() + "#" + parentType.getName();
+        FieldData<?> primaryKey = info.getPrimaryKey();
+        if (primaryKey == null) throw new IllegalStateException("Missing primary key for " + info.getType());
+
         return nameCache.computeIfAbsent(cacheKey, k -> {
             for (FieldData<?> field : info.getFields()) {
                 if (field.type() == parentType)
@@ -157,7 +163,7 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
             }
             // If not found, fall back to primary key (safeguard) — caller should probably fail earlier
             Logging.deepInfo("Relation name for parent type " + parentType.getName() + " not found in " + info.getRepositoryName());
-            return info.getPrimaryKey().name();
+            return primaryKey.name();
         });
     }
 
