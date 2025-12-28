@@ -186,8 +186,12 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 annotation.cacheTtl(),
                 headers,
                 endpointConfig,
-                NetworkRepositoryBuilder.createDefaultObjectMapper()
+                NetworkRepositoryAdapterBuilder.createDefaultObjectMapper()
         );
+    }
+
+    public static <T, ID> NetworkRepositoryAdapterBuilder<T, ID> builder(@NotNull Class<T> entityType, @NotNull Class<ID> idType) {
+        return new NetworkRepositoryAdapterBuilder<>(entityType, idType);
     }
 
     @Override
