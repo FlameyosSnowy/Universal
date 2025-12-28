@@ -8,6 +8,7 @@ import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
+import io.github.flameyossnowy.universal.api.resolver.SqlEncoding;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
@@ -54,14 +55,7 @@ public class QueryParseEngine {
 
     public String parseIndex(final @NotNull IndexOptions index) {
         String type = index.type() == IndexType.NORMAL ? "" : index.type().name() + " ";
-        return String.format("CREATE %sINDEX %s%s%s ON %s%s%s (%s);", type,
-            sqlType.quoteChar(),
-            index.indexName(),
-            sqlType.quoteChar(),
-            sqlType.quoteChar(),
-            repositoryInformation.getRepositoryName(),
-            sqlType.quoteChar(),
-            index.getJoinedFields());
+        return "CREATE " + type + "INDEX " + sqlType.quoteChar() + index.indexName() + sqlType.quoteChar() + " ON " + sqlType.quoteChar() + repositoryInformation.getRepositoryName() + sqlType.quoteChar() + " (" + index.getJoinedFields() + ");";
     }
 
     public @NotNull String parseSelect(SelectQuery query, boolean first, boolean ids) {
@@ -100,7 +94,7 @@ public class QueryParseEngine {
         return sql.toString();
     }
 
-    private @NotNull String parseQueryIds(SelectQuery query, boolean first) {
+    public @NotNull String parseQueryIds(SelectQuery query, boolean first) {
         String tableName = repositoryInformation.getRepositoryName();
 
         FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
@@ -162,6 +156,10 @@ public class QueryParseEngine {
         if (value.getClass() != repositoryInformation.getType())
             throw new IllegalArgumentException("Value must be of type " + repositoryInformation.getType());
 
+        if (repositoryInformation.getPrimaryKey() == null) {
+            throw new IllegalArgumentException("Primary key must not be null");
+        }
+
         String key = "DELETE:ENTITY:" + repositoryInformation.getType().getName();
         return queryMap.computeIfAbsent(key, k -> {
             if (repositoryInformation.hasCompositeKey()) {
@@ -212,12 +210,17 @@ public class QueryParseEngine {
             String setClause = generateSetClause(query);
 
             return query.filters().isEmpty()
-                    ? String.format("UPDATE %s%s%s SET %s;", sqlType.quoteChar(), tableName, sqlType.quoteChar(), setClause)
-                    : String.format("UPDATE %s%s%s SET %s WHERE %s;", sqlType.quoteChar(), tableName, sqlType.quoteChar(), setClause, buildConditions(query.filters()));
+                    ? "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + ";"
+                    : "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + buildConditions(query.filters()) + ";";
         });
     }
 
     public @NotNull String parseUpdateFromEntity() {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key must not be null");
+        }
+
         String key = "UPDATE:ENTITY:" + repositoryInformation.getType().getName();
         return queryMap.computeIfAbsent(key, k -> {
             String tableName = repositoryInformation.getRepositoryName();
@@ -229,10 +232,10 @@ public class QueryParseEngine {
                 for (FieldData<?> keyField : repositoryInformation.getPrimaryKeys()) {
                     whereClause.add(keyField.name() + " = ?");
                 }
-                return String.format("UPDATE %s%s%s SET %s WHERE %s;", sqlType.quoteChar(), tableName, sqlType.quoteChar(), setClause, whereClause);
+                return "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + whereClause + ";";
             } else {
                 // For single primary key
-                return String.format("UPDATE %s%s%s SET %s WHERE %s = ?;", sqlType.quoteChar(), tableName, sqlType.quoteChar(), setClause, repositoryInformation.getPrimaryKey().name());
+                return "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + primaryKey.name() + " = ?;";
             }
         });
     }
@@ -348,7 +351,7 @@ public class QueryParseEngine {
             // get the generic type
             Class<?> genericType = (Class<?>) ((ParameterizedType) type.getGenericSuperclass()).getActualTypeArguments()[0];
 
-            String resolvedType = resolverRegistry.getType(genericType.arrayType());
+            String resolvedType = resolverRegistry.getType(genericType.arrayType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
@@ -357,12 +360,12 @@ public class QueryParseEngine {
         if (type.isArray()) {
             if (!sqlType.supportsArrays()) return; // not ignored, just handled differently and somewhere else, likely in DatabaseRelationshipHandler
 
-            String resolvedType = resolverRegistry.getType(type.getComponentType()) + "[]";
+            String resolvedType = resolverRegistry.getType(type.getComponentType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
 
-        String resolvedType = resolverRegistry.getType(type);
+        String resolvedType = resolverRegistry.getType(type, data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
         if (resolvedType == null) {
             TypeResolver<?> resolver = createResolver(data);
             resolvedType = resolverRegistry.getType(resolver);
@@ -371,7 +374,13 @@ public class QueryParseEngine {
         RepositoryInformation metadata;
         if (resolvedType == null && (metadata = RepositoryMetadata.getMetadata(type)) != null) {
             // not created properly, last resort
-            resolvedType = resolverRegistry.getType(metadata.getPrimaryKey().type());
+
+            FieldData<?> metadataPrimaryKey = metadata.getPrimaryKey();
+            if (metadataPrimaryKey == null) {
+                throw new IllegalArgumentException("Primary key must not be null");
+            }
+
+            resolvedType = resolverRegistry.getType(metadataPrimaryKey.type(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
         }
 
         Objects.requireNonNull(resolvedType, "Unsupported type: " + type);
@@ -427,9 +436,14 @@ public class QueryParseEngine {
         RepositoryInformation parent = RepositoryMetadata.getMetadata(data.type());
         Objects.requireNonNull(parent, "Parent should not be null");
 
+        FieldData<?> primaryKey = parent.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Parent should have a primary key");
+        }
+
         String table = parent.getRepositoryName();
 
-        String primaryKeyName = parent.getPrimaryKey().name();
+        String primaryKeyName = primaryKey.name();
         String onDelete = data.onDelete() != null ? data.onDelete().value().name() : "";
         String onUpdate = data.onUpdate() != null ? data.onUpdate().value().name() : "";
 
