@@ -15,9 +15,7 @@ It provides a unified API to handle database interactions efficiently, making it
     - **N + 1 Queries**: aggressive relationship cache to attempt solving N+1 query problem for relationships and reduce it to the minimum
     - **Query parsing**: We cache query building to ensure you never build something more than one time
     - **Connection pooling support**: Allowing connection pools is a primary goal for Universal to thrive on high concurrency.
-    - **Reflection caching**: Despite Universal being heavily reflection-based, it takes extreme measures to ensure that reflection is not a big overhead by:
-          - **Caching metadata**: Universal aggressively caches all reflection metadata and annotation data.
-          - **ASM-based**: Universal takes advantage of an [ASM](https://github.com/daniellansun/fast-reflection) library to minimize reflection overhead and allow JIT optimizations.
+    - **Reflection caching**: Despite Universal being heavily reflection-based, it takes extreme measures to ensure that reflection is not a big overhead by caching metadata and being [ASM](https://github.com/daniellansun/fast-reflection)-based.
     - **Batched relationships**: Universal tries to batch all relationship data, to use as little queries and achieve the highest throughput.
     - **Caching support**: Lots of caching, from Session caches, to Result caches, to Global caches, all being evicted and controlled.
 
