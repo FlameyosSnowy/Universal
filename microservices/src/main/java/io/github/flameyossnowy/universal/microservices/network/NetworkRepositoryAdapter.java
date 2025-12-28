@@ -48,7 +48,7 @@ import java.util.function.Supplier;
 /**
  * Network-based repository adapter for microservices communication.
  * <p>
- * Supports REST, gRPC, GraphQL, and other network protocols.
+ * Supports REST only for now.
  *
  * @param <T> The entity type
  * @param <ID> The ID type
