@@ -1,15 +1,25 @@
-# Universal ORM/ODM
+# Universal Relational Distributed Object Runtime
 
-Universal is a powerful and fully featured Object-Relational Mapper (ORM) and Object-Document Mapper (ODM) designed to work seamlessly with both SQL and NoSQL databases. It provides a unified API to handle database interactions efficiently, making it easier to manage data persistence across different database types.
+Universal is a powerful and fully featured Relational Distributed Object Runtime designed to work seamlessly with both SQL and NoSQL databases, and even File/Network repository adapters.
+It provides a unified API to handle database interactions efficiently, making it easier to manage data persistence across different database types.
 
 ## Features
-
 - **Cross-Database Compatibility**: Supports both relational (SQL) and document-based (NoSQL) databases.
 - **Cross-Platform Repository Linking**: Link entities across different database adapters (e.g., MySQL ↔ MongoDB ↔ File ↔ Network).
 - **Type Resolution System**: Handles type conversions seamlessly between Java objects and database representations.
 - **Caching and Lazy loading**: Allows for automatic lazy loading and automatic caching.
 - **Annotation-Based Configuration**: Define repositories, constraints, and conditions using a SQL-like syntax for both MongoDB and SQL.
 - **Efficient Query Handling**: Uses built-in MongoDB methods and SQL functions without unnecessary query parsing.
+- **Fully thread-safe**: Use Universal however you want, whenever you want, from any thread, and Universal will ensure it is fully safe.
+- **High performance**: We take high performance measures to ensure:
+    - **N + 1 Queries**: aggressive relationship cache to attempt solving N+1 query problem for relationships and reduce it to the minimum
+    - **Query parsing**: We cache query building to ensure you never build something more than one time
+    - **Connection pooling support**: Allowing connection pools is a primary goal for Universal to thrive on high concurrency.
+    - **Reflection caching**: Despite Universal being heavily reflection-based, it takes extreme measures to ensure that reflection is not a big overhead by:
+          - **Caching metadata**: Universal aggressively caches all reflection metadata and annotation data.
+          - **ASM-based**: Universal takes advantage of an [ASM](https://github.com/daniellansun/fast-reflection) library to minimize reflection overhead and allow JIT optimizations.
+    - **Batched relationships**: Universal tries to batch all relationship data, to use as little queries and achieve the highest throughput.
+    - **Caching support**: Lots of caching, from Session caches, to Result caches, to Global caches, all being evicted and controlled.
 
 ## Supported Types
 ```java
