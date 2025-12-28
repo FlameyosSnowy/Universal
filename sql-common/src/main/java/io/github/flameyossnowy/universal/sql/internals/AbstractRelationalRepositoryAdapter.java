@@ -138,7 +138,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
         String idColumn = primaryKey.name();
 
-        TypeResolver<ID> resolver = resolverRegistry.getResolver(idClass);
+        TypeResolver<ID> resolver = resolverRegistry.resolve(idClass);
 
         List<ID> list = new ArrayList<>(rs.getMetaData().getColumnCount());
 
@@ -440,7 +440,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public @NotNull List<ID> findIds(@NotNull SelectQuery query) {
-        String sql = engine.parseSelect(query, query.limit() == 1, true);
+        String sql = engine.parseQueryIds(query, query.limit() == 1);
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
@@ -460,11 +460,11 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
             // Handle IN clause with list of values
             if ("IN".equalsIgnoreCase(value.operator()) && value.value() instanceof Collection<?> list) {
                 for (Object item : list) {
-                    TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(item.getClass());
+                    TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(item.getClass());
                     resolver.insert(parameters, value.option(), item);
                 }
             } else {
-                TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(value.value().getClass());
+                TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(value.value().getClass());
                 resolver.insert(parameters, value.option(), value.value());
             }
         }
@@ -675,7 +675,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     }
 
     private @NotNull TransactionResult<Boolean> processDelete(ID id, SQLDatabaseParameters parameters, PreparedStatement statement, T entity) throws SQLException {
-        TypeResolver<ID> resolver = resolverRegistry.getResolver(idClass);
+        TypeResolver<ID> resolver = resolverRegistry.resolve(idClass);
 
         // Primary key is always not null
         //noinspection DataFlowIssue
@@ -721,7 +721,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
                 ResultSet generatedKeys = statement.getGeneratedKeys();
                 SQLDatabaseResult result = new SQLDatabaseResult(generatedKeys, resolverRegistry);
                 if (generatedKeys.next()) {
-                    TypeResolver<ID> resolver = resolverRegistry.getResolver(idClass);
+                    TypeResolver<ID> resolver = resolverRegistry.resolve(idClass);
                     ID generatedId = resolver.resolve(result, repositoryInformation.getPrimaryKey().name());
 
                     repositoryInformation.getPrimaryKey().setValue(value, generatedId);
@@ -803,21 +803,21 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     private void setUpdateParameters(@NotNull UpdateQuery query, SQLDatabaseParameters parameters) {
         for (var value : query.updates().entrySet()) {
-            TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(value.getValue().getClass());
+            TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(value.getValue().getClass());
             resolver.insert(parameters, value.getKey(), value.getValue());
         }
 
         List<SelectOption> conditions = query.filters();
         if (conditions.isEmpty()) return;
         for (SelectOption value : conditions) {
-            TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(value.value().getClass());
+            TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(value.value().getClass());
             resolver.insert(parameters, value.option(), value.value());
         }
     }
 
     private void setUpdateParameters(@NotNull DeleteQuery query, SQLDatabaseParameters parameters) {
         for (SelectOption value : query.filters()) {
-            TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.getResolver(value.value().getClass());
+            TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(value.value().getClass());
             resolver.insert(parameters, value.option(), value.value());
         }
     }
