@@ -27,6 +27,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -88,7 +89,7 @@ public class TypeResolverRegistry {
                     SqlTypeMapping.of("VARCHAR(36)", "BINARY(16)")),
 
                 Map.entry(InetAddress.class,
-                    SqlTypeMapping.of("VARCHAR(255)", "BINARY(16)")),
+                    SqlTypeMapping.of("TEXT", "BINARY(16)")),
 
                 Map.entry(Boolean.class, SqlTypeMapping.of("BOOLEAN")),
                 Map.entry(boolean.class, SqlTypeMapping.of("BOOLEAN")),
@@ -102,26 +103,27 @@ public class TypeResolverRegistry {
                 Map.entry(BigDecimal.class, SqlTypeMapping.of("DECIMAL")),
                 Map.entry(BigInteger.class, SqlTypeMapping.of("NUMERIC")),
 
+                Map.entry(Instant.class, SqlTypeMapping.of("TEXT", "BIGINT")),
                 Map.entry(LocalDate.class, SqlTypeMapping.of("DATE")),
                 Map.entry(LocalTime.class, SqlTypeMapping.of("TIME")),
                 Map.entry(LocalDateTime.class, SqlTypeMapping.of("TIMESTAMP")),
 
                 Map.entry(OffsetDateTime.class,
-                    SqlTypeMapping.of("VARCHAR(64)")),
+                    SqlTypeMapping.of("TEXT")),
 
                 Map.entry(ZonedDateTime.class,
-                    SqlTypeMapping.of("VARCHAR(64)")),
+                    SqlTypeMapping.of("TEXT")),
 
                 Map.entry(Duration.class, SqlTypeMapping.of("BIGINT")),
-                Map.entry(Period.class, SqlTypeMapping.of("VARCHAR(32)")),
+                Map.entry(Period.class, SqlTypeMapping.of("TEXT")),
 
-                Map.entry(URI.class, SqlTypeMapping.of("VARCHAR(255)")),
-                Map.entry(URL.class, SqlTypeMapping.of("VARCHAR(255)")),
-                Map.entry(Pattern.class, SqlTypeMapping.of("VARCHAR(255)")),
+                Map.entry(URI.class, SqlTypeMapping.of("TEXT")),
+                Map.entry(URL.class, SqlTypeMapping.of("TEXT")),
+                Map.entry(Pattern.class, SqlTypeMapping.of("TEXT")),
 
-                Map.entry(Class.class, SqlTypeMapping.of("VARCHAR(255)")),
-                Map.entry(Locale.class, SqlTypeMapping.of("VARCHAR(255)")),
-                Map.entry(Currency.class, SqlTypeMapping.of("VARCHAR(255)"))
+                Map.entry(Class.class, SqlTypeMapping.of("TEXT")),
+                Map.entry(Locale.class, SqlTypeMapping.of("TEXT")),
+                Map.entry(Currency.class, SqlTypeMapping.of("TEXT"))
             )
         );
 
@@ -354,6 +356,8 @@ public class TypeResolverRegistry {
         registerInternal(new LocalDateTimeTypeResolver());
         registerInternal(new ZonedDateTimeTypeResolver());
         registerInternal(new OffsetDateTimeTypeResolver());
+        registerInternal(new InstantTypeResolver());
+        registerInternal(new EpochInstantTypeResolver());
     }
 
     private void registerUrlType() {
@@ -768,6 +772,38 @@ public class TypeResolverRegistry {
         @Override
         public void insert(DatabaseParameters parameters, String index, OffsetDateTime value) {
             parameters.set(index, value != null ? value.toString() : null, String.class);
+        }
+    }
+
+    public static final class InstantTypeResolver implements TypeResolver<Instant> {
+        @Override public Class<Instant> getType() { return Instant.class; }
+        @Override public Class<String> getDatabaseType() { return String.class; }
+
+        @Override
+        public @Nullable Instant resolve(DatabaseResult result, String columnName) {
+            String value = result.get(columnName, String.class);
+            return value != null ? Instant.parse(value) : null;
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, Instant value) {
+            parameters.set(index, value != null ? value.toString() : null, String.class);
+        }
+    }
+
+    public static final class EpochInstantTypeResolver implements TypeResolver<Instant> {
+        @Override public Class<Instant> getType() { return Instant.class; }
+        @Override public Class<Long> getDatabaseType() { return Long.class; }
+
+        @Override
+        public @Nullable Instant resolve(DatabaseResult result, String columnName) {
+            Long value = result.get(columnName, Long.class);
+            return value != null ? Instant.ofEpochMilli(value) : null;
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, Instant value) {
+            parameters.set(index, value != null ? value.toEpochMilli() : null, Long.class);
         }
     }
 
