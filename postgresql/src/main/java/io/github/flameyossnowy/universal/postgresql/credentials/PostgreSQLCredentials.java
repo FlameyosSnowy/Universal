@@ -12,7 +12,6 @@ public final class PostgreSQLCredentials {
     private final String username;
     private final String password;
     private boolean ssl = false;
-    private String driver = "com.mysql.cj.jdbc.Driver";
     private int poolSize = 4;
     private int minimumIdle = 2;
     private long idleTimeout = 30000;
@@ -52,11 +51,6 @@ public final class PostgreSQLCredentials {
         return this;
     }
 
-    public PostgreSQLCredentials setDriver(String driver) {
-        this.driver = driver;
-        return this;
-    }
-
     public PostgreSQLCredentials setDataSourceConsumer(Consumer<PGSimpleDataSource> consumer) {
         this.dataSourceConsumer = consumer;
         return this;
@@ -84,10 +78,6 @@ public final class PostgreSQLCredentials {
 
     public boolean isSsl() {
         return ssl;
-    }
-
-    public String getDriver() {
-        return driver;
     }
 
     public int getPoolSize() {
