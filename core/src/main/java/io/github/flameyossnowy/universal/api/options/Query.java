@@ -37,7 +37,7 @@ public sealed interface Query permits DeleteQuery, SelectQuery, UpdateQuery {
      * <p>
      * This method is marked as obsolete as better apis exist
      * <p>
-     * <b>Use {@link io.github.flameyossnowy.universal.api.RepositoryAdapter#updateAll(Object)} (Object)} instead</b>
+     * <b>Use {@link io.github.flameyossnowy.universal.api.RepositoryAdapter#updateAll(Object)} (Object) instead</b>
      *
      * @return a new update query builder
      */

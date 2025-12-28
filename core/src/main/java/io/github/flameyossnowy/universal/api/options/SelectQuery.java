@@ -30,11 +30,21 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
             return this;
         }
 
+        /**
+         * Adds conditions based on all fields of SelectOption
+         * @param option the option
+         * @return the updated SelectQueryBuilder instance
+         */
         public SelectQueryBuilder where(SelectOption option) {
             filters.add(option);
             return this;
         }
 
+        /**
+         * Adds conditions based on all fields of List<SelectOption>
+         * @param options the options
+         * @return the updated SelectQueryBuilder instance
+         */
         public SelectQueryBuilder where(List<SelectOption> options) {
             filters.addAll(options);
             return this;

@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.api.options;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,8 +17,41 @@ public record UpdateQuery(Map<String, Object> updates, List<SelectOption> filter
             return this;
         }
 
+        /**
+         * Adds a condition to the query based on the specified key, operator, and value.
+         *
+         * @param field the field to apply the condition on
+         * @param operator the comparison operator (e.g., '=', '<', '>', etc.)
+         * @param value the value to compare the field against
+         * @return the updated SelectQueryBuilder instance
+         */
         public UpdateQueryBuilder where(String field, String operator, Object value) {
             conditions.add(new SelectOption(field, operator, value));
+            return this;
+        }
+
+        /**
+         * Adds a condition to the query based on the specified key and value.
+         *
+         * @param field the field to apply the condition on
+         * @param value the value to compare the field against
+         * @return the updated SelectQueryBuilder instance
+         */
+        public UpdateQueryBuilder where(String field, Object value) {
+            conditions.add(new SelectOption(field, "=", value));
+            return this;
+        }
+
+        /**
+         * Adds a condition to the query based on the specified key and list of values, using the
+         * {@code IN} operator.
+         *
+         * @param key the field to apply the condition on
+         * @param values the list of values to compare the field against
+         * @return the updated SelectQueryBuilder instance
+         */
+        public UpdateQueryBuilder whereIn(String key, Collection<?> values) {
+            conditions.add(new SelectOption(key, "IN", values));
             return this;
         }
 
