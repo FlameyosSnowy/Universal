@@ -107,6 +107,7 @@ public class OneToOneLazyProxy {
     public static class LazyLoadInterceptor {
         private final Supplier<Object> loader;
         private volatile Object target;
+        private final Object lock = new Object();
         private volatile boolean loaded = false;
 
         public LazyLoadInterceptor(Supplier<Object> loader) {
@@ -114,10 +115,10 @@ public class OneToOneLazyProxy {
         }
 
         @RuntimeType
-        public Object intercept(@Origin Method method) throws Throwable {
+        public @Nullable Object intercept(@Origin Method method) throws Throwable {
             // Double-checked locking for thread safety
             if (!loaded) {
-                synchronized (this) {
+                synchronized (lock) {
                     if (!loaded) {
                         target = loader.get();
                         loaded = true;
