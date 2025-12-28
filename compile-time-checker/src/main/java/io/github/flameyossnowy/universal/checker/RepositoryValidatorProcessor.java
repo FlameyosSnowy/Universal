@@ -145,9 +145,9 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
         for (Element enclosed : classElement.getEnclosedElements()) {
             getAnnotations(enclosed, Index.class.getCanonicalName()).forEach(am ->
-                validateColumns("Index", getStringArrayValue(am, "fields"), fieldNames, enclosed, classElement));
+                validateColumns("Index", getStringArrayValue(am), fieldNames, enclosed, classElement));
             getAnnotations(enclosed, Constraint.class.getCanonicalName()).forEach(am ->
-                validateColumns("Constraint", getStringArrayValue(am, "fields"), fieldNames, enclosed, classElement));
+                validateColumns("Constraint", getStringArrayValue(am), fieldNames, enclosed, classElement));
         }
     }
 
@@ -219,19 +219,23 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             .anyMatch(am -> ((TypeElement) am.getAnnotationType().asElement()).getQualifiedName().contentEquals(annotationCanonicalName));
     }
 
-    private List<AnnotationMirror> getAnnotations(Element element, String annotationCanonicalName) {
+    private List<? extends AnnotationMirror> getAnnotations(Element element, String annotationCanonicalName) {
         return element.getAnnotationMirrors().stream()
             .filter(am -> ((TypeElement) am.getAnnotationType().asElement()).getQualifiedName().contentEquals(annotationCanonicalName))
             .toList();
     }
 
-    private List<String> getStringArrayValue(AnnotationMirror am, String key) {
-        return am.getElementValues().entrySet().stream()
-            .filter(e -> e.getKey().getSimpleName().contentEquals(key))
+    private static List<String> getStringArrayValue(AnnotationMirror am) {
+        return am.getElementValues()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getKey().getSimpleName().contentEquals("fields"))
             .map(e -> {
                 @SuppressWarnings("unchecked")
                 List<? extends AnnotationValue> list = (List<? extends AnnotationValue>) e.getValue().getValue();
                 return list.stream().map(av -> av.getValue().toString()).toList();
-            }).flatMap(List::stream).toList();
+            })
+            .flatMap(List::stream)
+            .toList();
     }
 }
