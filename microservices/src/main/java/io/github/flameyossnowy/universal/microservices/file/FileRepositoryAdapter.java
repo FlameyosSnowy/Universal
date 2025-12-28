@@ -41,14 +41,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.Comparator;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
  * File-based repository adapter that stores entities in files.
  * <p>
- * Supports various file formats (JSON, CSV, etc.) and compression options.
+ * Supports various file formats JSON only and compression options.
  *
  * @param <T> The entity type
  * @param <ID> The ID type
@@ -137,6 +136,10 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         } catch (IOException e) {
             throw new RuntimeException("Failed to create base directory: " + basePath, e);
         }
+    }
+
+    public static <T, ID> FileRepositoryBuilder<T, ID> builder(@NotNull Class<T> entityType, @NotNull Class<ID> idType) {
+        return new FileRepositoryBuilder<>(entityType, idType);
     }
 
     public static <T, ID> FileRepositoryAdapter<T, ID> from(
@@ -917,7 +920,6 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         if (entities.isEmpty() || indexes.isEmpty()) return;
 
         for (SecondaryIndex<ID> index : indexes.values()) {
-
             var field = repositoryInformation.getField(index.field());
 
             // value -> IDs to remove
