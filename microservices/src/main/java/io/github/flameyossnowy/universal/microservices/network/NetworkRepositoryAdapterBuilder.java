@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  * @param <T> The entity type
  * @param <ID> The ID type
  */
-public class NetworkRepositoryBuilder<T, ID> {
+public class NetworkRepositoryAdapterBuilder<T, ID> {
     private final Class<T> entityType;
     private final Class<ID> idType;
     private String baseUrl;
@@ -47,7 +47,7 @@ public class NetworkRepositoryBuilder<T, ID> {
     /**
      * Creates a new builder for the given entity and ID types.
      */
-    public NetworkRepositoryBuilder(@NotNull Class<T> entityType, @NotNull Class<ID> idType) {
+    public NetworkRepositoryAdapterBuilder(@NotNull Class<T> entityType, @NotNull Class<ID> idType) {
         this.entityType = entityType;
         this.idType = idType;
     }
@@ -55,11 +55,11 @@ public class NetworkRepositoryBuilder<T, ID> {
     /**
      * Creates a new builder from a class annotated with {@code @NetworkRepository}.
      */
-    public static <T, ID> NetworkRepositoryBuilder<T, ID> from(@NotNull Class<T> entityType, @NotNull Class<ID> idType) {
+    public static <T, ID> NetworkRepositoryAdapterBuilder<T, ID> from(@NotNull Class<T> entityType, @NotNull Class<ID> idType) {
         NetworkRepository annotation = entityType.getAnnotation(NetworkRepository.class);
         RemoteEndpoint endpoint = entityType.getAnnotation(RemoteEndpoint.class);
         
-        NetworkRepositoryBuilder<T, ID> builder = new NetworkRepositoryBuilder<>(entityType, idType)
+        NetworkRepositoryAdapterBuilder<T, ID> builder = new NetworkRepositoryAdapterBuilder<>(entityType, idType)
                 .baseUrl(annotation.baseUrl())
                 .protocol(annotation.protocol())
                 .authType(annotation.authType())
@@ -91,62 +91,62 @@ public class NetworkRepositoryBuilder<T, ID> {
         return builder;
     }
 
-    public NetworkRepositoryBuilder<T, ID> baseUrl(String baseUrl) {
+    public NetworkRepositoryAdapterBuilder<T, ID> baseUrl(String baseUrl) {
         this.baseUrl = baseUrl;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> protocol(NetworkProtocol protocol) {
+    public NetworkRepositoryAdapterBuilder<T, ID> protocol(NetworkProtocol protocol) {
         this.protocol = protocol;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> authType(AuthType authType) {
+    public NetworkRepositoryAdapterBuilder<T, ID> authType(AuthType authType) {
         this.authType = authType;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> credentialsProvider(Supplier<String> credentialsProvider) {
+    public NetworkRepositoryAdapterBuilder<T, ID> credentialsProvider(Supplier<String> credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> connectTimeout(int connectTimeout) {
+    public NetworkRepositoryAdapterBuilder<T, ID> connectTimeout(int connectTimeout) {
         this.connectTimeout = connectTimeout;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> readTimeout(int readTimeout) {
+    public NetworkRepositoryAdapterBuilder<T, ID> readTimeout(int readTimeout) {
         this.readTimeout = readTimeout;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> maxRetries(int maxRetries) {
+    public NetworkRepositoryAdapterBuilder<T, ID> maxRetries(int maxRetries) {
         this.maxRetries = maxRetries;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> cacheEnabled(boolean cacheEnabled) {
+    public NetworkRepositoryAdapterBuilder<T, ID> cacheEnabled(boolean cacheEnabled) {
         this.cacheEnabled = cacheEnabled;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> cacheTtl(int cacheTtl) {
+    public NetworkRepositoryAdapterBuilder<T, ID> cacheTtl(int cacheTtl) {
         this.cacheTtl = cacheTtl;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> addHeader(String name, String value) {
+    public NetworkRepositoryAdapterBuilder<T, ID> addHeader(String name, String value) {
         this.customHeaders.put(name, value);
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> endpointConfig(EndpointConfig endpointConfig) {
+    public NetworkRepositoryAdapterBuilder<T, ID> endpointConfig(EndpointConfig endpointConfig) {
         this.endpointConfig = endpointConfig;
         return this;
     }
 
-    public NetworkRepositoryBuilder<T, ID> objectMapper(ObjectMapper objectMapper) {
+    public NetworkRepositoryAdapterBuilder<T, ID> objectMapper(ObjectMapper objectMapper) {
         this.customObjectMapper = objectMapper;
         return this;
     }
