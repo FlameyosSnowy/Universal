@@ -7,16 +7,13 @@ import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import org.jetbrains.annotations.NotNull;
-import org.postgresql.ds.common.BaseDataSource;
 import org.postgresql.jdbc.PreferQueryMode;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.EnumSet;
-import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings("unused")
 public class PostgreSQLSimpleConnectionProvider implements SQLConnectionProvider {
