@@ -1,0 +1,17 @@
+plugins {
+    id "java"
+    id "java-library"
+    id "maven-publish"
+    id("com.gradleup.shadow") version "9.0.0-beta12"
+}
+
+group = "io.github.flameyossnowy.universal"
+version = '6.0.1'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly project(":core")
+}
