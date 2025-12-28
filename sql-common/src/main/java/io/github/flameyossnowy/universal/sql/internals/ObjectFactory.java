@@ -1,7 +1,6 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
 import io.github.flameyossnowy.universal.api.RelationalObjectFactory;
-import io.github.flameyossnowy.universal.api.cache.LazyArrayList;
 import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.reflect.*;
@@ -10,7 +9,6 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
-import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.resolvers.*;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.ApiStatus;
@@ -19,7 +17,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
-import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.*;
 
@@ -179,6 +176,7 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
 
         for (FieldData<?> field : repoInfo.getFields()) {
             if (field.primary()) {
+                Objects.requireNonNull(repoInfo.getPrimaryKey(), "If you get this error please contact the owner of Universal.");
                 if (repoInfo.getPrimaryKey().equals(field)) {
                     field.setValue(instance, primaryId);
                     continue;
@@ -188,7 +186,6 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
                 field.setValue(instance, handleOneToManyField(field, primaryId));
             } else if (field.oneToOne() != null && hasPrimaryKey) {
                 Object related = relationshipHandler.handleOneToOneRelationship(primaryId, field);
-                RepositoryInformation metadata = Objects.requireNonNull(RepositoryMetadata.getMetadata(field.type()));
                 field.setValue(instance, related);
                 if (related != null) {
                     RepositoryInformation relatedInfo = Objects.requireNonNull(RepositoryMetadata.getMetadata(field.type()));
@@ -243,6 +240,10 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
                 RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
                 if (relatedInfo != null) {
                     FieldData<?> pkField = relatedInfo.getPrimaryKey();
+                    if (pkField == null) {
+                        throw new IllegalArgumentException("Primary key must not be null");
+                    }
+
                     TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.resolve(pkField.type());
                     Objects.requireNonNull(resolver);
 
@@ -277,6 +278,9 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
             RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
             if (relatedInfo != null) {
                 FieldData<?> pkField = relatedInfo.getPrimaryKey();
+                if (pkField == null) {
+                    throw new IllegalArgumentException("Primary key must not be null");
+                }
                 return (TypeResolver<Object>) typeResolverRegistry.resolve(pkField.type());
             }
         }
@@ -355,7 +359,11 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
 
     protected ID resolvePrimaryKey(ResultSet rs) {
         FieldData<?> pkField = repoInfo.getPrimaryKey();
-        TypeResolver<ID> resolver = (TypeResolver<ID>) typeResolverRegistry.getResolver(pkField.type());
+        if (pkField == null) {
+            throw new IllegalArgumentException("Primary key must not be null");
+        }
+
+        TypeResolver<ID> resolver = (TypeResolver<ID>) typeResolverRegistry.resolve(pkField.type());
         SQLDatabaseResult result = new SQLDatabaseResult(rs, typeResolverRegistry);
         return resolver.resolve(result, pkField.name());
     }
@@ -370,12 +378,16 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
 
         if (relatedInfo != null) {
             FieldData<?> pkField = relatedInfo.getPrimaryKey();
-            TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.getResolver(pkField.type());
+            if (pkField == null) {
+                throw new IllegalArgumentException("Primary key must not be null");
+            }
+
+            TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.resolve(pkField.type());
             SQLDatabaseResult result = new SQLDatabaseResult(rs, typeResolverRegistry);
             return resolver.resolve(result, field.name());
         }
 
-        TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.getResolver(field.type());
+        TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.resolve(field.type());
         SQLDatabaseResult result = new SQLDatabaseResult(rs, typeResolverRegistry);
         return resolver.resolve(result, field.name());
     }
@@ -386,12 +398,16 @@ public class ObjectFactory<T, ID> implements RelationalObjectFactory<T, ID> {
 
         if (relatedInfo != null) {
             FieldData<?> pkField = relatedInfo.getPrimaryKey();
+            if (pkField == null) {
+                throw new IllegalArgumentException("Primary key must not be null");
+            }
+
             var resolver = (TypeResolver<Object>) typeResolverRegistry.resolve(pkField.type());
 
             return new MySQLValueTypeResolver(pkField, resolver);
         }
 
-        return (TypeResolver<Object>) typeResolverRegistry.getResolver(field.type());
+        return (TypeResolver<Object>) typeResolverRegistry.resolve(field.type());
     }
 
     private record MySQLValueTypeResolver(FieldData<?> pkField, TypeResolver<Object> resolver) implements TypeResolver<Object> {
