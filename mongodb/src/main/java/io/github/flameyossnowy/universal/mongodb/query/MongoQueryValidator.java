@@ -38,7 +38,7 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
     @Override
     public ValidationEstimation validateSelectQuery(SelectQuery query) {
         // Validate limit
-        if (query.limit() > 0 && query.limit() < 1) {
+        if (query.limit() < 0) {
             return ValidationEstimation.fail("Limit must be greater than 0");
         }
 
@@ -138,7 +138,7 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
         return ValidationEstimation.PASS;
     }
 
-    private @Nullable ValidationEstimation getValidationEstimation(SelectOption filter, FieldData<?> field) {
+    private static @Nullable ValidationEstimation getValidationEstimation(SelectOption filter, FieldData<?> field) {
         if (field == null) {
             return ValidationEstimation.fail("Filter field '" + filter.option() + "' does not exist in schema");
         }
@@ -293,7 +293,7 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
     /**
      * Validates if the operator is supported in MongoDB.
      */
-    private boolean isInvalidMongoOperator(String operator) {
+    private static boolean isInvalidMongoOperator(String operator) {
         return switch (operator.toUpperCase()) {
             // Comparison operators
             case "=", "EQ", "!=", "NE", "<", "LT", "<=", "LTE", ">", "GT", ">=", "GTE" -> false;
