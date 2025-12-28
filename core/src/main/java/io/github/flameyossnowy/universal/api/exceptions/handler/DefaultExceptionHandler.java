@@ -58,10 +58,6 @@ public class DefaultExceptionHandler<T, ID, C> implements ExceptionHandler<T, ID
     }
 
     private static <T, ID, C> @NotNull String createExceptionMessage(@NotNull Exception exception, @NotNull RepositoryInformation information, @NotNull RepositoryAdapter<T, ID, C> adapter, String update) {
-        return String.format("%s exception in repository [%s] with adapter [%s]: %s",
-                update,
-                information.getRepositoryName(),
-                adapter.getClass().getSimpleName(),
-                exception.getMessage());
+        return update + " exception in repository [" + information.getRepositoryName() + "] with adapter [" + adapter.getClass().getSimpleName() + "]: " + exception.getMessage();
     }
 }

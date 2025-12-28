@@ -2,6 +2,11 @@ package io.github.flameyossnowy.universal.microservices.file.indexes;
 
 import java.nio.file.Path;
 
+/**
+ * Collection of IndexPathStrategy implementations.
+ * @author flameyosflow
+ * @version 6.0.0
+ */
 public final class IndexPathStrategies {
 
     private IndexPathStrategies() {}
