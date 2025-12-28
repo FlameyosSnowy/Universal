@@ -5,6 +5,7 @@ import io.github.flameyossnowy.universal.api.annotations.proxy.*;
 import io.github.flameyossnowy.universal.api.options.Query;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -47,7 +48,7 @@ public class ProxiedAdapterHandler<T, ID, C> implements InvocationHandler {
     }
 
     @Override
-    public Object invoke(Object proxy, @NotNull Method method, Object[] args) {
+    public @Nullable Object invoke(Object proxy, @NotNull Method method, Object[] args) {
         MethodData methodData = this.getMethodData(method);
 
         switch (method.getName()) {
@@ -80,11 +81,11 @@ public class ProxiedAdapterHandler<T, ID, C> implements InvocationHandler {
             } else if (returnType == Set.class) {
                 return result.isEmpty() ? Set.of() : new HashSet<>(result);
             } else if (returnType == elementType) {
-                return result.isEmpty() ? null : result.get(0);
+                return result.isEmpty() ? null : result.getFirst();
             } else if (returnType == Iterator.class) {
                 return result.iterator();
             } else if (returnType == Optional.class) {
-                return result.isEmpty() ? Optional.empty() : Optional.of(result.get(0));
+                return result.isEmpty() ? Optional.empty() : Optional.of(result.getFirst());
             } else if (returnType == Stream.class) {
                 return result.stream();
             } else {
