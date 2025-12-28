@@ -1,9 +1,13 @@
 package io.github.flameyossnowy.universal.api.options.validator;
 
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+
 public record ValidationEstimation(ValidationResult result, String reason) {
     public static final ValidationEstimation PASS = new ValidationEstimation(ValidationResult.PASS, "");
 
-    public static ValidationEstimation fail(String reason) {
+    @Contract("_ -> new")
+    public static @NotNull ValidationEstimation fail(String reason) {
         return new ValidationEstimation(ValidationResult.FAIL, reason);
     }
 
