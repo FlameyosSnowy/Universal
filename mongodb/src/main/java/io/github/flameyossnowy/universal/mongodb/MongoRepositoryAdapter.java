@@ -13,6 +13,7 @@ import io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmTyp
 import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
 import io.github.flameyossnowy.universal.api.cache.*;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.exceptions.handler.DefaultExceptionHandler;
 import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
@@ -52,6 +53,8 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     MongoCollection<Document> collection;
     private final ObjectFactory<T, ID> objectFactory;
     private final RepositoryInformation repositoryInformation;
+    private final OperationContext<ClientSession> operationContext;
+    private final OperationExecutor<ClientSession> operationExecutor;
     private final Class<ID> idType;
 
     private final DefaultResultCache<Document, T, ID> resultCache;
@@ -88,8 +91,8 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
             Class<ID> idType,
             SessionCache<ID, T> sessionCache,
             LongFunction<SessionCache<ID, T>> sessionCacheSupplier,
-            CacheWarmer<T, ID> cacheWarmer
-    ) {
+            CacheWarmer<T, ID> cacheWarmer,
+            MongoClient client) {
         this.repositoryInformation = RepositoryMetadata.getMetadata(repo);
         if (repositoryInformation == null)
             throw new IllegalArgumentException("Unable to find repository information for " + repo.getSimpleName());
@@ -103,8 +106,11 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         this.globalCache = sessionCache;
         this.sessionCacheSupplier = sessionCacheSupplier;
 
-        this.exceptionHandler = (ExceptionHandler<T, ID, ClientSession>) repositoryInformation.getExceptionHandler();
+        this.exceptionHandler = this.createExceptionHandler();
         this.queryValidator = new MongoQueryValidator(repositoryInformation);
+
+        this.operationExecutor = new MongoOperationExecutor<>(this);
+        this.operationContext = new OperationContext<>(repositoryInformation, typeResolverRegistry, this.operationExecutor);
 
         RepositoryRegistry.register(this.repositoryInformation.getRepositoryName(), this);
         this.objectFactory = new ObjectFactory<>(this.repositoryInformation, repo, idType);
@@ -114,28 +120,43 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         this.readThroughCache = new ReadThroughCache<>(10000, CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED, this::loadFromDatabase);
 
         List<Codec<?>> codecs = new ArrayList<>(2);
-        List<IndexOptions> queued = this.initializeCodecs(clientBuilder);
+        List<IndexOptions> queued = initializeCodecs(clientBuilder, repositoryInformation, typeResolverRegistry);
 
         this.entityLifecycleListener = (EntityLifecycleListener<T>) repositoryInformation.getEntityLifecycleListener();
         this.auditLogger = (AuditLogger<T>) repositoryInformation.getAuditLogger();
 
-        CodecRegistry provider = getProvider(PojoCodecProvider.builder().automatic(true).build(), codecs, MongoClientSettings.getDefaultCodecRegistry());
-        clientBuilder.codecRegistry(provider);
-        this.client = MongoClients.create(clientBuilder.build());
+        if (client == null) {
+            CodecRegistry provider = getProvider(PojoCodecProvider.builder().automatic(true).build(), codecs, MongoClientSettings.getDefaultCodecRegistry());
+            clientBuilder.codecRegistry(provider);
+            this.client = MongoClients.create(clientBuilder.build());
+        } else {
+            this.client = client;
+        }
 
         MongoDatabase database = this.client.getDatabase(dbName);
         this.collection = database.getCollection(repositoryInformation.getRepositoryName());
 
-        queued.forEach(this::createIndex);
+        if (client != null) queued.forEach(this::createIndex);
 
         if (cacheWarmer != null) {
             cacheWarmer.warmCache(this);
         }
     }
 
-    private List<IndexOptions> initializeCodecs(MongoClientSettings.Builder clientBuilder) {
-        List<Codec<?>> codecs = new ArrayList<>();
-        List<IndexOptions> queued = new ArrayList<>();
+    private ExceptionHandler<T, ID, ClientSession> createExceptionHandler() {
+        return repositoryInformation.getExceptionHandler() != null
+            ? (ExceptionHandler<T, ID, ClientSession>) repositoryInformation.getExceptionHandler()
+            : new DefaultExceptionHandler<>();
+    }
+
+    private static @NotNull List<IndexOptions> initializeCodecs(
+        MongoClientSettings.Builder clientBuilder,
+        @NotNull RepositoryInformation repositoryInformation,
+        TypeResolverRegistry typeResolverRegistry
+    ) {
+        if (clientBuilder == null) return List.of();
+        List<Codec<?>> codecs = new ArrayList<>(8);
+        List<IndexOptions> queued = new ArrayList<>(8);
 
         for (FieldData<?> field : repositoryInformation.getFields()) {
             if (field.unique()) {
@@ -168,7 +189,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
         // Create codec registry with our custom providers
         CodecRegistry codecRegistry = CodecRegistries.fromRegistries(
-                CodecRegistries.fromProviders(
+                fromProviders(
                         MongoTypeCodecProvider.create(typeResolverRegistry, repositoryInformation),
                         PojoCodecProvider.builder().automatic(true).build()
                 ),
@@ -196,6 +217,11 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public List<T> find(@NotNull SelectQuery query) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         // Validate query
         ValidationEstimation validation = queryValidator.validateSelectQuery(query);
         if (validation.isFail()) {
@@ -210,22 +236,29 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         if (query.limit() == 1) {
             T result = objectFactory.fromDocument(iterable.first());
             List<T> single = List.of(result);
-            resultCache.insert(filterDoc, single, (entity) -> repositoryInformation.getPrimaryKey().getValue(entity));
+            resultCache.insert(filterDoc, single, primaryKey::getValue);
             return single;
         }
 
         try (MongoCursor<Document> cursor = iterable.iterator()) {
             List<T> results = new ArrayList<>(cursor.available());
             while (cursor.hasNext()) results.add(objectFactory.fromDocument(cursor.next()));
-            resultCache.insert(filterDoc, results, (entity) -> repositoryInformation.getPrimaryKey().getValue(entity));
+            resultCache.insert(filterDoc, results, primaryKey::getValue);
             return results;
         }
     }
 
     @Override
     public List<T> find() {
-        List<T> cached = resultCache.fetch(EMPTY);
-        if (cached != null) return cached;
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (resultCache != null) {
+            if (primaryKey == null) {
+                throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+            }
+
+            List<T> cached = resultCache.fetch(EMPTY);
+            if (cached != null) return cached;
+        }
 
         try (MongoCursor<Document> iterable = collection.find().iterator()) {
             List<T> results = new ArrayList<>(iterable.available());
@@ -234,13 +267,13 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                 results.add(objectFactory.fromDocument(doc));
             }
 
-            resultCache.insert(EMPTY, results, (entity) -> repositoryInformation.getPrimaryKey().getValue(entity));
+            if (resultCache != null) resultCache.insert(EMPTY, results, primaryKey::getValue);
             return results;
         }
     }
 
     @Override
-    public T findById(ID key) {
+    public @Nullable T findById(ID key) {
         // L2 cache first
         T cached = l2Cache.get(key);
         if (cached != null) {
@@ -260,10 +293,15 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public Map<ID, T> findAllById(Collection<ID> keys) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         if (keys.isEmpty()) return Map.of();
 
         Map<ID, T> result = new HashMap<>(keys.size());
-        List<ID> missing = new ArrayList<>();
+        List<ID> missing = new ArrayList<>(8);
 
         // Identity map first
         for (ID id : keys) {
@@ -284,7 +322,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         try (MongoCursor<Document> cursor = iterable.iterator()) {
             while (cursor.hasNext()) {
                 T entity = objectFactory.fromDocument(cursor.next());
-                ID id = repositoryInformation.getPrimaryKey().getValue(entity);
+                ID id = primaryKey.getValue(entity);
                 result.put(id, entity);
                 globalCache.put(id, entity);
             }
@@ -294,10 +332,15 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     private T loadFromDatabase(ID key) {
-        Document filter = new Document(repositoryInformation.getPrimaryKey().name(), key);
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
+        Document filter = new Document(primaryKey.name(), key);
         T result = objectFactory.fromDocument(collection.find(filter).first());
         if (result != null) {
-            resultCache.insert(filter, List.of(result), (entity) -> repositoryInformation.getPrimaryKey().getValue(entity));
+            resultCache.insert(filter, List.of(result), primaryKey::getValue);
         }
         return result;
     }
@@ -350,15 +393,19 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insert(T value, @NotNull TransactionContext<ClientSession> tx) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         try {
             entityLifecycleListener.onPreInsert(value);
             if (repositoryInformation.getAuditLogger() != null)
                 ((AuditLogger<T>) repositoryInformation.getAuditLogger()).onInsert(value);
             InsertOneResult result = collection.insertOne(tx.connection(), objectFactory.toDocument(value));
-            invalidate(); // Clear all because we don't know affected filters
-            // Invalidate key-based caches
             try {
                 ID id = repositoryInformation.getPrimaryKey().getValue(value);
+                resultCache.invalidate(id);
                 l2Cache.invalidate(id);
                 readThroughCache.invalidate(id);
             } catch (Exception ignored) {}
@@ -371,17 +418,24 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insert(T value) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         try {
             if (repositoryInformation.getAuditLogger() != null)
                 ((AuditLogger<T>) repositoryInformation.getAuditLogger()).onInsert(value);
             InsertOneResult result = collection.insertOne(objectFactory.toDocument(value));
             invalidate();
             try {
-                ID id = repositoryInformation.getPrimaryKey().getValue(value);
+                ID id = primaryKey.getValue(value);
                 l2Cache.invalidate(id);
                 readThroughCache.invalidate(id);
             } catch (Exception ignored) {}
-            return TransactionResult.success(result.wasAcknowledged());
+
+            //noinspection ConstantValue
+            return TransactionResult.success(result != null && result.wasAcknowledged());
         } catch (Exception e) {
             return this.exceptionHandler.handleInsert(e, repositoryInformation, this);
         }
@@ -417,15 +471,20 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull T entity, TransactionContext<ClientSession> tx) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         try {
             Objects.requireNonNull(entity);
             Objects.requireNonNull(tx);
 
             entityLifecycleListener.onPreUpdate(entity);
             Document doc = objectFactory.toDocument(entity);
-            ID id = doc.get(repositoryInformation.getPrimaryKey().name(), idType);
+            ID id = doc.get(primaryKey.name(), idType);
 
-            Document replaced = collection.findOneAndUpdate(new Document(repositoryInformation.getPrimaryKey().name(), id), doc);
+            Document replaced = collection.findOneAndUpdate(new Document(primaryKey.name(), id), doc);
 
             if (id != null) {
                 globalCache.put(id, entity);
@@ -443,12 +502,17 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull T entity) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         try {
             entityLifecycleListener.onPreUpdate(entity);
             Document doc = objectFactory.toDocument(entity);
-            ID id = doc.get(repositoryInformation.getPrimaryKey().name(), idType);
+            ID id = doc.get(primaryKey.name(), idType);
 
-            Document replaced = collection.findOneAndUpdate(new Document(repositoryInformation.getPrimaryKey().name(), id), doc);
+            Document replaced = collection.findOneAndUpdate(new Document(primaryKey.name(), id), doc);
 
             if (id != null) {
                 globalCache.put(id, entity);
@@ -464,15 +528,20 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> delete(T entity) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         try {
-            ID id = repositoryInformation.getPrimaryKey().getValue(entity);
+            ID id = primaryKey.getValue(entity);
 
             entityLifecycleListener.onPreDelete(entity);
             globalCache.remove(id);
             l2Cache.invalidate(id);
             readThroughCache.invalidate(id);
 
-            Document filter = new Document(repositoryInformation.getPrimaryKey().name(), id);
+            Document filter = new Document(primaryKey.name(), id);
             DeleteResult result = collection.deleteOne(filter);
             invalidate(filter);
 
@@ -486,8 +555,13 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> deleteById(ID id, TransactionContext<ClientSession> transactionContext) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         try {
-            Document filter = new Document(repositoryInformation.getPrimaryKey().name(), id);
+            Document filter = new Document(primaryKey.name(), id);
             DeleteResult result = collection.deleteOne(transactionContext.connection(), filter);
 
             globalCache.remove(id);
@@ -501,14 +575,22 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> deleteById(ID value) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         try {
-            Document filter = new Document(repositoryInformation.getPrimaryKey().name(), value);
+            Document filter = new Document(primaryKey.name(), value);
             DeleteResult result = collection.deleteOne(filter);
 
-            globalCache.remove(value);
+            if (globalCache != null) globalCache.remove(value);
 
             invalidate(filter);
-            return TransactionResult.success(result.getDeletedCount() > 0);
+
+            // False; it can actually be null.
+            //noinspection ConstantValue
+            return TransactionResult.success(result != null && result.getDeletedCount() > 0);
         } catch (Exception e) {
             return this.exceptionHandler.handleInsert(e, repositoryInformation, this);
         }
@@ -610,12 +692,17 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> delete(T entity, TransactionContext<ClientSession> tx) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         try {
-            ID id = repositoryInformation.getPrimaryKey().getValue(entity);
+            ID id = primaryKey.getValue(entity);
 
             entityLifecycleListener.onPreDelete(entity);
 
-            Document filter = new Document(repositoryInformation.getPrimaryKey().name(), id);
+            Document filter = new Document(primaryKey.name(), id);
             DeleteResult result = collection.deleteOne(tx.connection(), filter);
 
             invalidate(filter);
@@ -652,17 +739,20 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public @NotNull List<ID> findIds(@NotNull SelectQuery query) {
+        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key not found for " + repositoryInformation.getRepositoryName());
+        }
+
         // Validate query (same philosophy as find)
         ValidationEstimation validation = queryValidator.validateSelectQuery(query);
         if (validation.isFail()) {
             Logging.warn("findIds query validation failed: " + validation.reason());
         }
 
-        // Build filters
         Document filterDoc = createFilterDocument(query.filters());
 
-        // Build projection: ONLY primary key
-        String pk = repositoryInformation.getPrimaryKey().name();
+        String pk = primaryKey.name();
         Bson projection = Projections.include(pk);
 
         FindIterable<Document> iterable =
@@ -672,7 +762,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         // Apply query modifiers
         iterable = process(query, iterable, repositoryInformation.getFetchPageSize());
 
-        List<ID> ids = new ArrayList<>();
+        List<ID> ids = new ArrayList<>(8);
 
         try (MongoCursor<Document> cursor = iterable.iterator()) {
             while (cursor.hasNext()) {
@@ -724,12 +814,12 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public @NotNull OperationContext<ClientSession> getOperationContext() {
-        return null;
+        return operationContext;
     }
 
     @Override
     public @NotNull OperationExecutor<ClientSession> getOperationExecutor() {
-        return null;
+        return operationExecutor;
     }
 
     @Override
@@ -739,7 +829,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public @NotNull TypeResolverRegistry getTypeResolverRegistry() {
-        return null;
+        return typeResolverRegistry;
     }
 
     @Override
@@ -747,8 +837,11 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         return elementType;
     }
 
-    @ApiStatus.Internal
     public MongoCollection<Document> getCollection() {
         return collection;
+    }
+
+    public MongoClient getClient() {
+        return client;
     }
 }

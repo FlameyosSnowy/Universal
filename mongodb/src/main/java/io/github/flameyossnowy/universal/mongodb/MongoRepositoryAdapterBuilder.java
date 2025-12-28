@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.mongodb;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.client.MongoClient;
 import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
 import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
 import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
@@ -20,6 +21,7 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
 
     private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
     private CacheWarmer<T, ID> cacheWarmer;
+    private MongoClient client;
 
     MongoRepositoryAdapterBuilder(Class<T> repository, Class<ID> idType) {
         this.repository = repository;
@@ -41,6 +43,11 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
      */
     public MongoRepositoryAdapterBuilder<T, ID> setSessionCacheSupplier(LongFunction<SessionCache<ID, T>> sessionCacheSupplier) {
         this.sessionCacheSupplier = sessionCacheSupplier;
+        return this;
+    }
+
+    public MongoRepositoryAdapterBuilder<T, ID> withClient(MongoClient client) {
+        this.client = client;
         return this;
     }
 
@@ -120,15 +127,15 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
         if (cacheable == null)
             return new MongoRepositoryAdapter<>(
                     this.credentialsBuilder, database, repository,
-                    idType, null, sessionCacheSupplier, cacheWarmer
-            );
+                    idType, null, sessionCacheSupplier, cacheWarmer,
+                client);
 
         Class<?> cacheableClass = cacheable.sessionCache();
 
         if (cacheableClass == SessionCache.class) {
             return new MongoRepositoryAdapter<>(
                     this.credentialsBuilder, database, repository,
-                    idType, new DefaultSessionCache<>(), sessionCacheSupplier, cacheWarmer
+                    idType, new DefaultSessionCache<>(), sessionCacheSupplier, cacheWarmer, client
             );
         }
 
@@ -139,7 +146,7 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
         try {
             return new MongoRepositoryAdapter<>(
                     this.credentialsBuilder, database, repository, idType,
-                    (SessionCache<ID, T>) cacheableClass.getDeclaredConstructor().newInstance(), sessionCacheSupplier, cacheWarmer
+                    (SessionCache<ID, T>) cacheableClass.getDeclaredConstructor().newInstance(), sessionCacheSupplier, cacheWarmer, client
             );
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);

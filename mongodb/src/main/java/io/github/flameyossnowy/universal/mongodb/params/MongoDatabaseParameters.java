@@ -1,14 +1,9 @@
 package io.github.flameyossnowy.universal.mongodb.params;
 
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
-import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import org.bson.Document;
-import org.bson.conversions.Bson;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.*;
 
 /**
  * MongoDB implementation of DatabaseParameters that builds a BSON Document.
@@ -16,13 +11,11 @@ import java.util.*;
  */
 public class MongoDatabaseParameters implements DatabaseParameters {
     private final Document document = new Document();
-    private TypeResolverRegistry typeResolverRegistry;
 
     /**
      * Creates a new instance with default settings.
      */
-    public MongoDatabaseParameters(TypeResolverRegistry typeResolverRegistry) {
-        this.typeResolverRegistry = typeResolverRegistry;
+    public MongoDatabaseParameters() {
     }
 
     @Override

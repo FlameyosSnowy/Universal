@@ -64,16 +64,16 @@ public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolver
         
         // Find the field name for this type from repository information
         String columnName = getColumnNameForType();
-        return typeResolverRegistry.getResolver(type).resolve(result, columnName);
+        return typeResolverRegistry.resolve(type).resolve(result, columnName);
     }
 
     @Override
     public void encode(BsonWriter writer, T value, EncoderContext encoderContext) {
-        MongoDatabaseParameters parameters = new MongoDatabaseParameters(this.typeResolverRegistry);
+        MongoDatabaseParameters parameters = new MongoDatabaseParameters();
         
         // Find the field name for this type from repository information
         String columnName = getColumnNameForType();
-        typeResolverRegistry.getResolver(type).insert(parameters, columnName, value);
+        typeResolverRegistry.resolve(type).insert(parameters, columnName, value);
         
         Document document = parameters.toDocument();
         writer.writeString(document.toJson());
