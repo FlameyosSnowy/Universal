@@ -5,13 +5,11 @@ Universal is a powerful and fully featured Object-Relational Mapper (ORM) and Ob
 ## Features
 
 - **Cross-Database Compatibility**: Supports both relational (SQL) and document-based (NoSQL) databases.
-- **Cross-Platform Repository Linking**: Link entities across different database adapters (e.g., MySQL ↔ Cassandra ↔ MongoDB).
+- **Cross-Platform Repository Linking**: Link entities across different database adapters (e.g., MySQL ↔ MongoDB ↔ File ↔ Network).
 - **Type Resolution System**: Handles type conversions seamlessly between Java objects and database representations.
 - **Caching and Lazy loading**: Allows for automatic lazy loading and automatic caching.
 - **Annotation-Based Configuration**: Define repositories, constraints, and conditions using a SQL-like syntax for both MongoDB and SQL.
-- **MongoDB & SQL Support**: Provides adapters for both MongoDB and SQL databases.
 - **Efficient Query Handling**: Uses built-in MongoDB methods and SQL functions without unnecessary query parsing.
-- **Lightweight**: Only ~400kb for one Platform + Core.
 
 ## Supported Types
 ```java
