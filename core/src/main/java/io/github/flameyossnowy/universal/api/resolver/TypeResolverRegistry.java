@@ -45,50 +45,63 @@ public class TypeResolverRegistry {
     private final Map<Class<?>, DataHandler<?>> dataHandlers = new ConcurrentHashMap<>(24);
     private final LRUCache<Class<?>, TypeResolver<?>> assignableCache = new LRUCache<>(32);
 
-    private final Map<Class<?>, String> encodedTypeMappers = new ConcurrentHashMap<>(
+    private final Map<Class<?>, SqlTypeMapping> sqlTypeMappings =
+        new ConcurrentHashMap<>(
             Map.ofEntries(
-                    Map.entry(String.class, "TEXT"),
-                    Map.entry(Integer.class, "INT"),
-                    Map.entry(int.class, "INT"),
-                    Map.entry(Long.class, "BIGINT"),
-                    Map.entry(long.class, "BIGINT"),
-                    Map.entry(Double.class, "DOUBLE"),
-                    Map.entry(double.class, "DOUBLE"),
-                    Map.entry(Float.class, "FLOAT"),
-                    Map.entry(byte[].class, "BLOB"),
+                Map.entry(String.class, SqlTypeMapping.of("TEXT")),
 
-                    Map.entry(Timestamp.class, "TIMESTAMP"),
-                    Map.entry(Time.class, "TIME"),
-                    Map.entry(Date.class, "DATE"),
-                    Map.entry(UUID.class, "VARCHAR(36)"),
+                Map.entry(Integer.class, SqlTypeMapping.of("INT")),
+                Map.entry(int.class, SqlTypeMapping.of("INT")),
 
-                    Map.entry(Boolean.class, "BOOLEAN"),
-                    Map.entry(boolean.class, "BOOLEAN"),
-                    Map.entry(Short.class, "SMALLINT"),
-                    Map.entry(short.class, "SMALLINT"),
-                    Map.entry(Byte.class, "TINYINT"),
-                    Map.entry(byte.class, "TINYINT"),
-                    Map.entry(BigDecimal.class, "DECIMAL"),
-                    Map.entry(BigInteger.class, "NUMERIC"),
+                Map.entry(Long.class, SqlTypeMapping.of("BIGINT")),
+                Map.entry(long.class, SqlTypeMapping.of("BIGINT")),
 
-                    Map.entry(LocalDate.class, "DATE"),
-                    Map.entry(LocalTime.class, "TIME"),
-                    Map.entry(LocalDateTime.class, "TIMESTAMP"),
-                    Map.entry(OffsetDateTime.class, "VARCHAR(64)"),
-                    Map.entry(ZonedDateTime.class, "VARCHAR(64)"),
-                    Map.entry(Duration.class, "BIGINT"),
-                    Map.entry(Period.class, "VARCHAR(32)"),
+                Map.entry(Double.class, SqlTypeMapping.of("DOUBLE")),
+                Map.entry(double.class, SqlTypeMapping.of("DOUBLE")),
 
-                    Map.entry(URI.class, "VARCHAR(255)"),
-                    Map.entry(URL.class, "VARCHAR(255)"),
-                    Map.entry(InetAddress.class, "VARCHAR(255)"),
-                    Map.entry(Pattern.class, "VARCHAR(255)"),
+                Map.entry(Float.class, SqlTypeMapping.of("FLOAT")),
+                Map.entry(byte[].class, SqlTypeMapping.of("BLOB")),
 
-                    Map.entry(Class.class, "VARCHAR(255)"),
-                    Map.entry(Locale.class, "VARCHAR(255)"),
-                    Map.entry(Currency.class, "VARCHAR(255)")
+                Map.entry(UUID.class,
+                    SqlTypeMapping.of("VARCHAR(36)", "BINARY(16)")),
+
+                Map.entry(InetAddress.class,
+                    SqlTypeMapping.of("VARCHAR(255)", "BINARY(16)")),
+
+                Map.entry(Boolean.class, SqlTypeMapping.of("BOOLEAN")),
+                Map.entry(boolean.class, SqlTypeMapping.of("BOOLEAN")),
+
+                Map.entry(Short.class, SqlTypeMapping.of("SMALLINT")),
+                Map.entry(short.class, SqlTypeMapping.of("SMALLINT")),
+
+                Map.entry(Byte.class, SqlTypeMapping.of("TINYINT")),
+                Map.entry(byte.class, SqlTypeMapping.of("TINYINT")),
+
+                Map.entry(BigDecimal.class, SqlTypeMapping.of("DECIMAL")),
+                Map.entry(BigInteger.class, SqlTypeMapping.of("NUMERIC")),
+
+                Map.entry(LocalDate.class, SqlTypeMapping.of("DATE")),
+                Map.entry(LocalTime.class, SqlTypeMapping.of("TIME")),
+                Map.entry(LocalDateTime.class, SqlTypeMapping.of("TIMESTAMP")),
+
+                Map.entry(OffsetDateTime.class,
+                    SqlTypeMapping.of("VARCHAR(64)")),
+
+                Map.entry(ZonedDateTime.class,
+                    SqlTypeMapping.of("VARCHAR(64)")),
+
+                Map.entry(Duration.class, SqlTypeMapping.of("BIGINT")),
+                Map.entry(Period.class, SqlTypeMapping.of("VARCHAR(32)")),
+
+                Map.entry(URI.class, SqlTypeMapping.of("VARCHAR(255)")),
+                Map.entry(URL.class, SqlTypeMapping.of("VARCHAR(255)")),
+                Map.entry(Pattern.class, SqlTypeMapping.of("VARCHAR(255)")),
+
+                Map.entry(Class.class, SqlTypeMapping.of("VARCHAR(255)")),
+                Map.entry(Locale.class, SqlTypeMapping.of("VARCHAR(255)")),
+                Map.entry(Currency.class, SqlTypeMapping.of("VARCHAR(255)"))
             )
-    );
+        );
 
     public TypeResolverRegistry() {
         registerDefaultHandlers();
@@ -101,8 +114,16 @@ public class TypeResolverRegistry {
         return getType(resolver.getType());
     }
 
-    public String getType(@NotNull Class<?> type) {
-        return encodedTypeMappers.get(type);
+    public @Nullable String getType(@NotNull Class<?> type) {
+        SqlTypeMapping mapping = sqlTypeMappings.get(type);
+        return mapping != null
+            ? mapping.resolve(SqlEncoding.VISUAL)
+            : null;
+    }
+
+    public @Nullable String getType(Class<?> type, SqlEncoding encoding) {
+        SqlTypeMapping mapping = sqlTypeMappings.get(type);
+        return mapping != null ? mapping.resolve(encoding) : null;
     }
 
     public void registerDefaults() {
@@ -140,7 +161,7 @@ public class TypeResolverRegistry {
 
     public <T> void register(TypeResolver<T> resolver) {
         registerInternal(resolver);
-        encodedTypeMappers.put(resolver.getType(), encodedTypeMappers.get(resolver.getDatabaseType()));
+        sqlTypeMappings.put(resolver.getType(), sqlTypeMappings.get(resolver.getDatabaseType()));
         assignableCache.remove(resolver.getType());
     }
 
@@ -771,33 +792,58 @@ public class TypeResolverRegistry {
             return Object.class;
         }
 
-            @Override
-            @SuppressWarnings("unchecked")
-            public T @Nullable [] resolve(DatabaseResult result, String columnName) {
-                Object array = result.get(columnName, Object.class);
-                switch (array) {
-                    case null -> {
-                        return null;
-                    }
-                    case Object[] ignored -> {
-                        return (T[]) array;
-                    }
-                    case java.sql.Array array1 -> {
-                        try {
-                            return (T[]) array1.getArray();
-                        } catch (Exception e) {
-                            throw new RuntimeException("Error getting array from result set", e);
-                        }
-                    }
-                    default -> {
+        @Override
+        @SuppressWarnings("unchecked")
+        public T @Nullable [] resolve(DatabaseResult result, String columnName) {
+            Object array = result.get(columnName, Object.class);
+            switch (array) {
+                case null -> {
+                    return null;
+                }
+                case Object[] ignored -> {
+                    return (T[]) array;
+                }
+                case java.sql.Array array1 -> {
+                    try {
+                        return (T[]) array1.getArray();
+                    } catch (Exception e) {
+                        throw new RuntimeException("Error getting array from result set", e);
                     }
                 }
-                return (T[]) Array.newInstance(componentType, 0);
+                default -> {
+                }
             }
-
-            @Override
-            public void insert(DatabaseParameters parameters, String index, T[] value) {
-                parameters.set(index, value, Object.class);
-            }
+            return (T[]) Array.newInstance(componentType, 0);
         }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, T[] value) {
+            parameters.set(index, value, Object.class);
+        }
+    }
+
+    public enum SqlEncoding {
+        VISUAL,
+        BINARY
+    }
+
+    public record SqlTypeMapping(
+        String visual,
+        @Nullable String binary
+    ) {
+        public String resolve(SqlEncoding encoding) {
+            if (encoding == SqlEncoding.BINARY && binary != null) {
+                return binary;
+            }
+            return visual;
+        }
+
+        public static SqlTypeMapping of(String visual) {
+            return new SqlTypeMapping(visual, null);
+        }
+
+        public static SqlTypeMapping of(String visual, String binary) {
+            return new SqlTypeMapping(visual, binary);
+        }
+    }
 }
