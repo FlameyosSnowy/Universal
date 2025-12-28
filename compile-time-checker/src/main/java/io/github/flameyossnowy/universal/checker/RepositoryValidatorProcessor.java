@@ -1,373 +1,237 @@
 package io.github.flameyossnowy.universal.checker;
 
 import io.github.flameyossnowy.universal.api.annotations.*;
-import org.jetbrains.annotations.NotNull;
-
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.*;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.MirroredTypeException;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.*;
 import javax.tools.Diagnostic;
-import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@SupportedSourceVersion(SourceVersion.RELEASE_21)
+@SupportedAnnotationTypes({
+    "io.github.flameyossnowy.universal.api.annotations.Repository",
+    "io.github.flameyossnowy.universal.api.annotations.Cacheable",
+    "io.github.flameyossnowy.universal.api.annotations.GlobalCacheable",
+    "io.github.flameyossnowy.universal.api.annotations.ManyToOne",
+    "io.github.flameyossnowy.universal.api.annotations.OneToMany",
+    "io.github.flameyossnowy.universal.api.annotations.OneToOne",
+    "io.github.flameyossnowy.universal.api.annotations.Constraint",
+    "io.github.flameyossnowy.universal.api.annotations.Index",
+    "io.github.flameyossnowy.universal.api.annotations.ExternalRepository"
+})
 public class RepositoryValidatorProcessor extends AbstractProcessor {
+
     private Messager messager;
 
-    private final Map<String, Element> repositoryNames = new HashMap<>(5);
+    // Tracks repository names per processing round to avoid cross-round issues
+    private final Set<String> repositoryNames = new HashSet<>();
 
-    private static final List<Class<? extends Annotation>> FIELD_ANNOTATIONS = List.of(
-            ManyToOne.class,
-            OneToMany.class,
-            OneToOne.class,
-            Unique.class,
-            NonNull.class,
-            Now.class,
-            Id.class,
-            AutoIncrement.class,
-            Named.class,
-            OnDelete.class,
-            OnUpdate.class,
-            Constraint.class,
-            DefaultValue.class,
-            DefaultValueProvider.class,
-            ExternalRepository.class
+    private static final List<String> FIELD_ANNOTATIONS = List.of(
+        ManyToOne.class.getCanonicalName(),
+        OneToMany.class.getCanonicalName(),
+        OneToOne.class.getCanonicalName(),
+        Unique.class.getCanonicalName(),
+        NonNull.class.getCanonicalName(),
+        Now.class.getCanonicalName(),
+        Id.class.getCanonicalName(),
+        AutoIncrement.class.getCanonicalName(),
+        Named.class.getCanonicalName(),
+        OnDelete.class.getCanonicalName(),
+        OnUpdate.class.getCanonicalName(),
+        Constraint.class.getCanonicalName(),
+        DefaultValue.class.getCanonicalName(),
+        DefaultValueProvider.class.getCanonicalName(),
+        ExternalRepository.class.getCanonicalName()
     );
-
-    //private boolean enableOptimizationHints;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         this.messager = processingEnv.getMessager();
-        /*this.enableOptimizationHints = Boolean.parseBoolean(processingEnv.getOptions()
-                .getOrDefault("repositoryChecker.enableOptimizationHints", "false"));*/
-    }
-
-
-    @Override
-    public Set<String> getSupportedAnnotationTypes() {
-        return Set.of("io.github.flameyossnowy.universal.api.annotations.Repository",
-                "io.github.flameyossnowy.universal.api.annotations.Cacheable",
-                "io.github.flameyossnowy.universal.api.annotations.GlobalCacheable",
-                "io.github.flameyossnowy.universal.api.annotations.ManyToOne",
-                "io.github.flameyossnowy.universal.api.annotations.OneToMany",
-                "io.github.flameyossnowy.universal.api.annotations.OneToOne",
-                "io.github.flameyossnowy.universal.api.annotations.Constraint",
-                "io.github.flameyossnowy.universal.api.annotations.Index",
-                "io.github.flameyossnowy.universal.api.annotations.ExternalRepository");
     }
 
     @Override
-    public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_17;
-    }
+    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
-    @Override
-    public boolean process(@NotNull Set<? extends TypeElement> set, @NotNull RoundEnvironment roundEnvironment) {
-        Set<? extends Element> elements = roundEnvironment.getElementsAnnotatedWith(Repository.class);
+        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Repository.class);
         if (elements.isEmpty()) return false;
 
         for (Element element : elements) {
             if (!(element instanceof TypeElement typeElement)) continue;
-            ElementKind kind = element.getKind();
+
+            ElementKind kind = typeElement.getKind();
 
             handleRepository(typeElement, kind);
 
-            List<? extends Element> enclosedElements = element.getEnclosedElements();
-            boolean hasNoArgConstructor = false;
-            boolean hasIdField = false;
-            boolean hasRelationshipField = false;
+            boolean hasNoArgConstructor = typeElement.getEnclosedElements().stream()
+                .anyMatch(e -> e.getKind() == ElementKind.CONSTRUCTOR &&
+                    ((ExecutableElement) e).getParameters().isEmpty());
 
-            for (Element enclosedElement : enclosedElements) {
-                ElementKind elementKind = enclosedElement.getKind();
-                if (elementKind == ElementKind.CONSTRUCTOR && ((ExecutableElement) enclosedElement).getParameters().isEmpty()) {
-                    hasNoArgConstructor = true;
-                }
-                if (elementKind != ElementKind.FIELD) continue;
+            boolean hasIdField = typeElement.getEnclosedElements().stream()
+                .filter(e -> e.getKind() == ElementKind.FIELD)
+                .anyMatch(e -> hasAnnotation(e, Id.class.getCanonicalName()));
 
-                // Check if field has @Id
-                if (enclosedElement.getAnnotation(Id.class) != null) {
-                    hasIdField = true;
-                }
+            boolean hasRelationshipField = typeElement.getEnclosedElements().stream()
+                .filter(e -> e.getKind() == ElementKind.FIELD)
+                .anyMatch(e -> hasAnnotation(e, OneToOne.class.getCanonicalName()) ||
+                    hasAnnotation(e, OneToMany.class.getCanonicalName()));
 
-                // Check if field has relationship annotations
-                if (enclosedElement.getAnnotation(OneToOne.class) != null ||
-                        enclosedElement.getAnnotation(OneToMany.class) != null) {
-                    hasRelationshipField = true;
-                }
-
-
-                handleField(element, (VariableElement) enclosedElement);
+            for (Element enclosedElement : typeElement.getEnclosedElements()) {
+                if (enclosedElement.getKind() != ElementKind.FIELD) continue;
+                handleField(typeElement, (VariableElement) enclosedElement);
             }
 
             if (hasRelationshipField && !hasIdField) {
                 messager.printMessage(Diagnostic.Kind.ERROR,
-                        "@Repository " + element.getSimpleName() + " has relationship fields (@OneToOne, @OneToMany) but no field annotated with @Id. " +
-                                "Repositories with relationships must have an @Id field.",
-                        element);
+                    "@Repository " + typeElement.getSimpleName() + " has relationship fields but no @Id field.",
+                    typeElement);
             }
 
-            if (!hasNoArgConstructor) messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " must have a no-arg constructor", element);
+            if (!hasNoArgConstructor) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                    "@Repository " + typeElement.getSimpleName() + " must have a no-arg constructor",
+                    typeElement);
+            }
         }
+
         return true;
     }
 
     private void handleRepository(TypeElement element, ElementKind kind) {
-        // we check if it's interface so we don't execute `return`
-        // just to slap the user when we tell it interfaces aren't allowed ;)
-        if (!kind.isClass() || !kind.isInterface()) return;
+        if (!kind.isClass()) return;
 
         Repository repository = element.getAnnotation(Repository.class);
         if (repository == null) return;
 
-        if (repositoryNames.containsKey(repository.name())) {
-            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " repository name must be unique, as it's being used by " + repositoryNames.get(repository.name()).getSimpleName(), element);
+        String repoName = repository.name();
+        if (repoName == null || repoName.isBlank()) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                "@Repository " + element.getSimpleName() + " name cannot be empty",
+                element);
             return;
         }
+
+        if (repositoryNames.contains(repoName)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                "@Repository " + element.getSimpleName() + " repository name must be unique",
+                element);
+            return;
+        }
+
+        repositoryNames.add(repoName);
 
         if (element.getModifiers().contains(Modifier.ABSTRACT)) {
-            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be abstract", element);
-            return;
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                "@Repository " + element.getSimpleName() + " cannot be abstract",
+                element);
         }
 
-        if (kind == ElementKind.ENUM) {
-            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be an enum", element);
-            return;
+        if (kind == ElementKind.ENUM || kind == ElementKind.INTERFACE) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                "@Repository " + element.getSimpleName() + " cannot be enum or interface",
+                element);
         }
-
-        // womp womp
-        if (kind == ElementKind.INTERFACE) {
-            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot be an interface", element);
-            return;
-        }
-
-        if (repository.name().isBlank()) {
-            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " name cannot be empty", element);
-            return;
-        }
-
-        repositoryNames.put(repository.name(), element);
 
         checkIndexAndConstraintReferences(element);
     }
 
-    private void checkIndexAndConstraintReferences(@NotNull TypeElement classElement) {
+    private void checkIndexAndConstraintReferences(TypeElement classElement) {
         Set<String> fieldNames = classElement.getEnclosedElements().stream()
-                .filter(e -> e.getKind() == ElementKind.FIELD)
-                .map((element) -> element.getSimpleName().toString())
-                .collect(Collectors.toSet());
+            .filter(e -> e.getKind() == ElementKind.FIELD)
+            .map(e -> e.getSimpleName().toString())
+            .collect(Collectors.toSet());
 
         for (Element enclosed : classElement.getEnclosedElements()) {
-            for (Index index : enclosed.getAnnotationsByType(Index.class)) {
-                validateColumns("Index", index.fields(), fieldNames, enclosed, classElement);
-            }
-
-            for (Constraint constraint : enclosed.getAnnotationsByType(Constraint.class)) {
-                validateColumns("Constraint", constraint.fields(), fieldNames, enclosed, classElement);
-            }
+            getAnnotations(enclosed, Index.class.getCanonicalName()).forEach(am ->
+                validateColumns("Index", getStringArrayValue(am, "fields"), fieldNames, enclosed, classElement));
+            getAnnotations(enclosed, Constraint.class.getCanonicalName()).forEach(am ->
+                validateColumns("Constraint", getStringArrayValue(am, "fields"), fieldNames, enclosed, classElement));
         }
     }
 
-    private void validateColumns(String kind, String[] columns, Set<String> validFields, Element target, TypeElement classElement) {
+    private void validateColumns(String kind, List<String> columns, Set<String> validFields, Element target, TypeElement classElement) {
         for (String column : columns) {
-            if (validFields.contains(column)) continue;
-            messager.printMessage(Diagnostic.Kind.ERROR,
+            if (!validFields.contains(column)) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
                     "@" + kind + " on " + classElement.getSimpleName() + " refers to unknown field: '" + column + "'",
                     target);
-
+            }
         }
     }
 
-
-    private void handleField(Element element, @NotNull VariableElement enclosedElement) {
-        Set<Modifier> modifiers = enclosedElement.getModifiers();
-
-        checkRelationshipFieldAnnotations(element, enclosedElement);
-
-        if (modifiers.contains(Modifier.STATIC)) {
-            // if it's a static field, but it has a field annotation from FIELD_ANNOTATIONS
-            checkStaticFieldAnnotations(element, enclosedElement);
-            return;
-        }
-
-        if (modifiers.contains(Modifier.FINAL)) {
-            messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot have a final field like " + enclosedElement.getSimpleName() + " (unless as static final)", element);
-        }
-
-        if (modifiers.contains(Modifier.TRANSIENT)) {
-            // if it's a static field, but it has a field annotation from FIELD_ANNOTATIONS
-            checkTransientFieldAnnotations(element, enclosedElement);
-            return;
-        }
-
-        checkRawTypes(enclosedElement);
-    }
-
-    private static boolean isCollectionType(Element element) {
-        if (!(element instanceof VariableElement variableElement)) return false;
-
-        TypeMirror fieldType = variableElement.asType();
-        if (fieldType.getKind() != TypeKind.DECLARED) return false;
-
-        DeclaredType declaredType = (DeclaredType) fieldType;
-        Element typeElement = declaredType.asElement();
-
-        // Check if the field type implements Collection (List, Set, etc.)
-        String qualifiedName = ((TypeElement) typeElement).getQualifiedName().toString();
-
-        // Check for direct collection types like List, Set, etc.
-        return qualifiedName.equals("java.util.List") || qualifiedName.equals("java.util.Set") || qualifiedName.equals("java.util.Map");
-    }
-
-    private void checkRelationshipFieldAnnotations(Element element, @NotNull VariableElement enclosedElement) {
-        OneToOne oneToOne = enclosedElement.getAnnotation(OneToOne.class);
-        OneToMany oneToMany = enclosedElement.getAnnotation(OneToMany.class);
-        ManyToOne manyToOne = enclosedElement.getAnnotation(ManyToOne.class);
-        ExternalRepository externalRepository = enclosedElement.getAnnotation(ExternalRepository.class);
-
-        int relationshipCount = 0;
-        if (oneToOne != null) relationshipCount++;
-        if (oneToMany != null) relationshipCount++;
-        if (manyToOne != null) relationshipCount++;
-
-        if (relationshipCount > 1) {
-            // If multiple relationship annotations are present, throw an error
+    private void handleField(Element parent, VariableElement field) {
+        if (field.getModifiers().contains(Modifier.STATIC)) checkFieldAnnotations(parent, field, true);
+        if (field.getModifiers().contains(Modifier.TRANSIENT)) checkFieldAnnotations(parent, field, true);
+        if (field.getModifiers().contains(Modifier.FINAL) && !field.getModifiers().contains(Modifier.STATIC)) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
-                            + " is annotated with multiple relationship annotations (@OneToOne, @OneToMany, @ManyToOne). Only one relationship annotation is allowed per field.",
-                    enclosedElement);
-            return; // No need to continue further processing
+                "@Repository " + parent.getSimpleName() + " cannot have final field " + field.getSimpleName(),
+                field);
         }
+        checkRelationshipFieldAnnotations(parent, field);
+        checkRawTypes(field);
+    }
 
-        if (oneToOne != null) {
-            TypeMirror fieldType = enclosedElement.asType();
-
-            if (isCollectionType(enclosedElement)) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
-                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
-                                + " is annotated with @OneToOne, but the field type is a collection type.",
-                        enclosedElement);
-
-            } else if (externalRepository == null) {
-                // Only check @Repository annotation if not using external repository
-                checkDeclared(fieldType, enclosedElement, element, " is annotated with @OneToOne, but the referenced type '");
-            }
-        }
-
-        if (manyToOne != null) {
-            TypeMirror fieldType = enclosedElement.asType();
-
-            // Check if the field type is a class
-            if (isCollectionType(enclosedElement)) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
-                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
-                                + " is annotated with @ManyToOne, but the field type is a collection type.",
-                        enclosedElement);
-
-            } else if (externalRepository == null) {
-                // Only check @Repository annotation if not using external repository
-                checkDeclared(fieldType, enclosedElement, element, " is annotated with @ManyToOne, but the referenced type '");
-            }
-        }
-
-        if (oneToMany != null) {
-            TypeMirror mappedBy = getMappedBy(oneToMany);
-
-            if (!isCollectionType(enclosedElement)) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
-                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
-                                + " is annotated with @OneToMany, but the field type is not a collection type.",
-                        enclosedElement);
-
-            } else if (externalRepository == null && mappedBy.getAnnotation(Repository.class) == null) {
-                // Only check @Repository annotation if not using external repository
-                messager.printMessage(Diagnostic.Kind.ERROR,
-                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
-                                + " is annotated with @OneToMany, but the referenced type '" + ((DeclaredType) mappedBy).asElement().getSimpleName() + "' is not annotated with @Repository.",
-                        enclosedElement);
-            }
-        }
-        
-        // Validate @ExternalRepository usage
-        if (externalRepository != null) {
-            if (oneToOne == null && oneToMany == null && manyToOne == null) {
-                messager.printMessage(Diagnostic.Kind.WARNING,
-                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
-                                + " is annotated with @ExternalRepository but has no relationship annotation (@OneToOne, @OneToMany, @ManyToOne). "
-                                + "@ExternalRepository should be used with relationship annotations.",
-                        enclosedElement);
-            }
-            
-            if (externalRepository.adapter().isBlank()) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
-                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
-                                + " has @ExternalRepository with an empty adapter name.",
-                        enclosedElement);
+    private void checkFieldAnnotations(Element parent, VariableElement field, boolean error) {
+        for (String annotation : FIELD_ANNOTATIONS) {
+            if (hasAnnotation(field, annotation)) {
+                messager.printMessage(error ? Diagnostic.Kind.ERROR : Diagnostic.Kind.WARNING,
+                    "@Repository " + parent.getSimpleName() + " field " + field.getSimpleName() +
+                        " cannot have annotation " + annotation,
+                    field);
             }
         }
     }
 
-    private static TypeMirror getMappedBy(OneToMany oneToMany) {
-        try {
-            oneToMany.mappedBy();
-        } catch (MirroredTypeException e) {
-            return e.getTypeMirror();
-        }
-        throw new IllegalStateException("Should not be null.");
-    }
+    private void checkRelationshipFieldAnnotations(Element parent, VariableElement field) {
+        boolean hasOneToOne = hasAnnotation(field, OneToOne.class.getCanonicalName());
+        boolean hasOneToMany = hasAnnotation(field, OneToMany.class.getCanonicalName());
+        boolean hasManyToOne = hasAnnotation(field, ManyToOne.class.getCanonicalName());
+        boolean hasExternal = hasAnnotation(field, ExternalRepository.class.getCanonicalName());
 
-    private void checkDeclared(TypeMirror fieldType, VariableElement enclosedElement, Element element, String x) {
-        if (fieldType.getKind() == TypeKind.DECLARED) {
-            DeclaredType declaredType = (DeclaredType) fieldType;
-            Element typeElement = declaredType.asElement();
-            if (typeElement.getAnnotation(Repository.class) == null) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
-                        "Field '" + enclosedElement.getSimpleName() + "' in " + element.getSimpleName()
-                                + x + typeElement.getSimpleName() + "' is not annotated with @Repository.",
-                        enclosedElement);
-            }
+        int count = 0;
+        if (hasOneToOne) count++;
+        if (hasOneToMany) count++;
+        if (hasManyToOne) count++;
+        if (count > 1) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                "Field " + field.getSimpleName() + " has multiple relationship annotations",
+                field);
         }
     }
 
-    private void checkRawTypes(@NotNull VariableElement fieldElement) {
-        TypeMirror type = fieldElement.asType();
+    private void checkRawTypes(VariableElement field) {
+        TypeMirror type = field.asType();
         if (type.getKind() != TypeKind.DECLARED) return;
-
         DeclaredType declaredType = (DeclaredType) type;
         Element element = declaredType.asElement();
         if (!(element instanceof TypeElement typeElement)) return;
-
-        // Only check types that declare type parameters (e.g., List<T>, Map<K, V>, etc.)
-        if (typeElement.getTypeParameters().isEmpty()) return;
-
-        // If the user didn't specify type arguments (it's raw), raise an error
-        if (declaredType.getTypeArguments().isEmpty()) {
+        if (!typeElement.getTypeParameters().isEmpty() && declaredType.getTypeArguments().isEmpty()) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldElement.getSimpleName() + "' is using a raw type '" + typeElement.getSimpleName() + "'. " +
-                            "You must specify type parameters (e.g., List<String>, Map<Key, Value>).",
-                    fieldElement);
+                "Field " + field.getSimpleName() + " is raw type " + typeElement.getSimpleName(),
+                field);
         }
     }
 
-
-    private void checkStaticFieldAnnotations(Element element, VariableElement enclosedElement) {
-        for (Class<? extends Annotation> annotation : FIELD_ANNOTATIONS) {
-            if (enclosedElement.getAnnotation(annotation) != null) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot have a static field annotated with @" + annotation.getSimpleName() + " or from the following list: " + FIELD_ANNOTATIONS, element);
-            }
-        }
+    private boolean hasAnnotation(Element element, String annotationCanonicalName) {
+        return element.getAnnotationMirrors().stream()
+            .anyMatch(am -> ((TypeElement) am.getAnnotationType().asElement()).getQualifiedName().contentEquals(annotationCanonicalName));
     }
 
-    private void checkTransientFieldAnnotations(Element element, VariableElement enclosedElement) {
-        for (Class<? extends Annotation> annotation : FIELD_ANNOTATIONS) {
-            if (enclosedElement.getAnnotation(annotation) != null) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "@Repository " + element.getSimpleName() + " cannot have a transient field annotated with @" + annotation.getSimpleName() + " or from the following list: " + FIELD_ANNOTATIONS, element);
-            }
-        }
+    private List<AnnotationMirror> getAnnotations(Element element, String annotationCanonicalName) {
+        return element.getAnnotationMirrors().stream()
+            .filter(am -> ((TypeElement) am.getAnnotationType().asElement()).getQualifiedName().contentEquals(annotationCanonicalName))
+            .toList();
+    }
+
+    private List<String> getStringArrayValue(AnnotationMirror am, String key) {
+        return am.getElementValues().entrySet().stream()
+            .filter(e -> e.getKey().getSimpleName().contentEquals(key))
+            .map(e -> {
+                @SuppressWarnings("unchecked")
+                List<? extends AnnotationValue> list = (List<? extends AnnotationValue>) e.getValue().getValue();
+                return list.stream().map(av -> av.getValue().toString()).toList();
+            }).flatMap(List::stream).toList();
     }
 }
