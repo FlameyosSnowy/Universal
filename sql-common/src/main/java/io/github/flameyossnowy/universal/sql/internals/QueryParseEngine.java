@@ -20,7 +20,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.ParameterizedType;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.HashSet;
@@ -263,25 +262,36 @@ public class QueryParseEngine {
      */
 
     public @NotNull String parseRepository(boolean ifNotExists) {
+        Set<FieldData<?>> childTableQueue = new HashSet<>(4);
+
         StringJoiner joiner = new StringJoiner(", ",
-            "CREATE TABLE " +
-                    (ifNotExists ? "IF NOT EXISTS " + sqlType.quoteChar() : sqlType.quoteChar())
-            + repositoryInformation.getRepositoryName() + sqlType.quoteChar() + " (",
+            "CREATE TABLE " + (ifNotExists ? "IF NOT EXISTS " : "") + sqlType.quoteChar() +
+                repositoryInformation.getRepositoryName() + sqlType.quoteChar() + " (",
             ");"
         );
 
-        Constraint[] constraints = repositoryInformation.getConstraints();
-        Set<String> constrainedFields = constraints.length > 0 ? new HashSet<>(constraints.length) : Collections.emptySet();
-        if (constraints.length > 0) addConstraints(constrainedFields);
-
-        generateColumns(joiner);
+        generateColumns(joiner, childTableQueue);
 
         String classConstraints = processClassLevelConstraints();
         if (!classConstraints.isEmpty()) {
             joiner.add(classConstraints);
         }
 
-        return joiner.toString();
+        String mainTableSQL = joiner.toString();
+
+        try (Connection conn = connectionProvider.getConnection();
+             PreparedStatement stmt = connectionProvider.prepareStatement(mainTableSQL, conn)) {
+            stmt.executeUpdate();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create main repository table: " + repositoryInformation.getRepositoryName(), e);
+        }
+
+        for (FieldData<?> data : childTableQueue) {
+            createChildTable(data);
+        }
+        childTableQueue.clear();
+
+        return mainTableSQL;
     }
 
     private void addConstraints(final Set<String> constrainedFields) {
@@ -320,7 +330,7 @@ public class QueryParseEngine {
     }
 
     @Contract(pure = true)
-    private void generateColumns(final StringJoiner joiner) {
+    private void generateColumns(final StringJoiner joiner, Set<FieldData<?>> childTableQueue) {
         StringJoiner primaryKeysJoiner = new StringJoiner(", ");
         StringJoiner relationshipsJoiner = new StringJoiner(", ");
 
@@ -334,7 +344,7 @@ public class QueryParseEngine {
             Logging.deepInfo("Processing field: " + name);
             Logging.deepInfo("Field type: " + type);
 
-            generateColumn(joiner, data, type, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner);
+            generateColumn(joiner, data, type, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, childTableQueue);
         }
 
         String pkClause = primaryKeysJoiner.toString();
@@ -348,46 +358,53 @@ public class QueryParseEngine {
         }
     }
 
-    protected void generateColumn(StringJoiner joiner, FieldData<?> data, Class<?> type, StringBuilder fieldBuilder, String name, boolean unique, boolean primaryKey, StringJoiner primaryKeysJoiner, StringJoiner relationshipsJoiner) {
-        boolean assignableFrom = Collection.class.isAssignableFrom(type);
-        if (assignableFrom) {
+    private void generateColumn(
+        StringJoiner joiner,
+        FieldData<?> data,
+        Class<?> type,
+        StringBuilder fieldBuilder,
+        String name,
+        boolean unique,
+        boolean primaryKey,
+        StringJoiner primaryKeysJoiner,
+        StringJoiner relationshipsJoiner,
+        Set<FieldData<?>> childTableQueue
+    ) {
+        if (data.isRelationship()) {
+            return;
+        }
+
+        // handle collections
+        if (Collection.class.isAssignableFrom(type)) {
             if (!sqlType.supportsArrays()) {
-                generateChildTable(data, type);
-                return;  // handled elsewhere
+                childTableQueue.add(data);
+                return;
             }
 
-            Class<?> genericType = Object.class; // fallback if we can't determine
-
-            // attempt to get the generic type from FieldData
-            if (data.elementType() != null) {
-                genericType = data.elementType();
-            }
-
-            String resolvedType = resolverRegistry.getType(
-                genericType.arrayType(),
-                data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL
-            );
-
+            Class<?> genericType = data.elementType() != null ? data.elementType() : Object.class;
+            String resolvedType = resolverRegistry.getType(genericType.arrayType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
 
+        // handle maps
         if (Map.class.isAssignableFrom(type)) {
-            generateChildTable(data, type);
-            return; // skip adding column to main table
+            childTableQueue.add(data);
+            return;
         }
 
+        // handle arrays
         if (type.isArray()) {
             if (!sqlType.supportsArrays()) {
-                generateChildTable(data, type);
-                return; // not ignored, just handled differently and somewhere else, likely in DatabaseRelationshipHandler
+                childTableQueue.add(data);
+                return;
             }
-
             String resolvedType = resolverRegistry.getType(type.getComponentType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
 
+        // fallback: normal type
         String resolvedType = resolverRegistry.getType(type, data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
         if (resolvedType == null) {
             TypeResolver<?> resolver = createResolver(data);
@@ -396,13 +413,8 @@ public class QueryParseEngine {
 
         RepositoryInformation metadata;
         if (resolvedType == null && (metadata = RepositoryMetadata.getMetadata(type)) != null) {
-            // not created properly, last resort
-
             FieldData<?> metadataPrimaryKey = metadata.getPrimaryKey();
-            if (metadataPrimaryKey == null) {
-                throw new IllegalArgumentException("Primary key must not be null");
-            }
-
+            Objects.requireNonNull(metadataPrimaryKey, "Primary key must not be null");
             resolvedType = resolverRegistry.getType(metadataPrimaryKey.type(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
         }
 
@@ -437,7 +449,7 @@ public class QueryParseEngine {
     }
 
     @SuppressWarnings("unchecked")
-    private @Nullable TypeResolver<Object>  parseNewResolver(final @NotNull FieldData<?> data) {
+    private @Nullable TypeResolver<Object> parseNewResolver(final @NotNull FieldData<?> data) {
         ResolveWith annotation = data.resolveWith();
         if (annotation == null) {
             return null;
@@ -455,24 +467,31 @@ public class QueryParseEngine {
         }
     }
 
-    private void generateChildTable(FieldData<?> data, Class<?> type) {
+    private void createChildTable(FieldData<?> data) {
         String childTableName = repositoryInformation.getRepositoryName() + "_" + data.name();
         Class<?> elementType = (data.elementType() != null) ? data.elementType() : Object.class;
 
         String elementSqlType = resolverRegistry.getType(elementType);
         String idSqlType = resolverRegistry.getType(repositoryInformation.getPrimaryKey().type());
 
-        String query = "CREATE TABLE IF NOT EXISTS " + sqlType.quoteChar() + childTableName + sqlType.quoteChar() + " (\n" +
-            "    id " + idSqlType + " NOT NULL,\n" +
-        (Collection.class.isAssignableFrom(type)
-          ? "    value " + elementSqlType + " NOT NULL,\n" : "") +
-        (Map.class.isAssignableFrom(type)
-          ? "    map_key " + resolverRegistry.getType(data.mapKeyType()) + " NOT NULL,\n" : "") +
-        (Map.class.isAssignableFrom(type)
-          ? "    map_value " + elementSqlType + " NOT NULL,\n" : "") +
-            "    FOREIGN KEY (id) REFERENCES " + sqlType.quoteChar() + repositoryInformation.getRepositoryName() + sqlType.quoteChar() +
-            "(id) ON DELETE CASCADE ON UPDATE CASCADE\n" +
-            ");";
+        StringBuilder sb = new StringBuilder(128);
+        sb.append("CREATE TABLE IF NOT EXISTS ").append(sqlType.quoteChar()).append(childTableName).append(sqlType.quoteChar())
+            .append(" (\n")
+            .append("  ").append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(" ").append(idSqlType).append(" NOT NULL,\n");
+
+        if (Collection.class.isAssignableFrom(data.type())) {
+            sb.append("  ").append(sqlType.quoteChar()).append("value").append(sqlType.quoteChar()).append(" ").append(elementSqlType).append(" NOT NULL,\n");
+        } else if (Map.class.isAssignableFrom(data.type())) {
+            sb.append("  ").append(sqlType.quoteChar()).append("map_key").append(sqlType.quoteChar()).append(" ").append(resolverRegistry.getType(data.mapKeyType())).append(" NOT NULL,\n")
+                .append("  ").append(sqlType.quoteChar()).append("map_value").append(sqlType.quoteChar()).append(" ").append(elementSqlType).append(" NOT NULL,\n");
+        }
+
+        sb.append("  FOREIGN KEY (").append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(") REFERENCES ")
+            .append(sqlType.quoteChar()).append(repositoryInformation.getRepositoryName()).append(sqlType.quoteChar()).append("(")
+            .append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(") ON DELETE CASCADE ON UPDATE CASCADE\n")
+            .append(");");
+
+        String query = sb.toString();
 
         try (Connection conn = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, conn)) {
