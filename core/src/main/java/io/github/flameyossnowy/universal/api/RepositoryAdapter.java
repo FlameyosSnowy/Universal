@@ -31,8 +31,10 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * <p>
      * This method is a convenience wrapper for {@link #createRepository(boolean)} with the argument
      * set to {@code false}.
+     * @deprecated This is now done automatically, this is a useless operation.
      */
     @Contract(pure = true)
+    @Deprecated
     default TransactionResult<Boolean> createRepository() {
         return this.createRepository(false);
     }
@@ -47,7 +49,10 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * <b>This method is a one-time operation and will have no effect if the table already
      * exists.</b>
      * @param ifNotExists Whether to create the table if it exists or not.
+     * @deprecated This is now done automatically, this is a useless operation.
      */
+    @Deprecated
+    @CheckReturnValue
     TransactionResult<Boolean> createRepository(boolean ifNotExists);
 
     /**
@@ -216,6 +221,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param transactionContext The transaction context within which the operation is performed.
      * @return {@code true} if the insertion was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> insert(T value, TransactionContext<C> transactionContext);
 
     /**
@@ -227,6 +233,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param value The items to be inserted into the repository.
      * @param transactionContext The transaction context within which the operation is performed.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext<C> transactionContext);
 
     /**
@@ -239,6 +246,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param transactionContext The transaction context within which the operation is performed.
      * @return {@code true} if the update was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> updateAll(T entity, TransactionContext<C> transactionContext);
 
     /**
@@ -251,6 +259,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param transactionContext The transaction context within which the operation is performed.
      * @return {@code true} if the deletion was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> delete(T entity, TransactionContext<C> transactionContext);
 
     /**
@@ -261,6 +270,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param value The item to be deleted from the repository.
      * @return {@code true} if the deletion was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> delete(T value);
 
     /**
@@ -273,6 +283,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param transactionContext The transaction context within which the operation is performed.
      * @return {@code true} if the deletion was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> deleteById(ID entity, TransactionContext<C> transactionContext);
 
     /**
@@ -282,6 +293,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param value The ID of the item to be deleted from the repository.
      * @return {@code true} if the deletion was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> deleteById(ID value);
 
     /**
@@ -296,6 +308,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      *
      * @return {@code true} if the update was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query, TransactionContext<C> transactionContext);
 
     /**
@@ -319,6 +332,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param tx The transaction context within which the operation is performed.
      * @return {@code true} if the deletion was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> delete(DeleteQuery query, TransactionContext<C> tx);
 
     /**
@@ -329,6 +343,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param query The query specifying the items to be deleted.
      * @return {@code true} if the deletion was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> delete(@NotNull DeleteQuery query);
 
     /**
@@ -339,6 +354,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param value The item to be inserted into the repository.
      * @return {@code true} if the insertion was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> insert(T value);
 
     /**
@@ -349,6 +365,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param entity The entity to update.
      * @return {@code true} if the update was successful, {@code false} otherwise.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> updateAll(T entity);
 
     /**
@@ -362,6 +379,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @param query The list of items to be inserted into the repository.
      */
     @SuppressWarnings("UnusedReturnValue")
+    @CheckReturnValue
     TransactionResult<Boolean> insertAll(Collection<T> query);
 
     /**
@@ -371,6 +389,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * not recommended to use this method unless you have a specific reason for
      * doing so, as it is a potentially expensive operation.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> clear();
 
     /**
@@ -388,6 +407,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      *              the fields and type of index.
      * @throws IllegalArgumentException If the index options do not specify any fields.
      */
+    @CheckReturnValue
     TransactionResult<Boolean> createIndex(IndexOptions index);
 
     /**
@@ -406,6 +426,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      *                the fields and type of each index.
      * @throws IllegalArgumentException If any of the index options do not specify any fields.
      */
+    @CheckReturnValue
     default TransactionResult<Boolean> createIndexes(IndexOptions... indexes) {
         if (indexes.length == 0) return TransactionResult.success(false);
 
@@ -432,6 +453,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @return A dynamic proxy object that implements the specified interface.
      */
     @SuppressWarnings("unchecked")
+    @CheckReturnValue
     default <A> A createDynamicProxy(Class<A> adapter) {
         return (A) Proxy.newProxyInstance(
                 adapter.getClassLoader(),
@@ -450,6 +472,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      */
     @Override
     @NotNull
+    @CheckReturnValue
     Class<ID> getIdType();
 
     /**
@@ -564,10 +587,11 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * The operation is executed asynchronously and the results are returned as a
      * {@link CompletableFuture} that completes with a {@link Void} result when the
      * operation is complete.
-     *
+     * @deprecated This is now done automatically, this is a useless operation.
      * @return a future that completes with a {@link Void} result when the operation is complete.
      */
     @CheckReturnValue
+    @Deprecated
     default CompletableFuture<TransactionResult<Boolean>> createRepositoryAsync() {
         return CompletableFuture.supplyAsync(this::createRepository);
     }
@@ -645,6 +669,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
     @ApiStatus.Internal
     @Override
     @NotNull
+    @CheckReturnValue
     RepositoryInformation getRepositoryInformation();
 
     /**
@@ -654,6 +679,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      */
     @Override
     @NotNull
+    @CheckReturnValue
     default Class<T> getEntityType() {
         return getElementType();
     }
@@ -664,6 +690,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      *
      * @return The entity class
      */
+    @CheckReturnValue
     Class<T> getElementType();
 
     // Default implementations for Operation-based API
@@ -673,6 +700,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      */
     @Override
     @NotNull
+    @CheckReturnValue
     default <R> TransactionResult<R> execute(@NotNull Operation<R, C> operation) {
         return executeOperation(operation);
     }
@@ -682,6 +710,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      */
     @Override
     @NotNull
+    @CheckReturnValue
     default <R> TransactionResult<R> execute(
             @NotNull Operation<R, C> operation,
             @NotNull TransactionContext<C> transactionContext) {
@@ -695,6 +724,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @return A find operation
      */
     @NotNull
+    @CheckReturnValue
     default Operation<List<T>, C> createFindOperation(@NotNull SelectQuery query) {
         return new FindOperation<>(query, (q, ctx) -> find(q));
     }
@@ -706,6 +736,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @return An insert operation
      */
     @NotNull
+    @CheckReturnValue
     default Operation<Boolean, C> createInsertOperation(@NotNull T entity) {
         return new InsertOperation<>(entity, (e, ctx) -> {
             TransactionResult<Boolean> result = insert(e);
@@ -720,6 +751,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @return An update operation
      */
     @NotNull
+    @CheckReturnValue
     default Operation<Boolean, C> createUpdateOperation(@NotNull T entity) {
         return new UpdateOperation<>(entity, new UpdateOperation.UpdateExecutor<>() {
             @Override
@@ -743,6 +775,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @return A delete operation
      */
     @NotNull
+    @CheckReturnValue
     default Operation<Boolean, C> createDeleteOperation(@NotNull T entity) {
         return DeleteOperation.fromEntity(entity, new DeleteOperation.DeleteExecutor<T, ID, C>() {
             @Override
