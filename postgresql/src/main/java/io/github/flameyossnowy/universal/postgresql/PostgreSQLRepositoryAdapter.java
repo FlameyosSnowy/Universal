@@ -3,7 +3,6 @@ package io.github.flameyossnowy.universal.postgresql;
 import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
 import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
-import io.github.flameyossnowy.universal.postgresql.internals.PostgresObjectFactory;
 import io.github.flameyossnowy.universal.sql.internals.AbstractRelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
@@ -24,7 +23,6 @@ public class PostgreSQLRepositoryAdapter<T, ID> extends AbstractRelationalReposi
             CacheWarmer<T, ID> cacheWarmer
     ) {
         super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.POSTGRESQL, globalCache, sessionCacheLongFunction, cacheWarmer);
-        this.setObjectFactory(new PostgresObjectFactory<>(repositoryInformation, dataSource, this, resolverRegistry));
     }
 
     @NotNull

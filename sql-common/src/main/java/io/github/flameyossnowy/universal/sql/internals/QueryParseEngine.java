@@ -21,6 +21,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Collection;
@@ -35,13 +37,15 @@ public class QueryParseEngine {
     private final RepositoryInformation repositoryInformation;
     private final Map<String, String> queryMap;
     private final TypeResolverRegistry resolverRegistry;
+    private final SQLConnectionProvider connectionProvider;
 
     private final String insert;
 
-    public QueryParseEngine(DatabaseImplementation sqlType, final RepositoryInformation repositoryInformation, TypeResolverRegistry resolverRegistry) {
+    public QueryParseEngine(DatabaseImplementation sqlType, final RepositoryInformation repositoryInformation, TypeResolverRegistry resolverRegistry, SQLConnectionProvider connectionProvider) {
         this.sqlType = sqlType;
         this.repositoryInformation = repositoryInformation;
         this.resolverRegistry = resolverRegistry;
+        this.connectionProvider = connectionProvider;
         this.queryMap = new ConcurrentHashMap<>(5);
         this.insert = parseInsert0();
     }
@@ -345,20 +349,39 @@ public class QueryParseEngine {
     }
 
     protected void generateColumn(StringJoiner joiner, FieldData<?> data, Class<?> type, StringBuilder fieldBuilder, String name, boolean unique, boolean primaryKey, StringJoiner primaryKeysJoiner, StringJoiner relationshipsJoiner) {
-        if (Collection.class.isAssignableFrom(type)) {
-            if (!sqlType.supportsArrays()) return;  // not ignored, just handled differently and somewhere else, likely in DatabaseRelationshipHandler
+        boolean assignableFrom = Collection.class.isAssignableFrom(type);
+        if (assignableFrom) {
+            if (!sqlType.supportsArrays()) {
+                generateChildTable(data, type);
+                return;  // handled elsewhere
+            }
 
-            // get the generic type
-            Class<?> genericType = (Class<?>) ((ParameterizedType) type.getGenericSuperclass()).getActualTypeArguments()[0];
+            Class<?> genericType = Object.class; // fallback if we can't determine
 
-            String resolvedType = resolverRegistry.getType(genericType.arrayType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
+            // attempt to get the generic type from FieldData
+            if (data.elementType() != null) {
+                genericType = data.elementType();
+            }
+
+            String resolvedType = resolverRegistry.getType(
+                genericType.arrayType(),
+                data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL
+            );
+
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
 
-        if (Map.class.isAssignableFrom(type)) return; // not ignored, just handled differently and somewhere else, DatabaseRelationshipHandler
+        if (Map.class.isAssignableFrom(type)) {
+            generateChildTable(data, type);
+            return; // skip adding column to main table
+        }
+
         if (type.isArray()) {
-            if (!sqlType.supportsArrays()) return; // not ignored, just handled differently and somewhere else, likely in DatabaseRelationshipHandler
+            if (!sqlType.supportsArrays()) {
+                generateChildTable(data, type);
+                return; // not ignored, just handled differently and somewhere else, likely in DatabaseRelationshipHandler
+            }
 
             String resolvedType = resolverRegistry.getType(type.getComponentType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
@@ -415,10 +438,11 @@ public class QueryParseEngine {
 
     @SuppressWarnings("unchecked")
     private @Nullable TypeResolver<Object>  parseNewResolver(final @NotNull FieldData<?> data) {
-        ResolveWith annotation = data.getAnnotation(ResolveWith.class);
+        ResolveWith annotation = data.resolveWith();
         if (annotation == null) {
             return null;
         }
+
         if (!TypeResolver.class.isAssignableFrom(annotation.value())) {
             throw new IllegalArgumentException("Annotation value must be an SQLValueTypeResolver: " + annotation.value());
         }
@@ -428,6 +452,33 @@ public class QueryParseEngine {
             return newResolver;
         } catch (InstantiationException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private void generateChildTable(FieldData<?> data, Class<?> type) {
+        String childTableName = repositoryInformation.getRepositoryName() + "_" + data.name();
+        Class<?> elementType = (data.elementType() != null) ? data.elementType() : Object.class;
+
+        String elementSqlType = resolverRegistry.getType(elementType);
+        String idSqlType = resolverRegistry.getType(repositoryInformation.getPrimaryKey().type());
+
+        String query = "CREATE TABLE IF NOT EXISTS " + sqlType.quoteChar() + childTableName + sqlType.quoteChar() + " (\n" +
+            "    id " + idSqlType + " NOT NULL,\n" +
+        (Collection.class.isAssignableFrom(type)
+          ? "    value " + elementSqlType + " NOT NULL,\n" : "") +
+        (Map.class.isAssignableFrom(type)
+          ? "    map_key " + resolverRegistry.getType(data.mapKeyType()) + " NOT NULL,\n" : "") +
+        (Map.class.isAssignableFrom(type)
+          ? "    map_value " + elementSqlType + " NOT NULL,\n" : "") +
+            "    FOREIGN KEY (id) REFERENCES " + sqlType.quoteChar() + repositoryInformation.getRepositoryName() + sqlType.quoteChar() +
+            "(id) ON DELETE CASCADE ON UPDATE CASCADE\n" +
+            ");";
+
+        try (Connection conn = connectionProvider.getConnection();
+             PreparedStatement stmt = connectionProvider.prepareStatement(query, conn)) {
+            stmt.executeUpdate();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create child table: " + childTableName, e);
         }
     }
 

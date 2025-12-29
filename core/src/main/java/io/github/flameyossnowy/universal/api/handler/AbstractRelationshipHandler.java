@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.api.handler;
 
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.RepositoryRegistry;
+import io.github.flameyossnowy.universal.api.annotations.ExternalRepository;
 import io.github.flameyossnowy.universal.api.cache.LazyArrayList;
 import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
@@ -189,8 +190,9 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
     @Nullable
     @SuppressWarnings("unchecked")
     private static RepositoryAdapter<Object, Object, ?> resolveAdapter(@NotNull FieldData<?> field, @NotNull RepositoryInformation targetInfo) {
-        if (field.isExternalRelationship()) {
-            String adapterName = field.externalRepository().adapter();
+        ExternalRepository externalRepository = field.externalRepository();
+        if (externalRepository != null) {
+            String adapterName = externalRepository.adapter();
             RepositoryAdapter<Object, Object, ?> externalAdapter = RepositoryRegistry.get(adapterName);
 
             if (externalAdapter == null) {

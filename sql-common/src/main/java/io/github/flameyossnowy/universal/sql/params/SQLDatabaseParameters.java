@@ -3,6 +3,8 @@ package io.github.flameyossnowy.universal.sql.params;
 import io.github.flameyossnowy.universal.api.handler.DataHandler;
 import io.github.flameyossnowy.universal.api.handler.PrimitiveHandler;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
+import io.github.flameyossnowy.universal.api.reflect.FieldData;
+import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Primitives;
@@ -30,27 +32,21 @@ public class SQLDatabaseParameters implements DatabaseParameters {
     private int parameterIndex = 1;
     private final Map<String, Integer> nameToIndexMap = new LinkedHashMap<>(4);
 
-    public SQLDatabaseParameters(PreparedStatement statement, TypeResolverRegistry typeRegistry) {
-        this(statement, typeRegistry, null);
-    }
-
-    public SQLDatabaseParameters(PreparedStatement statement, TypeResolverRegistry typeRegistry, String sql) {
+    public SQLDatabaseParameters(PreparedStatement statement, TypeResolverRegistry typeRegistry, String sql, RepositoryInformation information) {
         if (statement == null) throw new IllegalArgumentException("PreparedStatement cannot be null");
         if (typeRegistry == null) throw new IllegalArgumentException("TypeResolverRegistry cannot be null");
 
         this.statement = statement;
         this.typeRegistry = typeRegistry;
 
-        if (sql != null) {
-            parseSql(sql);
-        }
+        parseSql(sql, information);
     }
 
-    private void parseSql(String sql) {
+    private void parseSql(String sql, RepositoryInformation information) {
         String lower = sql.toLowerCase().trim();
 
         if (lower.startsWith("insert")) {
-            parseInsert(sql);
+            parseInsert(sql, information);
         } else if (lower.startsWith("update")) {
             parseUpdate(sql);
         } else if (lower.startsWith("select")) {
@@ -112,22 +108,32 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         }
     }
 
-    private void parseInsert(String sql) {
-        int open = sql.indexOf('(');
-        if (open < 0) return;
+    private void parseInsert(String sql, RepositoryInformation information) {
+        int openParen = sql.indexOf('(');
+        int closeParen = sql.indexOf(')', openParen);
+        if (openParen < 0 || closeParen < 0) return;
 
-        int close = sql.indexOf(')', open);
-        if (close < 0) return;
+        String[] columns = sql.substring(openParen + 1, closeParen).split(",");
 
-        String inside = sql.substring(open + 1, close);
-        String[] columns = inside.split(",");
+        // find auto-increment field once
+        FieldData<?> autoIncrementField = null;
+        for (FieldData<?> f : information.getFields()) {
+            if (f.autoIncrement()) {
+                autoIncrementField = f;
+                break;
+            }
+        }
 
         int pos = 1;
-        for (String col : columns) {
-            String name = col.trim();
-            if (name.isEmpty()) continue;
-            nameToIndexMap.put(name, pos++);
+        for (String rawCol : columns) {
+            String col = rawCol.trim();
+            if (autoIncrementField != null && col.equalsIgnoreCase(autoIncrementField.name())) {
+                continue; // skip auto-increment column
+            }
+            nameToIndexMap.put(col, pos++);
         }
+
+        parameterIndex = pos;
     }
 
     private void parseUpdate(String sql) {

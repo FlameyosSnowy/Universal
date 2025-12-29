@@ -4,6 +4,7 @@ import io.github.flameyossnowy.universal.api.annotations.*;
 import io.github.flameyossnowy.universal.api.defvalues.DefaultTypeProvider;
 import io.github.flameyossnowy.universal.api.exceptions.ConstructorThrewException;
 
+import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
 import me.sunlan.fastreflection.FastField;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -214,14 +215,40 @@ public class RepositoryMetadata {
                 field.getAnnotation(OnDelete.class),
                 oneToMany, manyToOne, oneToOne, externalRepository,
                 resolveDefaultValue(defaultValue, defaultValueProvider),
-                binary
+                binary,
+                field.getAnnotation(ResolveWith.class)
         );
     }
 
-    private static boolean isAutoIncrement(Class<?> type, AutoIncrement autoIncrement, boolean id) {
-        if (id && !ALLOWED_ID_TYPES.contains(type)) throw new IllegalArgumentException("Unsupported id type: " + type.getName());
-        if (autoIncrement != null && !NUMERIC_ID_TYPES.contains(type)) throw new IllegalArgumentException("Unsupported auto increment type: " + type.getName());
-        return NUMERIC_ID_TYPES.contains(type) || autoIncrement != null;
+    private static boolean isAutoIncrement(
+        Class<?> type,
+        @Nullable AutoIncrement autoIncrement,
+        boolean id
+    ) {
+        if (id && !ALLOWED_ID_TYPES.contains(type)) {
+            throw new IllegalArgumentException(
+                "Unsupported @Id type: " + type.getName()
+            );
+        }
+
+        if (autoIncrement == null) {
+            return false;
+        }
+
+        // Auto-increment MUST be an ID
+        if (!id) {
+            throw new IllegalArgumentException(
+                "@AutoIncrement is only allowed on @Id fields"
+            );
+        }
+
+        if (!NUMERIC_ID_TYPES.contains(type)) {
+            throw new IllegalArgumentException(
+                "Auto-increment requires numeric type, found: " + type.getName()
+            );
+        }
+
+        return true;
     }
 
     private static <T> FieldData<T> createFieldDataFromRecordComponent(@NotNull RepositoryInformation information, RecordComponent recordComponent, String tableName, String fieldName) {
@@ -257,7 +284,8 @@ public class RepositoryMetadata {
                 recordComponent.getAnnotation(OnDelete.class),
                 oneToMany, manyToOne, oneToOne, externalRepository,
                 resolveDefaultValue(defaultValue, defaultValueProvider),
-                recordComponent.getAnnotation(Binary.class)
+                recordComponent.getAnnotation(Binary.class),
+                recordComponent.getAnnotation(ResolveWith.class)
         );
     }
 

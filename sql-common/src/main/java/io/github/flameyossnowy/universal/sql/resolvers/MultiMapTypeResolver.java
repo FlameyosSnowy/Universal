@@ -40,25 +40,13 @@ public class MultiMapTypeResolver<K, V, ID> {
         if (keyResolver == null || valueResolver == null || idResolver == null) {
             throw new IllegalStateException("No resolver found for one of the types: " + keyType.getSimpleName() + ", " + valueType.getSimpleName() + ", or " + idType.getSimpleName());
         }
-        ensureTableExists();
-    }
-
-    private void ensureTableExists() {
-        String query = "CREATE TABLE IF NOT EXISTS " + tableName + " (\n    id " + resolverRegistry.getType(idResolver) + " NOT NULL,\n    map_key " + resolverRegistry.getType(keyResolver) + " NOT NULL,\n    map_value " + resolverRegistry.getType(valueResolver) + " NOT NULL,\n    FOREIGN KEY (id) REFERENCES " + information.getRepositoryName() + " (id)\n);\n";
-
-        try (Connection conn = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(query, conn)) {
-            stmt.executeUpdate();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create map table: " + tableName, e);
-        }
     }
 
     public Map<K, List<V>> resolve(ID id) {
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connection.prepareStatement(query)) {
-            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query);
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(params, "id", id);
             ResultSet resultSet = stmt.executeQuery();
 
@@ -81,7 +69,7 @@ public class MultiMapTypeResolver<K, V, ID> {
         String insertQuery = "INSERT INTO " + tableName + " (id, map_key, map_value) VALUES (?, ?, ?)";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information);
             addBatchElements(id, map, parameters, insertStmt);
             insertStmt.executeBatch();
         }
@@ -105,7 +93,7 @@ public class MultiMapTypeResolver<K, V, ID> {
         String insertQuery = "INSERT INTO " + tableName + " (id, map_key, map_value) VALUES (?, ?, ?)";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information);
             addOneEntry(values, id, key, parameters, insertStmt);
             insertStmt.executeBatch();
         }
@@ -116,7 +104,7 @@ public class MultiMapTypeResolver<K, V, ID> {
         String query = "DELETE FROM " + tableName + " WHERE id = ? AND map_key = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(parameters, "id", id);
             keyResolver.insert(parameters, "map_key", key);
             stmt.executeUpdate();
@@ -128,7 +116,7 @@ public class MultiMapTypeResolver<K, V, ID> {
         String query = "DELETE FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(parameters, "id", id);
             stmt.executeUpdate();
         }

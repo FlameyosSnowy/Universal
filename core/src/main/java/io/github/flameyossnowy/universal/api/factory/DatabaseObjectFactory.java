@@ -81,32 +81,42 @@ public interface DatabaseObjectFactory<T, S> {
 
     @Contract("_ -> new")
     static @NotNull MapData getMapData(@NotNull FieldData<?> field) {
-        Field rawField = field.rawField();
-        ParameterizedType paramType = (ParameterizedType) rawField.getGenericType();
-        Type[] types = paramType.getActualTypeArguments();
+        Class<?> keyType = field.mapKeyType();
+        Class<?> valueType = field.mapValueType();
 
-        Type keyTypeRaw = types[0];
-        Type valueTypeRaw = types[1];
-
-        Class<Object> keyType = (Class<Object>) keyTypeRaw;
-        Class<Object> valueType;
+        if (keyType == null || valueType == null) {
+            throw new IllegalStateException(
+                "Field " + field.name() + " is not a Map"
+            );
+        }
 
         boolean isMultiMap = false;
 
-        if (valueTypeRaw instanceof ParameterizedType parameterizedValueType) {
-            Type rawType = parameterizedValueType.getRawType();
-            if (rawType instanceof Class<?> rawClass && List.class.isAssignableFrom(rawClass)) {
-                isMultiMap = true;
-                valueType = (Class<Object>) parameterizedValueType.getActualTypeArguments()[0];
-            } else {
-                throw new IllegalArgumentException("Unsupported value type: " + valueTypeRaw);
+        // Detect Map<K, List<V>>
+        if (Collection.class.isAssignableFrom(valueType)) {
+            Class<?> elementType = field.elementType();
+
+            if (elementType == null) {
+                throw new IllegalStateException(
+                    "Unsupported Map value type for field " + field.name() +
+                        ": Collection without resolvable element type"
+                );
             }
-        } else if (valueTypeRaw instanceof Class<?> valueClass) {
-            valueType = (Class<Object>) valueClass;
-        } else {
-            throw new IllegalArgumentException("Unsupported value type: " + valueTypeRaw);
+
+            isMultiMap = true;
+            valueType = elementType;
         }
-        return new MapData(keyType, valueType, isMultiMap);
+
+        return new MapData(
+            cast(keyType),
+            cast(valueType),
+            isMultiMap
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Class<Object> cast(Class<?> cls) {
+        return (Class<Object>) cls;
     }
 
     record MapData(Class<Object> keyType, Class<Object> valueType, boolean isMultiMap) {}

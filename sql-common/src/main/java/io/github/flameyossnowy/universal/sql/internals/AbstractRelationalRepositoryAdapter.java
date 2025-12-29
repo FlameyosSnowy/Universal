@@ -66,7 +66,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
             DefaultResultCache<String, T, ID> cache,
             @NotNull Class<T> repository,
             Class<ID> idClass,
-            QueryParseEngine.SQLType type,
+            QueryParseEngine.SQLType sqlType,
             SessionCache<ID, T> globalCache,
             LongFunction<SessionCache<ID, T>> sessionCacheSupplier,
             CacheWarmer<T, ID> cacheWarmer) {
@@ -85,13 +85,15 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         Logging.deepInfo("Repository information: " + repositoryInformation);
 
         this.resolverRegistry = new TypeResolverRegistry();
-        this.objectFactory = new ObjectFactory<>(repositoryInformation, dataSource, this, resolverRegistry);
+        this.objectFactory = sqlType.supportsArrays()
+            ? new ArraySupportingObjectFactory<>(repositoryInformation, dataSource, sqlType, this, resolverRegistry)
+            : new NoArrayObjectFactory<>(repositoryInformation, dataSource, sqlType, this, resolverRegistry);
 
         ExceptionHandler<T, ID, Connection> exceptionHandler = (ExceptionHandler<T, ID, Connection>) repositoryInformation.getExceptionHandler();
         this.exceptionHandler = exceptionHandler == null ? new DefaultExceptionHandler<>() : exceptionHandler;
 
-        Logging.info("Creating QueryParseEngine for query generation for table " + repositoryInformation.getRepositoryName() + " with type: " + type.name() + '.');
-        this.engine = new QueryParseEngine(type, repositoryInformation, resolverRegistry);
+        Logging.info("Creating QueryParseEngine for query generation for table " + repositoryInformation.getRepositoryName() + " with sqlType: " + sqlType.name() + '.');
+        this.engine = new QueryParseEngine(sqlType, repositoryInformation, resolverRegistry, dataSource);
         Logging.info("Successfully created QueryParseEngine for table: " + repositoryInformation.getRepositoryName());
 
         this.entityLifecycleListener = (EntityLifecycleListener<T>) repositoryInformation.getEntityLifecycleListener();
@@ -111,7 +113,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
                 resolverRegistry,
                 operationExecutor
         );
-        this.queryValidator = new SQLQueryValidator(repositoryInformation, type.getDialect());
+        this.queryValidator = new SQLQueryValidator(repositoryInformation, sqlType.getDialect());
 
         if (cacheWarmer != null) {
             cacheWarmer.warmCache(this);
@@ -151,13 +153,13 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         return list;
     }
 
-    private @NotNull List<T> search(String query, boolean first, @NotNull List<SelectOption> filters) throws Exception {
+    private @NotNull List<T> search(String sql, boolean first, @NotNull List<SelectOption> filters) throws Exception {
         try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = dataSource.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, query);
+             PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             this.addFilterToPreparedStatement(filters, parameters);
             try (ResultSet resultSet = statement.executeQuery()) {
-                return first ? fetchFirst(query, resultSet) : fetchAll(query, resultSet);
+                return first ? fetchFirst(sql, resultSet) : fetchAll(sql, resultSet);
             }
         }
     }
@@ -271,7 +273,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
              PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
 
             connection.setAutoCommit(false);
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             try {
                 // Process in chunks to prevent OOM and timeout issues
                 int i = 0;
@@ -323,7 +325,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         ID id = primaryKey.getValue(entity);
         String sql = engine.parseUpdateFromEntity();
         TransactionResult<Boolean> result = executeUpdate(transactionContext, sql, statement -> {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             this.setUpdateParameters(parameters, entity);
         }, entity, id);
         
@@ -443,7 +445,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         String sql = engine.parseQueryIds(query, query.limit() == 1);
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             this.addFilterToPreparedStatement(query.filters(), parameters);
             try (ResultSet resultSet = statement.executeQuery()) {
                 return extractIds(resultSet);
@@ -475,7 +477,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query, TransactionContext<Connection> transactionContext) {
         String sql = engine.parseUpdate(query);
         return executeUpdate(transactionContext, sql, statement -> {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             setUpdateParameters(query, parameters);
         });
     }
@@ -489,7 +491,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query) {
         String sql = engine.parseUpdate(query);
         return executeUpdate(null, sql, statement -> {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             setUpdateParameters(query, parameters);
         });
     }
@@ -531,7 +533,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
         String sql = engine.parseUpdateFromEntity();
         TransactionResult<Boolean> result = executeUpdate(null, sql, statement -> {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             this.setUpdateParameters(parameters, entity);
         });
         if (result.isSuccess()) {
@@ -641,7 +643,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     private TransactionResult<Boolean> executeDelete(TransactionContext<Connection> transactionContext, String sql, T entity) {
         if (entityLifecycleListener != null) entityLifecycleListener.onPreDelete(entity);
         try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
 
             FieldData<?> primaryKey = validatePrimaryKey();
 
@@ -653,7 +655,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     private TransactionResult<Boolean> executeDelete(TransactionContext<Connection> transactionContext, String sql, DeleteQuery query) {
         try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             setUpdateParameters(query, parameters);
             if (cache != null) cache.clear();
             return TransactionResult.success(statement.execute());
@@ -667,7 +669,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         if (auditLogger != null || entityLifecycleListener != null) byId = findById(id);
         if (entityLifecycleListener != null) entityLifecycleListener.onPreDelete(byId);
         try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             return processDelete(id, parameters, statement, byId);
         } catch (Exception e) {
             return this.exceptionHandler.handleDelete(e, repositoryInformation, this);
@@ -705,7 +707,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
              PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
 
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
 
             this.objectFactory.insertEntity(parameters, value);
 
