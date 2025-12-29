@@ -15,13 +15,13 @@ public class NormalTest {
         Logging.ENABLED = true;
 
         // host, port, database, username, password
-        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "test", "test");
+        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "postgres", "root");
         PostgreSQLRepositoryAdapter<Faction, Long> adapter = PostgreSQLRepositoryAdapter.builder(Faction.class, Long.class)
                 .withCredentials(credentials)
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
 
-        adapter.executeRawQuery("DROP TABLE IF EXISTS Factions CASCADE;");
+        adapter.executeRawQuery("DROP TABLE IF EXISTS Factions;");
 
         adapter.createRepository(true)
                 .expect("Should have been able to create repository.");
@@ -42,15 +42,16 @@ public class NormalTest {
     @Test
     public void postgresql_cache_test() {
         Logging.ENABLED = true;
+        Logging.DEEP = true;
 
         // host, port, database, username, password
-        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "test", "test");
+        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "postgres", "test");
         PostgreSQLRepositoryAdapter<Faction, Long> adapter = PostgreSQLRepositoryAdapter.builder(Faction.class, Long.class)
                 .withCredentials(credentials)
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
 
-        adapter.executeRawQuery("DROP TABLE IF EXISTS Factions CASCADE;");
+        adapter.executeRawQuery("DROP TABLE IF EXISTS Factions;");
 
         adapter.createRepository(true)
                 .expect("Should have been able to create repository.");
@@ -87,13 +88,13 @@ public class NormalTest {
         Logging.ENABLED = true;
 
         // host, port, database, username, password
-        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "test", "test");
+        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "postgres", "test");
         PostgreSQLRepositoryAdapter<FactionRecord, UUID> adapter = PostgreSQLRepositoryAdapter.builder(FactionRecord.class, UUID.class)
                 .withCredentials(credentials)
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
 
-        adapter.executeRawQuery("DROP TABLE IF EXISTS FactionsRecord CASCADE;");
+        adapter.executeRawQuery("DROP TABLE IF EXISTS FactionsRecord;");
 
         adapter.createRepository(true)
                 .expect("Should have been able to create repository.");
@@ -107,7 +108,7 @@ public class NormalTest {
 
         System.out.println(factions);
         assertEquals(1, factions.size());
-        assertEquals(faction, factions.get(0));
+        assertEquals(faction, factions.getFirst());
     }
 
     @Test
@@ -115,7 +116,7 @@ public class NormalTest {
         Logging.ENABLED = true;
 
         // host, port, database, username, password
-        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "test", "test");
+        PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "postgres", "test");
         PostgreSQLRepositoryAdapter<FactionWArrays, Long> adapter = PostgreSQLRepositoryAdapter.builder(FactionWArrays.class, Long.class)
                 .withCredentials(credentials)
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
