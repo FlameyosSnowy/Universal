@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.github.flameyossnowy.universal"
-version = '6.0.1'
+version = '6.0.3'
 
 repositories {
     mavenCentral()
@@ -25,7 +25,6 @@ dependencies {
     api "com.github.FlameyosSnowy:Velocis:1.1.2"
 
     implementation "me.sunlan:fast-reflection:1.0.3"
-
     implementation "net.bytebuddy:byte-buddy:1.14.9"
 
     // error prone
