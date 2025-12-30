@@ -2,23 +2,20 @@ package io.github.flameyossnowy.universal.sql.internals;
 
 import io.github.flameyossnowy.universal.api.RelationalObjectFactory;
 import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
+import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
+import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.reflect.*;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
-import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.DatabaseImplementation;
-import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
-import java.sql.PreparedStatement;
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
@@ -47,7 +44,7 @@ public sealed abstract class ObjectFactory<T, ID>
         RepositoryInformation repoInfo,
         SQLConnectionProvider connectionProvider,
         DatabaseImplementation implementation,
-        RelationalRepositoryAdapter<T, ID> adapter,
+        RepositoryAdapter<T, ID, Connection> adapter,
         TypeResolverRegistry typeResolverRegistry
     ) {
         this.repoInfo = repoInfo;
@@ -58,6 +55,10 @@ public sealed abstract class ObjectFactory<T, ID>
         this.relationshipHandler =
             new DatabaseRelationshipHandler<>(repoInfo, idClass, typeResolverRegistry, connectionProvider);
         this.hasPrimaryKey = repoInfo.getPrimaryKey() != null;
+    }
+
+    public RelationshipHandler<T, ID> getRelationshipHandler() {
+        return relationshipHandler;
     }
 
     /* ============================================================
@@ -87,6 +88,7 @@ public sealed abstract class ObjectFactory<T, ID>
         ID id = null;
         int index = 0;
 
+        SQLDatabaseResult sqlDatabaseResult = new SQLDatabaseResult(rs, typeResolverRegistry);
         for (FieldData<?> field : components) {
             if (DatabaseObjectFactory.isRelationshipField(field)) continue;
 
@@ -113,7 +115,7 @@ public sealed abstract class ObjectFactory<T, ID>
                 continue;
             }
 
-            Object value = resolveFieldValue(rs, field);
+            Object value = resolveFieldValue(field, sqlDatabaseResult);
             if (field.primary()) {
                 if (value == null) throw new IllegalArgumentException("Primary key cannot be null.");
                 id = (ID) value;
@@ -133,6 +135,7 @@ public sealed abstract class ObjectFactory<T, ID>
         T instance = (T) repoInfo.newInstance();
         ID id = null;
 
+        SQLDatabaseResult sqlDatabaseResult = new SQLDatabaseResult(rs, typeResolverRegistry);
         for (FieldData<?> field : repoInfo.getFields()) {
             if (DatabaseObjectFactory.isRelationshipField(field)) continue;
 
@@ -162,7 +165,7 @@ public sealed abstract class ObjectFactory<T, ID>
                 continue;
             }
 
-            Object value = resolveFieldValue(rs, field);
+            Object value = resolveFieldValue(field, sqlDatabaseResult);
             if (field.primary()) {
                 if (value == null) throw new IllegalArgumentException("Primary key cannot be null.");
                 id = (ID) value;
@@ -173,13 +176,11 @@ public sealed abstract class ObjectFactory<T, ID>
         return instance;
     }
 
-    /* ============================================================
-       Relationship-aware POJO creation
-       ============================================================ */
-
     private @NotNull T populateRelationshipInstanceWithPojo(ResultSet rs) throws Exception {
         T instance = (T) repoInfo.newInstance();
-        ID primaryId = hasPrimaryKey ? resolvePrimaryKey(rs) : null;
+
+        SQLDatabaseResult sqlDatabaseResult = new SQLDatabaseResult(rs, typeResolverRegistry);
+        ID primaryId = hasPrimaryKey ? resolvePrimaryKey(sqlDatabaseResult) : null;
 
         for (FieldData<?> field : repoInfo.getFields()) {
             if (field.primary()) {
@@ -216,7 +217,7 @@ public sealed abstract class ObjectFactory<T, ID>
                         : relationshipHandler.handleNormalMap(primaryId, map.keyType(), map.valueType())
                 );
             } else {
-                populateFieldInternal(rs, field, instance);
+                populateFieldInternal(field, instance, sqlDatabaseResult);
             }
         }
 
@@ -229,7 +230,6 @@ public sealed abstract class ObjectFactory<T, ID>
 
         for (FieldData<?> field : repoInfo.getFields()) {
             if (field.autoIncrement()) continue;
-            if (field.isRelationship()) continue;
 
             if (DatabaseObjectFactory.isMapField(field)) {
                 continue;
@@ -249,12 +249,37 @@ public sealed abstract class ObjectFactory<T, ID>
                 continue;
             }
 
-            Object value = field.getValue(entity);
-            TypeResolver<Object> resolver = getTypeResolverForField(field, value);
+            Object valueToInsert = field.getValue(entity);
+            if ((field.oneToOne() != null || field.manyToOne() != null)) {
+                RepositoryInformation relatedInfo = RepositoryMetadata.getMetadata(field.type());
+                if (relatedInfo != null) {
+                    FieldData<?> pkField = relatedInfo.getPrimaryKey();
+                    if (pkField == null) {
+                        throw new IllegalArgumentException("Primary key must not be null");
+                    }
+
+                    TypeResolver<Object> resolver = (TypeResolver<Object>) typeResolverRegistry.resolve(pkField.type());
+                    Objects.requireNonNull(resolver);
+
+                    if (valueToInsert == null) {
+                        resolver.insert(stmt, field.name(), null);
+                        continue;
+                    }
+
+                    valueToInsert = pkField.getValue(valueToInsert);
+                    resolver.insert(stmt, field.name(), valueToInsert);
+                    paramIndex++;
+                    continue;
+                }
+            }
+
+            if (field.isRelationship()) continue;
+
+            TypeResolver<Object> resolver = getTypeResolverForField(field, valueToInsert);
             if (resolver == null) continue;
 
-            Logging.deepInfo("Binding " + field.name() + " -> " + value);
-            resolver.insert(stmt, field.name(), value);
+            Logging.deepInfo("Binding " + field.name() + " -> " + valueToInsert);
+            resolver.insert(stmt, field.name(), valueToInsert);
             paramIndex++;
         }
     }
@@ -299,7 +324,7 @@ public sealed abstract class ObjectFactory<T, ID>
        Shared helpers
        ============================================================ */
 
-    protected void handleLists(T entity, ID id, FieldData<?> field) throws Exception {
+    protected void handleLists(T entity, ID id, @NotNull FieldData<?> field) throws Exception {
         Class<Object> itemType = (Class<Object>) field.elementType();
 
         SQLCollections.INSTANCE
@@ -323,28 +348,28 @@ public sealed abstract class ObjectFactory<T, ID>
         }
     }
 
-    protected ID resolvePrimaryKey(ResultSet rs) {
+    protected ID resolvePrimaryKey(SQLDatabaseResult result) {
         FieldData<?> pk = repoInfo.getPrimaryKey();
         TypeResolver<ID> resolver = (TypeResolver<ID>) typeResolverRegistry.resolve(pk.type());
-        return resolver.resolve(new SQLDatabaseResult(rs, typeResolverRegistry), pk.name());
+        return resolver.resolve(result, pk.name());
     }
 
-    protected void populateFieldInternal(ResultSet rs, FieldData<?> field, Object instance) {
-        Object value = resolveFieldValue(rs, field);
+    protected void populateFieldInternal(FieldData<?> field, Object instance, SQLDatabaseResult result) {
+        Object value = resolveFieldValue(field, result);
         if (value != null) field.setValue(instance, value);
     }
 
-    protected Object resolveFieldValue(ResultSet rs, FieldData<?> field) {
+    protected Object resolveFieldValue(@NotNull FieldData<?> field, SQLDatabaseResult result) {
         RepositoryInformation related = RepositoryMetadata.getMetadata(field.type());
         FieldData<?> target = related != null ? related.getPrimaryKey() : field;
 
         TypeResolver<Object> resolver =
             (TypeResolver<Object>) typeResolverRegistry.resolve(target.type());
 
-        return resolver.resolve(new SQLDatabaseResult(rs, typeResolverRegistry), field.name());
+        return resolver.resolve(result, field.name());
     }
 
-    private TypeResolver<Object> getTypeResolverForField(FieldData<?> field, Object value) {
+    private TypeResolver<Object> getTypeResolverForField(@NotNull FieldData<?> field, Object value) {
         if ((field.oneToOne() != null || field.manyToOne() != null) && value != null) {
             RepositoryInformation related = RepositoryMetadata.getMetadata(field.type());
             return (TypeResolver<Object>) typeResolverRegistry.resolve(
