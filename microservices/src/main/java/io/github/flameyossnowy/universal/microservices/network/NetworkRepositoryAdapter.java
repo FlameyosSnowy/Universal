@@ -68,7 +68,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private final Supplier<String> credentialsProvider;
     private final Map<String, String> customHeaders;
     private final EndpointConfig endpointConfig;
-    private final RelationshipResolver<ID> relationshipResolver;
+    private final RelationshipResolver<T, ID> relationshipResolver;
     
     // Response cache
     private final Map<String, CompletableFuture<CachedResponse>> responseCache;
@@ -106,10 +106,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             throw new IllegalArgumentException("Could not find repository information for class: " + entityType.getSimpleName());
         this.resolverRegistry = new TypeResolverRegistry();
         
-        // Configure ObjectMapper
         this.objectMapper = objectMapper;
 
-        // Create HttpClient
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeout))
                 .build();
@@ -136,7 +134,6 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                     "Entity " + entityType.getName() + " must be annotated with @NetworkRepository");
         }
 
-        // Parse custom headers
         Map<String, String> headers = new HashMap<>(annotation.headers().length);
         for (String header : annotation.headers()) {
             String[] parts = header.split(":", 2);
@@ -145,7 +142,6 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             }
         }
 
-        // Get credentials provider
         Supplier<String> credentialsProvider = null;
         if (annotation.credentialsProvider() != void.class) {
             try {
@@ -159,18 +155,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             }
         }
 
-        // Get endpoint configuration
-        RemoteEndpoint remoteEndpoint = entityType.getAnnotation(RemoteEndpoint.class);
-        EndpointConfig endpointConfig = remoteEndpoint != null 
-                ? new EndpointConfig(
-                    remoteEndpoint.findAll(),
-                    remoteEndpoint.findById(),
-                    remoteEndpoint.create(),
-                    remoteEndpoint.update(),
-                    remoteEndpoint.delete(),
-                    remoteEndpoint.updateMethod()
-                )
-                : EndpointConfig.defaults();
+        EndpointConfig endpointConfig = getEndpointConfig(entityType);
 
         return new NetworkRepositoryAdapter<>(
                 entityType,
@@ -188,6 +173,20 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 endpointConfig,
                 NetworkRepositoryAdapterBuilder.createDefaultObjectMapper()
         );
+    }
+
+    private static <T> @NotNull EndpointConfig getEndpointConfig(@NotNull Class<T> entityType) {
+        RemoteEndpoint remoteEndpoint = entityType.getAnnotation(RemoteEndpoint.class);
+        return remoteEndpoint != null
+                ? new EndpointConfig(
+                    remoteEndpoint.findAll(),
+                    remoteEndpoint.findById(),
+                    remoteEndpoint.create(),
+                    remoteEndpoint.update(),
+                    remoteEndpoint.delete(),
+                    remoteEndpoint.updateMethod()
+                )
+                : EndpointConfig.defaults();
     }
 
     public static <T, ID> NetworkRepositoryAdapterBuilder<T, ID> builder(@NotNull Class<T> entityType, @NotNull Class<ID> idType) {
@@ -262,20 +261,16 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     @Override
     public void close() {
-        // HttpClient doesn't need explicit closing
         if (responseCache != null) {
             responseCache.clear();
         }
         httpClient.close();
     }
 
-    // HTTP request methods
-
     public HttpRequest.Builder createRequestBuilder(String endpoint) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + endpoint));
 
-        // Add authentication
         if (authType != AuthType.NONE && credentialsProvider != null) {
             String credentials = credentialsProvider.get();
             switch (authType) {
@@ -286,10 +281,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             }
         }
 
-        // Add custom headers
         customHeaders.forEach(builder::header);
 
-        // Add content type
         builder.header("Content-Type", "application/json");
         builder.header("Accept", "application/json");
 
@@ -306,7 +299,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 if (!cached.isExpired()) {
                     return (R) cached.data;
                 } else {
-                    responseCache.remove(cacheKey, future); // remove expired entry
+                    responseCache.remove(cacheKey, future);
                 }
             }
 
@@ -368,7 +361,6 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
         
-        // Invalidate relevant cache entries
         if (cacheEnabled) {
             invalidateCacheForEntity(extractId(entity));
         }
