@@ -31,12 +31,18 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Month;
 import java.time.OffsetDateTime;
+import java.time.OffsetTime;
 import java.time.Period;
+import java.time.Year;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -104,6 +110,12 @@ public class TypeResolverRegistry {
                 Map.entry(BigInteger.class, SqlTypeMapping.of("NUMERIC")),
 
                 Map.entry(Instant.class, SqlTypeMapping.of("TEXT", "BIGINT")),
+                Map.entry(OffsetTime.class, SqlTypeMapping.of("TEXT", "TEXT")),
+                Map.entry(Year.class, SqlTypeMapping.of("INT", "INT")),
+                Map.entry(Month.class, SqlTypeMapping.of("INT", "INT")),
+                Map.entry(YearMonth.class, SqlTypeMapping.of("TEXT", "TEXT")),
+                Map.entry(TimeZone.class, SqlTypeMapping.of("TEXT", "TEXT")),
+                Map.entry(ZoneId.class, SqlTypeMapping.of("TEXT", "TEXT")),
                 Map.entry(LocalDate.class, SqlTypeMapping.of("DATE")),
                 Map.entry(LocalTime.class, SqlTypeMapping.of("TIME")),
                 Map.entry(LocalDateTime.class, SqlTypeMapping.of("TIMESTAMP")),
@@ -393,10 +405,7 @@ public class TypeResolverRegistry {
         registerInternal(new YearMonthTypeResolver());
         registerInternal(new ZoneIdTypeResolver());
         registerInternal(new TimeZoneTypeResolver());
-
         registerInternal(new OffsetTimeTypeResolver());
-        registerInternal(new ChronoLocalDateTypeResolver());
-        registerInternal(new ChronoLocalDateTimeTypeResolver());
     }
 
     private void registerUrlType() {
