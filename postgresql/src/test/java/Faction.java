@@ -11,6 +11,8 @@ public class Faction {
 
     private String name;
 
+    private Level level = Level.FINE;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
@@ -21,6 +23,7 @@ public class Faction {
         return "Faction{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
+                ", level='" + level.name() + '\'' +
                 '}';
     }
 
