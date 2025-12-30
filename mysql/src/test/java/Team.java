@@ -19,8 +19,6 @@ public class Team {
     @OneToMany(mappedBy = Player.class)
     public List<Player> players = new ArrayList<>();
 
-    public List<Player> oldPlayers = new ArrayList<>();
-
     public Team(String name) {
         this.id = UUID.randomUUID();
         this.name = name;
@@ -40,10 +38,6 @@ public class Team {
         return players;
     }
 
-    public List<Player> getOldPlayers() {
-        return oldPlayers;
-    }
-
     @Override
     public String toString() {
         return toString(new java.util.HashSet<>());
@@ -61,16 +55,10 @@ public class Team {
                         .map(p -> p.toStringSummary())
                         .collect(Collectors.joining(", ")) + "]";
 
-        String oldPlayersStr = oldPlayers == null ? "null" :
-                "[" + oldPlayers.stream()
-                        .map(p -> p.toStringSummary())
-                        .collect(Collectors.joining(", ")) + "]";
-
         return "Team{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
                 ", players=" + playersStr +
-                ", oldPlayers=" + oldPlayersStr +
                 '}';
     }
 
@@ -83,7 +71,7 @@ public class Team {
         if (o == null || getClass() != o.getClass()) return false;
 
         Team team = (Team) o;
-        return Objects.equals(id, team.id) && Objects.equals(name, team.name) && Objects.equals(players, team.players) && Objects.equals(oldPlayers, team.oldPlayers);
+        return Objects.equals(id, team.id) && Objects.equals(name, team.name) && Objects.equals(players, team.players);
     }
 
     @Override
@@ -91,7 +79,6 @@ public class Team {
         int result = Objects.hashCode(id);
         result = 31 * result + Objects.hashCode(name);
         result = 31 * result + Objects.hashCode(players);
-        result = 31 * result + Objects.hashCode(oldPlayers);
         return result;
     }
 }

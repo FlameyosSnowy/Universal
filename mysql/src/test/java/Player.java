@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 @Repository(name = "players")
 public class Player {
-
     @Id
     public UUID id;
 
@@ -18,8 +17,6 @@ public class Player {
 
     @ManyToOne(join = "teams")
     public Team team;
-
-    public List<Team> previousTeams = new ArrayList<>();
 
     public Player(String name) {
         this.id = UUID.randomUUID();
@@ -40,10 +37,6 @@ public class Player {
         return team;
     }
 
-    public List<Team> getPreviousTeams() {
-        return previousTeams;
-    }
-
     @Override
     public String toString() {
         return toString(new java.util.HashSet<>());
@@ -58,16 +51,10 @@ public class Player {
 
         String teamStr = team == null ? "null" : team.toStringSummary();
 
-        String previousTeamsStr = previousTeams == null ? "null" :
-                "[" + previousTeams.stream()
-                        .map(t -> t.toStringSummary())
-                        .collect(Collectors.joining(", ")) + "]";
-
         return "Player{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
                 ", team=" + teamStr +
-                ", previousTeams=" + previousTeamsStr +
                 '}';
     }
 
@@ -80,7 +67,7 @@ public class Player {
         if (o == null || getClass() != o.getClass()) return false;
 
         Player player = (Player) o;
-        return Objects.equals(id, player.id) && Objects.equals(name, player.name) && Objects.equals(team, player.team) && Objects.equals(previousTeams, player.previousTeams);
+        return Objects.equals(id, player.id) && Objects.equals(name, player.name) && Objects.equals(team, player.team);
     }
 
     @Override
@@ -88,7 +75,6 @@ public class Player {
         int result = Objects.hashCode(id);
         result = 31 * result + Objects.hashCode(name);
         result = 31 * result + Objects.hashCode(team);
-        result = 31 * result + Objects.hashCode(previousTeams);
         return result;
     }
 }

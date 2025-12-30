@@ -55,11 +55,6 @@ public class RelationshipTest {
                 .withConnectionProvider(MySQLHikariConnectionProvider::new)
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
-
-        factionsAdapter.createRepository(true);
-        warpsAdapter.createRepository(true);
-        teamsAdapter.createRepository(true);
-        playersAdapter.createRepository(true);
     }
 
     @AfterEach
