@@ -22,7 +22,7 @@ import static io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata.g
  * Concrete classes only need to implement collection handling methods.
  */
 @SuppressWarnings("unchecked")
-public abstract class AbstractRelationshipHandler<T, ID, R> implements RelationshipHandler<ID> {
+public abstract class AbstractRelationshipHandler<T, ID, R> implements RelationshipHandler<T, ID> {
     protected final RepositoryInformation repositoryInformation;
     protected final Class<ID> idClass;
     protected final TypeResolverRegistry resolverRegistry;
@@ -205,5 +205,99 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
         }
 
         return (RepositoryAdapter<Object, Object, ?>) RepositoryRegistry.get(targetInfo.getType());
+    }
+
+    private void batchLoadOneToOne(FieldData<?> field, List<ID> parentIds) {
+        RepositoryInformation target = getMetadata(field.type());
+        OneToOneField backRef = getOneToOneField(target, repositoryInformation);
+        RepositoryAdapter<Object, Object, ?> adapter = resolveAdapter(field, target);
+
+        List<Object> results = adapter.find(
+            Query.select()
+                .whereIn(backRef.name(), parentIds)
+                .build()
+        );
+
+        Map<ID, Object> mapped = new HashMap<>();
+        for (Object obj : results) {
+            ID parentId = target.getField(backRef.name()).getValue(obj);
+            if (mapped.put(parentId, obj) != null) {
+                throw new IllegalStateException(
+                    "Multiple one-to-one results for " + field.name()
+                );
+            }
+        }
+
+        for (ID id : parentIds) {
+            relationshipCache.put(
+                buildCacheKey(field, id),
+                mapped.getOrDefault(id, NULL_MARKER)
+            );
+        }
+    }
+
+    private void batchLoadOneToMany(FieldData<?> field, List<ID> parentIds) {
+        RepositoryInformation related = getMetadata(field.oneToMany().mappedBy());
+        RepositoryAdapter<Object, Object, ?> adapter = resolveAdapter(field, related);
+
+        String relationName = getRelationName(related, repositoryInformation.getType());
+
+        List<Object> results = adapter.find(
+            Query.select()
+                .whereIn(relationName, parentIds)
+                .build()
+        );
+
+        Map<ID, List<Object>> grouped = new HashMap<>();
+        for (Object child : results) {
+            ID parentId = related.getField(relationName).getValue(child);
+            grouped.computeIfAbsent(parentId, k -> new ArrayList<>()).add(child);
+        }
+
+        for (ID id : parentIds) {
+            relationshipCache.put(
+                buildCacheKey(field, id),
+                List.copyOf(grouped.getOrDefault(id, List.of()))
+            );
+        }
+    }
+
+    @Override
+    public void prefetch(Iterable<?> parents, Set<String> fields) {
+        Map<FieldData<?>, List<ID>> oneToMany = new HashMap<>(32);
+        Map<FieldData<?>, List<ID>> oneToOne = new HashMap<>(32);
+
+        for (Object parent : parents) {
+            ID id = repositoryInformation.getPrimaryKey().getValue(parent);
+
+            for (FieldData<?> field : repositoryInformation.getFields()) {
+                if (!fields.contains(field.name())) continue;
+
+                if (field.oneToMany() != null) {
+                    oneToMany
+                        .computeIfAbsent(field, f -> new ArrayList<>())
+                        .add(id);
+                } else if (field.oneToOne() != null) {
+                    oneToOne
+                        .computeIfAbsent(field, f -> new ArrayList<>())
+                        .add(id);
+                }
+            }
+        }
+
+        oneToMany.forEach(this::batchLoadOneToMany);
+        oneToOne.forEach(this::batchLoadOneToOne);
+    }
+
+    @Override
+    public void invalidateRelationshipsForId(@NotNull ID id) {
+        String prefix = repositoryInformation.getType().getSimpleName() + ":" + id + ":";
+
+        relationshipCache.keySet().removeIf(key -> key.startsWith(prefix));
+    }
+
+    @Override
+    public void clear() {
+        relationshipCache.clear();
     }
 }
