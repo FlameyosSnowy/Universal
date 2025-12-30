@@ -7,6 +7,7 @@ import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
 import io.github.flameyossnowy.universal.api.exceptions.handler.DefaultExceptionHandler;
 import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler;
+import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
@@ -30,10 +31,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.LongFunction;
 
 @SuppressWarnings("unchecked")
-public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRepositoryAdapter<T, ID> {
+public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Connection> {
     protected final SQLConnectionProvider dataSource;
     protected final ExceptionHandler<T, ID, Connection> exceptionHandler;
     protected final Class<T> repository;
@@ -42,7 +44,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     protected final SessionCache<ID, T> globalCache;
     protected final LongFunction<SessionCache<ID, T>> sessionCacheSupplier;
     protected final RepositoryInformation repositoryInformation;
-    protected RelationalObjectFactory<T, ID> objectFactory;
+    protected ObjectFactory<T, ID> objectFactory;
     protected final QueryParseEngine engine;
     protected final TypeResolverRegistry resolverRegistry;
 
@@ -118,10 +120,22 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         if (cacheWarmer != null) {
             cacheWarmer.warmCache(this);
         }
-    }
 
-    protected void setObjectFactory(RelationalObjectFactory<T, ID> objectFactory) {
-        this.objectFactory = objectFactory;
+        CompletableFuture.supplyAsync(() -> engine.parseRepository(true))
+            .thenApply((result) -> {
+                for (Index index : repositoryInformation.getIndexes()) {
+                    TransactionResult<Boolean> indexResult = executeRawQuery(engine.parseIndex(IndexOptions.builder(repository)
+                        .indexName(index.name())
+                        .fields(index.fields())
+                        .type(index.type())
+                        .build()));
+                    if (indexResult.isError()) {
+                        return indexResult;
+                    }
+                }
+                return TransactionResult.success(true);
+            })
+            .thenAccept((result) -> result.expect("Should have been able to create repository/indexes"));
     }
 
     @Override
@@ -132,7 +146,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     @Override
     public List<T> find(SelectQuery q) {
         String query = engine.parseSelect(q, false);
-        return executeQueryWithParams(query, q == null ? List.of() : q.filters());
+        return executeQueryWithParams(query, q, q == null ? List.of() : q.filters());
     }
 
     private @NotNull List<ID> extractIds(ResultSet rs) throws SQLException {
@@ -153,26 +167,31 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         return list;
     }
 
-    private @NotNull List<T> search(String sql, boolean first, @NotNull List<SelectOption> filters) throws Exception {
+    private @NotNull List<T> search(String sql, boolean first, SelectQuery selectQuery, @NotNull List<SelectOption> filters) throws Exception {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             this.addFilterToPreparedStatement(filters, parameters);
             try (ResultSet resultSet = statement.executeQuery()) {
-                return first ? fetchFirst(sql, resultSet) : fetchAll(sql, resultSet);
+                return first ? fetchFirst(sql, resultSet) : fetchAll(sql, selectQuery, resultSet);
             }
         }
     }
 
-    private @NotNull List<T> fetchAll(String query, ResultSet resultSet) throws Exception {
-        // Set fetch size with reasonable default if not configured
+    private @NotNull List<T> fetchAll(String query, SelectQuery selectQuery, ResultSet resultSet) throws Exception {
         int fetchSize = repositoryInformation.getFetchPageSize();
-        if (fetchSize <= 0) fetchSize = 100; // Reasonable default
-        resultSet.setFetchSize(fetchSize);
-        
-        return insertToCache(query, repositoryInformation.hasRelationships()
-                ? mapResultsWithRelationships(query, resultSet, new ArrayList<>(fetchSize))
-                : mapResults(query, resultSet, new ArrayList<>(fetchSize)));
+        if (fetchSize <= 0) fetchSize = 100;
+
+        List<T> results = mapResults(query, resultSet, new ArrayList<>(fetchSize));
+
+        if (repositoryInformation.hasRelationships()
+                && selectQuery != null
+                && !selectQuery.prefetch().isEmpty()) {
+            RelationshipHandler<T, ID> handler = objectFactory.getRelationshipHandler();
+            handler.prefetch(results, selectQuery.prefetch());
+        }
+
+        return results;
     }
 
     private @NotNull List<T> fetchFirst(String query, @NotNull ResultSet resultSet) throws Exception {
@@ -182,7 +201,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     @Override
     public List<T> find() {
-        return executeQuery(engine.parseSelect(null, false));
+        return executeQuery(engine.parseSelect(null, false), null);
     }
 
     @Override
@@ -223,7 +242,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         SelectQuery query = Query.select().where(primaryKey.name(), keys).build();
         String s = engine.parseSelect(query, false);
 
-        List<T> ts = executeQueryWithParams(s, false, query.filters());
+        List<T> ts = executeQueryWithParams(s, false, query, query.filters());
         Map<ID, T> result = new HashMap<>(ts.size());
         for (T t : ts) {
             ID id = primaryKey.getValue(t);
@@ -245,7 +264,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
     @Override
     public @Nullable T first(final SelectQuery q) {
         String query = engine.parseSelect(q, true);
-        List<T> results = executeQueryWithParams(query, true, q.filters());
+        List<T> results = executeQueryWithParams(query, true, q, q.filters());
         return results.isEmpty() ? null : results.getFirst();
     }
 
@@ -413,24 +432,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         return result;
     }
 
-    private @NotNull List<T> mapResultsWithRelationships(String query, @NotNull ResultSet resultSet, List<T> fetchedData) throws Exception {
-        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
-
-        boolean existingGlobalCache = globalCache != null;
-        if (existingGlobalCache) {
-            if (primaryKey == null) {
-                throw new IllegalArgumentException("Cannot extract primary key from " + repositoryInformation.getRepositoryName() + " because there's no id.");
-            }
-        }
-
-        while (resultSet.next()) {
-            T entity = this.objectFactory.createWithRelationships(resultSet);
-            if (globalCache != null) globalCache.put(primaryKey.getValue(entity), entity);
-            fetchedData.add(entity);
-        }
-        return insertToCache(query, fetchedData);
-    }
-
     @Override
     public @NotNull TransactionContext<Connection> beginTransaction() {
         try {
@@ -584,7 +585,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         return resolverRegistry;
     }
 
-    @Override
     public TransactionResult<Boolean> executeRawQuery(final String query) {
         Logging.info("Parsed query: " + query);
         try (var connection = dataSource.getConnection();
@@ -595,26 +595,23 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         }
     }
 
-    @Override
-    public List<T> executeQuery(String query, Object... params) {
+    public List<T> executeQuery(String query, SelectQuery selectQuery, Object... params) {
         List<T> result;
         try {
-            return cache != null && (result = cache.fetch(query)) != null ? result : search(query, false, List.of());
+            return cache != null && (result = cache.fetch(query)) != null ? result : search(query, false, selectQuery, List.of());
         } catch (Exception e) {
             return this.exceptionHandler.handleRead(e, repositoryInformation, null, this);
         }
     }
 
-    @Override
-    public List<T> executeQueryWithParams(String query, List<SelectOption> params) {
-        return executeQueryWithParams(query, false, params);
+    public List<T> executeQueryWithParams(String query, SelectQuery selectQuery, List<SelectOption> params) {
+        return executeQueryWithParams(query,false, selectQuery, params);
     }
 
-    @Override
-    public List<T> executeQueryWithParams(String query, boolean first, List<SelectOption> params) {
+    private List<T> executeQueryWithParams(String query, boolean first, SelectQuery selectQuery, List<SelectOption> params) {
         List<T> result = cache == null ? null : cache.fetch(query);
         try {
-            return result != null ? result : search(query, first, params);
+            return result != null ? result : search(query, first, selectQuery, params);
         } catch (Exception e) {
             return this.exceptionHandler.handleRead(e, repositoryInformation, null, this);
         }
@@ -633,6 +630,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
             TransactionResult<Boolean> success = TransactionResult.success(statement.execute());
             if (auditLogger != null) auditLogger.onUpdate(oldEntity, entity);
             if (entityLifecycleListener != null) entityLifecycleListener.onPostUpdate(entity);
+            invalidateRelationships(id);
             return success;
         } catch (Exception e) {
             return this.exceptionHandler.handleUpdate(e, repositoryInformation, this);
@@ -658,6 +656,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             setUpdateParameters(query, parameters);
             if (cache != null) cache.clear();
+            objectFactory.getRelationshipHandler().clear();
             return TransactionResult.success(statement.execute());
         } catch (Exception e) {
             return this.exceptionHandler.handleDelete(e, repositoryInformation, this);
@@ -689,6 +688,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
         TransactionResult<Boolean> success = TransactionResult.success(statement.execute());
         if (auditLogger != null) auditLogger.onDelete(entity);
         if (entityLifecycleListener != null) entityLifecycleListener.onPostDelete(entity);
+        invalidateRelationships(id);
         return success;
     }
 
@@ -853,5 +853,18 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
 
     private interface StatementSetter {
         void set(PreparedStatement statement) throws Exception;
+    }
+
+    private void invalidateRelationships(ID id) {
+        if (!repositoryInformation.hasRelationships()) return;
+        if (id == null) return;
+
+        try {
+            RelationshipHandler<T, ID> handler = objectFactory.getRelationshipHandler();
+            handler.invalidateRelationshipsForId(id);
+            Logging.deepInfo("Invalidated relationship cache for ID: " + id);
+        } catch (Exception e) {
+            Logging.error("Failed to invalidate relationship cache for ID " + id + ": " + e.getMessage());
+        }
     }
 }
