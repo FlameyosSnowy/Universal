@@ -261,6 +261,7 @@ public class QueryParseEngine {
      * |--------------|
      */
 
+    @SuppressWarnings("RedundantOperationOnEmptyContainer") // What is Intellij yapping about?
     public @NotNull String parseRepository(boolean ifNotExists) {
         Set<FieldData<?>> childTableQueue = new HashSet<>(4);
 
@@ -277,21 +278,24 @@ public class QueryParseEngine {
             joiner.add(classConstraints);
         }
 
-        String mainTableSQL = joiner.toString();
-
-        try (Connection conn = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(mainTableSQL, conn)) {
-            stmt.executeUpdate();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create main repository table: " + repositoryInformation.getRepositoryName(), e);
-        }
+        String query = createTable(joiner.toString(), "Failed to create main repository table: ", repositoryInformation.getRepositoryName());
 
         for (FieldData<?> data : childTableQueue) {
             createChildTable(data);
         }
         childTableQueue.clear();
 
-        return mainTableSQL;
+        return query;
+    }
+
+    private String createTable(String query, String errorMessage, String repositoryName) {
+        try (Connection connection = connectionProvider.getConnection();
+             PreparedStatement statement = connectionProvider.prepareStatement(query, connection)) {
+            statement.executeUpdate();
+        } catch (Exception e) {
+            throw new RuntimeException(errorMessage + repositoryName, e);
+        }
+        return query;
     }
 
     private void addConstraints(final Set<String> constrainedFields) {
@@ -491,14 +495,7 @@ public class QueryParseEngine {
             .append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(") ON DELETE CASCADE ON UPDATE CASCADE\n")
             .append(");");
 
-        String query = sb.toString();
-
-        try (Connection conn = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(query, conn)) {
-            stmt.executeUpdate();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create child table: " + childTableName, e);
-        }
+        createTable(sb.toString(), "Failed to create child table: ", childTableName);
     }
 
     private static void addPotentialManyToOne(@NotNull FieldData<?> data, String name, StringJoiner relationshipsJoiner) {
