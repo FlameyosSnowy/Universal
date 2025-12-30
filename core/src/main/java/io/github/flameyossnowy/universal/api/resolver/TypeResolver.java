@@ -67,17 +67,17 @@ public interface TypeResolver<T> {
      * @return a resolver that converts enums to/from strings
      */
     static <E extends Enum<E>> TypeResolver<E> forEnum(Class<E> enumClass) {
-        return fromHandler(DataHandler.of(
-            enumClass,
-            String.class,
-            java.sql.Types.VARCHAR,
-            (result, columnName) -> {
+        return new TypeResolver<>() {
+            @Override public Class<E> getType() { return enumClass; }
+            @Override public Class<?> getDatabaseType() { return String.class; }
+            @Override public E resolve(DatabaseResult result, String columnName) {
                 String value = result.get(columnName, String.class);
                 return value != null ? Enum.valueOf(enumClass, value) : null;
-            },
-            (parameters, index, value) -> 
-                parameters.set(index, value != null ? value.name() : null, String.class)
-        ));
+            }
+            @Override public void insert(DatabaseParameters parameters, String index, E value) {
+                parameters.set(index, value != null ? value.name() : null, String.class);
+            }
+        };
     }
 
     default SqlEncoding getEncoding() {

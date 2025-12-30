@@ -135,7 +135,7 @@ public class TypeResolverRegistry {
     @Nullable
     public String getType(TypeResolver<?> resolver) {
         if (resolver == null) return null;
-        return getType(resolver.getType());
+        return getType(resolver.getDatabaseType());
     }
 
     public @Nullable String getType(@NotNull Class<?> type) {
@@ -150,9 +150,16 @@ public class TypeResolverRegistry {
 
     public @Nullable String getType(Class<?> type, SqlEncoding encoding) {
         SqlTypeMapping mapping = sqlTypeMappings.get(type);
-        if (mapping == null) {
-            mapping = sqlTypeMappings.get(this.resolve(type).getType());
+        if (mapping != null) {
+            return mapping.resolve(encoding);
         }
+
+        TypeResolver<?> resolver = this.resolve(type);
+        if (resolver == null) return null;
+
+        Class<?> dbType = resolver.getDatabaseType();
+        mapping = sqlTypeMappings.get(dbType);
+
         return mapping != null ? mapping.resolve(encoding) : null;
     }
 
@@ -235,35 +242,47 @@ public class TypeResolverRegistry {
     public <T> @Nullable TypeResolver<T> resolve(Class<T> type, SqlEncoding encoding) {
         ResolverKey key = new ResolverKey(type, encoding);
 
-        var direct = (TypeResolver<T>) resolvers.get(key);
+        // 1. Direct lookup
+        Object direct = resolvers.get(key);
         if (direct == NULL_MARKER) return null;
-        if (direct != null) return direct;
+        if (direct != null) return (TypeResolver<T>) direct;
 
-        var cached = (TypeResolver<T>) assignableCache.get(key);
-        if (cached != null) return cached;
+        // 2. Assignable cache lookup (FIXED)
+        Object cached = assignableCache.get(key);
+        if (cached == NULL_MARKER) return null;
+        if (cached != null) return (TypeResolver<T>) cached;
 
+        // 3. Enum handling (prioritized and safe)
         if (type.isEnum()) {
+            System.out.println("enum " + type);
             TypeResolver<T> enumResolver =
                 (TypeResolver<T>) TypeResolver.forEnum((Class<? extends Enum>) type);
+
             resolvers.put(key, enumResolver);
             return enumResolver;
         }
 
+        // 4. Assignable fallback
         for (var entry : resolvers.entrySet()) {
             ResolverKey registered = entry.getKey();
 
-            if (registered.encoding == encoding &&
-                registered.type.isAssignableFrom(type)) {
+            if (registered.encoding != encoding) continue;
 
+            // Prevent Enum.class from swallowing concrete enums
+            if (registered.type == Enum.class) continue;
+
+            if (registered.type.isAssignableFrom(type)) {
                 TypeResolver<?> resolver = entry.getValue();
                 assignableCache.put(key, resolver);
                 return (TypeResolver<T>) resolver;
             }
         }
 
+        // 5. Negative caching
         assignableCache.put(key, NULL_MARKER);
         return null;
     }
+
 
     public boolean hasResolver(Class<?> type) {
         return resolve(type) != null;
