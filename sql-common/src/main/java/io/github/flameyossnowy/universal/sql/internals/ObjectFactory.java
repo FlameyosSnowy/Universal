@@ -1,7 +1,6 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
 import io.github.flameyossnowy.universal.api.RelationalObjectFactory;
-import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.factory.DatabaseObjectFactory;
 import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
@@ -105,7 +104,7 @@ public sealed abstract class ObjectFactory<T, ID>
             if (DatabaseObjectFactory.isMapField(field)) {
                 MapData map = DatabaseObjectFactory.getMapData(field);
                 args[index++] = map.isMultiMap()
-                    ? relationshipHandler.handleMultiMap(id, map.keyType(), map.valueType())
+                    ? relationshipHandler.handleMultiMap(id, map.keyType(), map.valueType(), map.collectionKind())
                     : relationshipHandler.handleNormalMap(id, map.keyType(), map.valueType());
                 continue;
             }
@@ -154,7 +153,7 @@ public sealed abstract class ObjectFactory<T, ID>
                 field.setValue(
                     instance,
                     map.isMultiMap()
-                        ? relationshipHandler.handleMultiMap(id, map.keyType(), map.valueType())
+                        ? relationshipHandler.handleMultiMap(id, map.keyType(), map.valueType(), map.collectionKind())
                         : relationshipHandler.handleNormalMap(id, map.keyType(), map.valueType())
                 );
                 continue;
@@ -213,7 +212,7 @@ public sealed abstract class ObjectFactory<T, ID>
                 field.setValue(
                     instance,
                     map.isMultiMap()
-                        ? relationshipHandler.handleMultiMap(primaryId, map.keyType(), map.valueType())
+                        ? relationshipHandler.handleMultiMap(primaryId, map.keyType(), map.valueType(), map.collectionKind())
                         : relationshipHandler.handleNormalMap(primaryId, map.keyType(), map.valueType())
                 );
             } else {

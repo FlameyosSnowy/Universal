@@ -1,7 +1,7 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
-import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
+import io.github.flameyossnowy.universal.api.factory.CollectionKind;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
@@ -29,7 +29,7 @@ public final class NoArrayObjectFactory<T, ID>
     protected Collection<Object> readListField(FieldData<?> field, ID id, ResultSet rs)
             throws Exception {
         Class<?> itemType = field.elementType();
-        return relationshipHandler.handleNormalLists(id, itemType);
+        return relationshipHandler.handleNormalCollections(id, itemType, CollectionKind.LIST);
     }
 
     @Override
@@ -54,6 +54,6 @@ public final class NoArrayObjectFactory<T, ID>
     @Override
     protected Collection<Object> readSetField(FieldData<?> field, ID id, ResultSet rs) throws Exception {
         Class<?> itemType = field.elementType();
-        return relationshipHandler.handleNormalSets(id, itemType);
+        return relationshipHandler.handleNormalCollections(id, itemType, CollectionKind.SET);
     }
 }

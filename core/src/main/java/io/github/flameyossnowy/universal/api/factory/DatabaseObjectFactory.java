@@ -5,9 +5,6 @@ import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.sql.Timestamp;
 import java.time.*;
 import java.util.*;
@@ -21,6 +18,7 @@ public interface DatabaseObjectFactory<T, S> {
         Map.entry(java.sql.Time.class, () -> java.sql.Time.valueOf(LocalTime.now())),
         Map.entry(Timestamp.class, () -> new Timestamp(System.currentTimeMillis())),
         Map.entry(Year.class, Year::now),
+        Map.entry(YearMonth.class, YearMonth::now),
         Map.entry(java.sql.Date.class, () -> new java.sql.Date(System.currentTimeMillis())),
         Map.entry(TimeZone.class, TimeZone::getDefault),
         Map.entry(Calendar.class, Calendar::getInstance),
@@ -91,8 +89,9 @@ public interface DatabaseObjectFactory<T, S> {
         }
 
         boolean isMultiMap = false;
+        CollectionKind collectionType = CollectionKind.LIST;
 
-        // Detect Map<K, List<V>>
+        // Detect Map<K, List<V>> or Map<K, Set<V>>
         if (Collection.class.isAssignableFrom(valueType)) {
             Class<?> elementType = field.elementType();
 
@@ -105,12 +104,23 @@ public interface DatabaseObjectFactory<T, S> {
 
             isMultiMap = true;
             valueType = elementType;
+
+            if (Queue.class.isAssignableFrom(field.mapValueType())) {
+                collectionType = CollectionKind.QUEUE;
+            } else if (Deque.class.isAssignableFrom(field.mapValueType())) {
+                collectionType = CollectionKind.DEQUE;
+            } else if (Set.class.isAssignableFrom(field.mapValueType())) {
+                collectionType = CollectionKind.SET;
+            } else if (!List.class.isAssignableFrom(field.mapValueType())) {
+                collectionType = CollectionKind.OTHER;
+            }
         }
 
         return new MapData(
             cast(keyType),
             cast(valueType),
-            isMultiMap
+            isMultiMap,
+            collectionType
         );
     }
 
@@ -119,5 +129,10 @@ public interface DatabaseObjectFactory<T, S> {
         return (Class<Object>) cls;
     }
 
-    record MapData(Class<Object> keyType, Class<Object> valueType, boolean isMultiMap) {}
+    record MapData(
+        Class<Object> keyType,
+        Class<Object> valueType,
+        boolean isMultiMap,
+        CollectionKind collectionKind
+    ) {}
 }

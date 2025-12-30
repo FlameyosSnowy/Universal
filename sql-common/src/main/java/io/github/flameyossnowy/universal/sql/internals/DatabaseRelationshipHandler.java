@@ -1,6 +1,6 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
-import io.github.flameyossnowy.universal.api.RepositoryAdapter;
+import io.github.flameyossnowy.universal.api.factory.CollectionKind;
 import io.github.flameyossnowy.universal.api.handler.AbstractRelationshipHandler;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
@@ -28,10 +28,10 @@ public class DatabaseRelationshipHandler<T, ID> extends AbstractRelationshipHand
         this.connectionProvider = connectionProvider;
     }
 
-    public Collection<Object> handleNormalLists(ID value, Class<?> rawType) {
+    public Collection<Object> handleNormalCollections(ID value, Class<?> rawType, CollectionKind kind) {
         CollectionTypeResolver<Object, ID> collectionTypeResolver = (CollectionTypeResolver<Object, ID>)
                 SQLCollections.INSTANCE.getResolver(rawType, idClass, connectionProvider, repositoryInformation, resolverRegistry);
-        return collectionTypeResolver.resolve(value);
+        return collectionTypeResolver.resolve(value, kind);
     }
 
     public Object[] handleNormalArrays(ID value, Class<?> rawType) {
@@ -40,21 +40,15 @@ public class DatabaseRelationshipHandler<T, ID> extends AbstractRelationshipHand
         return collectionTypeResolver.resolveArray(value);
     }
 
-    public Collection<Object> handleNormalSets(ID value, Class<?> rawType) {
-        CollectionTypeResolver<Object, ID> collectionTypeResolver = (CollectionTypeResolver<Object, ID>)
-                SQLCollections.INSTANCE.getResolver(rawType, idClass, connectionProvider, repositoryInformation, resolverRegistry);
-        return collectionTypeResolver.resolveSet(value);
-    }
-
     public Map<Object, Object> handleNormalMap(ID value, Class<?> rawKeyType, Class<?> rawValueType) {
         MapTypeResolver<Object, Object, ID> collectionTypeResolver = (MapTypeResolver<Object, Object, ID>)
                 SQLCollections.INSTANCE.getMapResolver( rawKeyType, rawValueType, idClass, connectionProvider, repositoryInformation, resolverRegistry);
         return collectionTypeResolver.resolve(value);
     }
 
-    public Map<Object, List<Object>> handleMultiMap(ID value, Class<?> rawKeyType, Class<?> rawValueType) {
+    public Map<Object, List<Object>> handleMultiMap(ID value, Class<?> rawKeyType, Class<?> rawValueType, CollectionKind kind) {
         MultiMapTypeResolver<Object, Object, ID> collectionTypeResolver = (MultiMapTypeResolver<Object, Object, ID>)
                 SQLCollections.INSTANCE.getMultiMapResolver( rawKeyType, rawValueType, idClass, connectionProvider, repositoryInformation, resolverRegistry);
-        return collectionTypeResolver.resolve(value);
+        return collectionTypeResolver.resolve(value, kind);
     }
 }

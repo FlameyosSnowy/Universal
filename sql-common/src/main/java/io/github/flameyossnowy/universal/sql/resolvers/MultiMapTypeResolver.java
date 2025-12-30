@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.sql.resolvers;
 
+import io.github.flameyossnowy.universal.api.factory.CollectionKind;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
@@ -14,20 +15,17 @@ import java.util.*;
 @SuppressWarnings("unused")
 public class MultiMapTypeResolver<K, V, ID> {
     private final String tableName;
-
     private final TypeResolver<K> keyResolver;
     private final TypeResolver<V> valueResolver;
     private final TypeResolver<ID> idResolver;
-
-    private final TypeResolverRegistry resolverRegistry;
-
     private final SQLConnectionProvider connectionProvider;
+    private final TypeResolverRegistry resolverRegistry;
     private final RepositoryInformation information;
 
     public MultiMapTypeResolver(Class<ID> idType, Class<K> keyType, @NotNull Class<V> valueType,
-                                final SQLConnectionProvider connectionProvider,
-                                final @NotNull RepositoryInformation information,
-                                final @NotNull TypeResolverRegistry resolverRegistry) {
+                                SQLConnectionProvider connectionProvider,
+                                @NotNull RepositoryInformation information,
+                                @NotNull TypeResolverRegistry resolverRegistry) {
         this.connectionProvider = connectionProvider;
         this.information = information;
         this.resolverRegistry = resolverRegistry;
@@ -37,27 +35,32 @@ public class MultiMapTypeResolver<K, V, ID> {
         this.valueResolver = resolverRegistry.resolve(valueType);
         this.idResolver = resolverRegistry.resolve(idType);
 
-        if (keyResolver == null || valueResolver == null || idResolver == null) {
-            throw new IllegalStateException("No resolver found for one of the types: " + keyType.getSimpleName() + ", " + valueType.getSimpleName() + ", or " + idType.getSimpleName());
-        }
+        if (keyResolver == null || valueResolver == null || idResolver == null)
+            throw new IllegalStateException("No resolver found for one of the types");
     }
 
-    public Map<K, List<V>> resolve(ID id) {
+    public <C extends Collection<V>> Map<K, C> resolve(ID id, CollectionKind kind) {
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+        try (var connection = connectionProvider.getConnection();
+             var stmt = connectionProvider.prepareStatement(query, connection)) {
+
             SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(params, "id", id);
-            ResultSet resultSet = stmt.executeQuery();
 
-            int fetchSize = stmt.getFetchSize();
-            Map<K, List<V>> map = new HashMap<>(fetchSize);
-            while (resultSet.next()) {
-                SQLDatabaseResult result = new SQLDatabaseResult(resultSet, resolverRegistry);
+            var rs = stmt.executeQuery();
+            Map<K, C> map = new HashMap<>(rs.getFetchSize());
+
+            SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
+            while (rs.next()) {
                 K key = keyResolver.resolve(result, "map_key");
                 V value = valueResolver.resolve(result, "map_value");
-
-                map.computeIfAbsent(key, k -> new ArrayList<>(fetchSize)).add(value);
+                map.computeIfAbsent(key, k -> {
+                    try {
+                        return (C) kind.create(rs.getFetchSize());
+                    } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
+                }).add(value);
             }
             return map;
         } catch (Exception e) {
@@ -65,66 +68,22 @@ public class MultiMapTypeResolver<K, V, ID> {
         }
     }
 
-    public void insert(ID id, @NotNull Map<K, List<V>> map) throws Exception {
-        String insertQuery = "INSERT INTO " + tableName + " (id, map_key, map_value) VALUES (?, ?, ?)";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information);
-            addBatchElements(id, map, parameters, insertStmt);
-            insertStmt.executeBatch();
-        }
-    }
+    public void insert(ID id, @NotNull Map<K, ? extends Collection<V>> map) throws Exception {
+        String query = "INSERT INTO " + tableName + " (id, map_key, map_value) VALUES (?, ?, ?)";
+        try (var connection = connectionProvider.getConnection();
+             var stmt = connectionProvider.prepareStatement(query, connection)) {
 
-    private void addBatchElements(ID id, @NotNull Map<K, List<V>> map, SQLDatabaseParameters parameters, PreparedStatement insertStmt) throws Exception {
-        for (Map.Entry<K, List<V>> entry : map.entrySet()) {
-            addOneEntry(entry.getValue(), id, entry.getKey(), parameters, insertStmt);
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            for (var entry : map.entrySet()) {
+                K key = entry.getKey();
+                for (V value : entry.getValue()) {
+                    idResolver.insert(params, "id", id);
+                    keyResolver.insert(params, "map_key", key);
+                    valueResolver.insert(params, "map_value", value);
+                    stmt.addBatch();
+                }
+            }
+            stmt.executeBatch();
         }
-    }
-
-    private void addOneEntry(List<V> entry, ID id, K key, SQLDatabaseParameters parameters, PreparedStatement insertStmt) throws Exception {
-        for (V value : entry) {
-            addEntry(id, key, value, parameters);
-            insertStmt.addBatch();
-        }
-    }
-
-    // Insert a single key-value pair (key -> List<V>)
-    public void insert(ID id, K key, List<V> values) throws Exception {
-        String insertQuery = "INSERT INTO " + tableName + " (id, map_key, map_value) VALUES (?, ?, ?)";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information);
-            addOneEntry(values, id, key, parameters, insertStmt);
-            insertStmt.executeBatch();
-        }
-    }
-
-    // Delete a key-value pair (key -> List<V>)
-    public void delete(final ID id, final K key) throws Exception {
-        String query = "DELETE FROM " + tableName + " WHERE id = ? AND map_key = ?;";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
-            idResolver.insert(parameters, "id", id);
-            keyResolver.insert(parameters, "map_key", key);
-            stmt.executeUpdate();
-        }
-    }
-
-    // Delete all entries for a given ID
-    public void delete(final ID id) throws Exception {
-        String query = "DELETE FROM " + tableName + " WHERE id = ?;";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
-            idResolver.insert(parameters, "id", id);
-            stmt.executeUpdate();
-        }
-    }
-
-    private void addEntry(final ID id, final K key, final V value, final SQLDatabaseParameters insertStmt) {
-        idResolver.insert(insertStmt, "id", id);
-        keyResolver.insert(insertStmt, "map_key", key);
-        valueResolver.insert(insertStmt, "map_value", value);
     }
 }

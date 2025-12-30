@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.sql.resolvers;
 
+import io.github.flameyossnowy.universal.api.factory.CollectionKind;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 
@@ -18,56 +19,51 @@ import java.util.*;
 
 @SuppressWarnings("unused")
 public class CollectionTypeResolver<T, ID> {
-    public static final Object[] OBJECTS = new Object[0];
+    private static final Object[] OBJECTS = new Object[0];
     private final Class<T> elementType;
     private final Class<ID> idType;
-    private final String tableName;
-
     private final TypeResolver<T> elementResolver;
     private final TypeResolver<ID> idResolver;
-
     private final SQLConnectionProvider connectionProvider;
     private final RepositoryInformation information;
-    
     private final TypeResolverRegistry resolverRegistry;
+    private final String tableName;
 
     public CollectionTypeResolver(Class<ID> idType, @NotNull Class<T> elementType,
-                                  final SQLConnectionProvider connectionProvider,
-                                  final @NotNull RepositoryInformation information, 
+                                  SQLConnectionProvider connectionProvider,
+                                  @NotNull RepositoryInformation information,
                                   TypeResolverRegistry resolverRegistry) {
-        this.resolverRegistry = resolverRegistry;
         this.idType = idType;
         this.elementType = elementType;
-
         this.connectionProvider = connectionProvider;
         this.information = information;
+        this.resolverRegistry = resolverRegistry;
 
         this.tableName = information.getRepositoryName() + '_' + elementType.getSimpleName().toLowerCase() + 's';
         this.elementResolver = resolverRegistry.resolve(elementType);
-        if (elementResolver == null)
-            throw new IllegalStateException("No resolver for " + elementType.getSimpleName() + '.');
+        if (elementResolver == null) throw new IllegalStateException("No resolver for " + elementType.getSimpleName());
 
         this.idResolver = resolverRegistry.resolve(idType);
-        if (idResolver == null)
-            throw new IllegalStateException("No resolver for " + elementType.getSimpleName() + "'s primary key!");
+        if (idResolver == null) throw new IllegalStateException("No resolver for primary key " + idType.getSimpleName());
     }
 
-    public Collection<T> resolve(ID id) {
+    public <C extends Collection<T>> C resolve(ID id, CollectionKind kind) {
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
-            idResolver.insert(parameters, "id", id);
+        try (var connection = connectionProvider.getConnection();
+             var stmt = connectionProvider.prepareStatement(query, connection)) {
 
-            ResultSet resultSet = stmt.executeQuery();
-            SQLDatabaseResult result = new SQLDatabaseResult(resultSet, resolverRegistry);
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            idResolver.insert(params, "id", id);
 
-            List<T> collection = new ArrayList<>(resultSet.getFetchSize());
-            while (resultSet.next()) {
+            var rs = stmt.executeQuery();
+            C collection = (C) kind.create(rs.getFetchSize());
+
+            SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
+            while (rs.next()) {
                 collection.add(elementResolver.resolve(result, "value"));
             }
-
             return collection;
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -78,20 +74,16 @@ public class CollectionTypeResolver<T, ID> {
         if (primaryKey == null) {
             throw new IllegalArgumentException("Primary key not found for " + information.getRepositoryName());
         }
-
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(parameters, primaryKey.name(), id);
-
             ResultSet resultSet = stmt.executeQuery();
-
             if (!resultSet.next()) {
                 //noinspection unchecked
                 return (T[]) OBJECTS;
             }
-
             SQLDatabaseResult databaseResult = new SQLDatabaseResult(resultSet, resolverRegistry);
 
             resultSet.last();
@@ -105,103 +97,49 @@ public class CollectionTypeResolver<T, ID> {
                 int index = resultSet.getRow() - 1;
                 array[index] = elementResolver.resolve(databaseResult, "value");
             }
-
             return array;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public Collection<T> resolveSet(ID id) {
-        FieldData<?> primaryKey = information.getPrimaryKey();
-        if (primaryKey == null) {
-            throw new IllegalArgumentException("Primary key not found for " + information.getRepositoryName());
-        }
-
-        String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
-            idResolver.insert(parameters, primaryKey.name(), id);
-
-            ResultSet resultSet = stmt.executeQuery();
-            if (!resultSet.next()) return Set.of();
-
-            SQLDatabaseResult databaseResult = new SQLDatabaseResult(resultSet, resolverRegistry);
-
-            Set<T> collection = new HashSet<>(resultSet.getFetchSize());
-            while (resultSet.next()) {
-                collection.add(elementResolver.resolve(databaseResult, "value"));
-            }
-
-            return collection;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public void insert(ID id, @NotNull Collection<T> collection) throws Exception {
-        String insertQuery = "INSERT INTO " + tableName + " (id, value) VALUES (?, ?)";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information);
-            batchAdd(id, collection, insertStmt, parameters);
-            insertStmt.executeBatch();
+        batchInsert(id, collection);
+    }
+
+    private void batchInsert(ID id, @NotNull Collection<T> collection) throws Exception {
+        String query = "INSERT INTO " + tableName + " (id, value) VALUES (?, ?)";
+        try (var connection = connectionProvider.getConnection();
+             var stmt = connectionProvider.prepareStatement(query, connection)) {
+
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            for (T element : collection) {
+                idResolver.insert(params, "id", id);
+                elementResolver.insert(params, "value", element);
+                stmt.addBatch();
+            }
+            stmt.executeBatch();
         }
     }
 
-    private void batchAdd(ID id, @NotNull Collection<T> collection, PreparedStatement insertStmt, SQLDatabaseParameters parameters) throws Exception {
-        for (T value : collection) {
-            addElement(value, id, insertStmt, parameters);
-            insertStmt.addBatch();
-        }
-    }
-
-    public void insert(ID id, T value) throws Exception {
-        String insertQuery = "INSERT INTO " + tableName + " (id, value) VALUES (?, ?)";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information);
-            addElement(value, id, insertStmt, parameters);
-            insertStmt.executeUpdate();
-        }
-    }
-
-    public void delete(final ID id, final T value) throws Exception {
+    public void delete(ID id, T element) throws Exception {
         String query = "DELETE FROM " + tableName + " WHERE id = ? AND value = ?;";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
-            TypeResolver<ID> typeResolver = resolverRegistry.resolve(idType);
-            typeResolver.insert(parameters, "id", id);
-
-            TypeResolver<T> resolver = resolverRegistry.resolve(elementType);
-            resolver.insert(parameters, "value", value);
+        try (var connection = connectionProvider.getConnection();
+             var stmt = connectionProvider.prepareStatement(query, connection)) {
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            idResolver.insert(params, "id", id);
+            elementResolver.insert(params, "value", element);
             stmt.executeUpdate();
         }
     }
 
-    public void delete(final ID id) throws Exception {
+    public void deleteAll(ID id) throws Exception {
         String query = "DELETE FROM " + tableName + " WHERE id = ?;";
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
-            TypeResolver<ID> typeResolver = resolverRegistry.resolve(idType);
-            typeResolver.insert(parameters, "id", id);
+        try (var connection = connectionProvider.getConnection();
+             var stmt = connectionProvider.prepareStatement(query, connection)) {
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            idResolver.insert(params, "id", id);
             stmt.executeUpdate();
         }
-    }
-
-    public Class<T> getElementType() {
-        return elementType;
-    }
-
-    private void addElement(final T value, final ID id, final PreparedStatement insertStmt, SQLDatabaseParameters parameters) {
-
-        TypeResolver<ID> primaryKeyResolver = resolverRegistry.resolve(idType);
-        primaryKeyResolver.insert(parameters, "id", id);
-
-        TypeResolver<T> resolver = resolverRegistry.resolve(elementType);
-        resolver.insert(parameters, "value", value);
     }
 }
