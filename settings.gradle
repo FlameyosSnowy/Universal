@@ -7,5 +7,4 @@ include "mongodb"
 include 'sql-common'
 include 'compile-time-checker'
 include 'postgresql'
-include 'cassandra'
 include 'microservices'
