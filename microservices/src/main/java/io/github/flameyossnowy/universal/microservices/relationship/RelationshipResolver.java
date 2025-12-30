@@ -8,14 +8,14 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.Objects;
 
-public class RelationshipResolver<ID> {
-    private final RelationshipHandler<ID> handler;
+public class RelationshipResolver<T, ID> {
+    private final RelationshipHandler<T, ID> handler;
 
-    public RelationshipResolver(RelationshipHandler<ID> handler) {
+    public RelationshipResolver(RelationshipHandler<T, ID> handler) {
         this.handler = handler;
     }
 
-    public <T> void resolve(T entity, @NotNull RepositoryInformation repositoryInformation) {
+    public void resolve(T entity, @NotNull RepositoryInformation repositoryInformation) {
         Objects.requireNonNull(entity);
 
         FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
