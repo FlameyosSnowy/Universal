@@ -261,29 +261,47 @@ public class QueryParseEngine {
      * |--------------|
      */
 
-    @SuppressWarnings("RedundantOperationOnEmptyContainer") // What is Intellij yapping about?
+    @SuppressWarnings("RedundantOperationOnEmptyContainer")
     public @NotNull String parseRepository(boolean ifNotExists) {
+        Logging.deepInfo("Starting repository parse: " + repositoryInformation.getRepositoryName());
+        Logging.deepInfo("IF NOT EXISTS = " + ifNotExists);
+
         Set<FieldData<?>> childTableQueue = new HashSet<>(4);
 
-        StringJoiner joiner = new StringJoiner(", ",
-            "CREATE TABLE " + (ifNotExists ? "IF NOT EXISTS " : "") + sqlType.quoteChar() +
-                repositoryInformation.getRepositoryName() + sqlType.quoteChar() + " (",
-            ");"
-        );
+        String tableName = repositoryInformation.getRepositoryName();
+        String ddlPrefix =
+            "CREATE TABLE " + (ifNotExists ? "IF NOT EXISTS " : "") +
+                sqlType.quoteChar() + tableName + sqlType.quoteChar();
+
+        Logging.deepInfo("DDL prefix: " + ddlPrefix);
+
+        StringJoiner joiner = new StringJoiner(", ", ddlPrefix + " (", ");");
 
         generateColumns(joiner, childTableQueue);
 
         String classConstraints = processClassLevelConstraints();
         if (!classConstraints.isEmpty()) {
+            Logging.deepInfo("Adding class-level constraints: " + classConstraints);
             joiner.add(classConstraints);
         }
 
-        String query = createTable(joiner.toString(), "Failed to create main repository table: ", repositoryInformation.getRepositoryName());
+        String finalQuery = joiner.toString();
+        Logging.deepInfo("Final CREATE TABLE query:\n" + finalQuery);
+
+        String query = createTable(
+            finalQuery,
+            "Failed to create main repository table: ",
+            tableName
+        );
+
+        if (!childTableQueue.isEmpty()) {
+            Logging.deepInfo("Creating " + childTableQueue.size() + " child tables");
+        }
 
         for (FieldData<?> data : childTableQueue) {
+            Logging.deepInfo("Creating child table for field: " + data.name());
             createChildTable(data);
         }
-        childTableQueue.clear();
 
         return query;
     }
@@ -298,24 +316,29 @@ public class QueryParseEngine {
         return query;
     }
 
-    private void addConstraints(final Set<String> constrainedFields) {
-        for (Constraint c : repositoryInformation.getConstraints()) Collections.addAll(constrainedFields, c.fields());
-    }
-
     private String processClassLevelConstraints() {
-        if (repositoryInformation.getConstraints().length == 0) return "";
+        Constraint[] constraints = repositoryInformation.getConstraints();
+        if (constraints.length == 0) {
+            Logging.deepInfo("No class-level constraints found");
+            return "";
+        }
+
+        Logging.deepInfo("Processing " + constraints.length + " class-level constraints");
 
         StringJoiner joiner = new StringJoiner(", ");
-        for (Constraint constraint : repositoryInformation.getConstraints()) {
-            String[] fields = constraint.fields();
-            if (fields.length == 0) continue;
+        for (Constraint constraint : constraints) {
+            Logging.deepInfo("Processing constraint: " + constraint.name());
 
             StringJoiner checkConditionsJoiner = new StringJoiner(" AND ");
             StringJoiner uniqueFieldsJoiner = new StringJoiner(", ");
 
-            for (String fieldName : fields) {
+            for (String fieldName : constraint.fields()) {
                 FieldData<?> fieldData = repositoryInformation.getField(fieldName);
-                if (fieldData == null) continue;
+                if (fieldData == null) {
+                    Logging.deepInfo("Constraint field not found: " + fieldName);
+                    continue;
+                }
+
                 if (fieldData.condition() != null) {
                     checkConditionsJoiner.add(fieldData.condition().value());
                 }
@@ -323,42 +346,60 @@ public class QueryParseEngine {
                     uniqueFieldsJoiner.add(fieldName);
                 }
             }
+
             if (checkConditionsJoiner.length() > 0) {
-                joiner.add("CONSTRAINT " + constraint.name() + " CHECK (" + checkConditionsJoiner + ")");
+                String check = "CONSTRAINT " + constraint.name() +
+                    " CHECK (" + checkConditionsJoiner + ")";
+                Logging.deepInfo("Generated CHECK constraint: " + check);
+                joiner.add(check);
             }
+
             if (uniqueFieldsJoiner.length() > 0) {
-                joiner.add("CONSTRAINT " + constraint.name() + " UNIQUE (" + uniqueFieldsJoiner + ")");
+                String unique = "CONSTRAINT " + constraint.name() +
+                    " UNIQUE (" + uniqueFieldsJoiner + ")";
+                Logging.deepInfo("Generated UNIQUE constraint: " + unique);
+                joiner.add(unique);
             }
         }
+
         return joiner.toString();
     }
 
     @Contract(pure = true)
     private void generateColumns(final StringJoiner joiner, Set<FieldData<?>> childTableQueue) {
+        Logging.deepInfo("Generating columns for repository: " +
+            repositoryInformation.getRepositoryName());
+
         StringJoiner primaryKeysJoiner = new StringJoiner(", ");
         StringJoiner relationshipsJoiner = new StringJoiner(", ");
 
         for (FieldData<?> data : repositoryInformation.getFields()) {
-            StringBuilder fieldBuilder = new StringBuilder(32);
-            final Class<?> type = data.type();
-            final boolean primaryKey = data.primary();
-            final boolean unique = data.unique();
-            final String name = data.name();
+            Logging.deepInfo("----");
+            Logging.deepInfo("Processing field: " + data.name());
 
-            Logging.deepInfo("Processing field: " + name);
-            Logging.deepInfo("Field type: " + type);
-
-            generateColumn(joiner, data, type, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, childTableQueue);
+            generateColumn(
+                joiner,
+                data,
+                data.type(),
+                new StringBuilder(32),
+                data.name(),
+                data.unique(),
+                data.primary(),
+                primaryKeysJoiner,
+                relationshipsJoiner,
+                childTableQueue
+            );
         }
 
-        String pkClause = primaryKeysJoiner.toString();
-        if (!pkClause.isEmpty()) {
-            joiner.add("PRIMARY KEY (" + pkClause + ")");
+        if (primaryKeysJoiner.length() > 0) {
+            String pk = "PRIMARY KEY (" + primaryKeysJoiner + ")";
+            Logging.deepInfo("Primary key clause: " + pk);
+            joiner.add(pk);
         }
 
-        String relationshipClause = relationshipsJoiner.toString();
-        if (!relationshipClause.isEmpty()) {
-            joiner.add(relationshipClause);
+        if (relationshipsJoiner.length() > 0) {
+            Logging.deepInfo("Relationship clauses: " + relationshipsJoiner);
+            joiner.add(relationshipsJoiner.toString());
         }
     }
 
@@ -426,19 +467,34 @@ public class QueryParseEngine {
         appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
     }
 
-    private void appendColumn(@NotNull StringJoiner joiner, FieldData<?> data, @NotNull StringBuilder fieldBuilder, String name, boolean unique, boolean primaryKey, StringJoiner primaryKeysJoiner, StringJoiner relationshipsJoiner, String resolvedType) {
+    private void appendColumn(
+        @NotNull StringJoiner joiner,
+        FieldData<?> data,
+        @NotNull StringBuilder fieldBuilder,
+        String name,
+        boolean unique,
+        boolean primaryKey,
+        StringJoiner primaryKeysJoiner,
+        StringJoiner relationshipsJoiner,
+        String resolvedType
+    ) {
         fieldBuilder.append(name).append(' ').append(resolvedType);
-
         addColumnMetaData(data, fieldBuilder, unique);
 
-        fieldBuilder.trimToSize();
-        joiner.add(fieldBuilder.toString());
-        if (primaryKey) primaryKeysJoiner.add(name);
+        String columnSql = fieldBuilder.toString();
+        Logging.deepInfo("Generated column SQL: " + columnSql);
+
+        joiner.add(columnSql);
+
+        if (primaryKey) {
+            Logging.deepInfo("Marked as PRIMARY KEY: " + name);
+            primaryKeysJoiner.add(name);
+        }
 
         addPotentialManyToOne(data, name, relationshipsJoiner);
     }
 
-    private void addColumnMetaData(FieldData<?> data, StringBuilder fieldBuilder, boolean unique) {
+    private void addColumnMetaData(@NotNull FieldData<?> data, StringBuilder fieldBuilder, boolean unique) {
         if (data.nonNull()) fieldBuilder.append(" NOT NULL");
         if (data.autoIncrement()) fieldBuilder.append(" ").append(sqlType.autoIncrementKeyword());
         if (data.condition() != null) fieldBuilder.append(" CHECK (").append(data.condition().value()).append(")");
