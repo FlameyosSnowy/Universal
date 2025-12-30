@@ -387,6 +387,16 @@ public class TypeResolverRegistry {
         registerInternal(new OffsetDateTimeTypeResolver());
         registerInternal(new InstantTypeResolver());
         registerInternal(new EpochInstantTypeResolver());
+
+        registerInternal(new YearTypeResolver());
+        registerInternal(new MonthTypeResolver());
+        registerInternal(new YearMonthTypeResolver());
+        registerInternal(new ZoneIdTypeResolver());
+        registerInternal(new TimeZoneTypeResolver());
+
+        registerInternal(new OffsetTimeTypeResolver());
+        registerInternal(new ChronoLocalDateTypeResolver());
+        registerInternal(new ChronoLocalDateTimeTypeResolver());
     }
 
     private void registerUrlType() {
