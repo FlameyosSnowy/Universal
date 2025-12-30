@@ -386,7 +386,7 @@ public class QueryParseEngine {
             }
 
             Class<?> genericType = data.elementType() != null ? data.elementType() : Object.class;
-            String resolvedType = resolverRegistry.getType(genericType.arrayType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
+            String resolvedType = resolverRegistry.getType(genericType.arrayType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
@@ -408,11 +408,10 @@ public class QueryParseEngine {
             return;
         }
 
-        // fallback: normal type
         String resolvedType = resolverRegistry.getType(type, data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
         if (resolvedType == null) {
-            TypeResolver<?> resolver = createResolver(data);
-            resolvedType = resolverRegistry.getType(resolver);
+            TypeResolver<?> newResolver = createResolver(data);
+            resolvedType = resolverRegistry.getType(newResolver);
         }
 
         RepositoryInformation metadata;
@@ -427,7 +426,7 @@ public class QueryParseEngine {
         appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
     }
 
-    private void appendColumn(StringJoiner joiner, FieldData<?> data, StringBuilder fieldBuilder, String name, boolean unique, boolean primaryKey, StringJoiner primaryKeysJoiner, StringJoiner relationshipsJoiner, String resolvedType) {
+    private void appendColumn(@NotNull StringJoiner joiner, FieldData<?> data, @NotNull StringBuilder fieldBuilder, String name, boolean unique, boolean primaryKey, StringJoiner primaryKeysJoiner, StringJoiner relationshipsJoiner, String resolvedType) {
         fieldBuilder.append(name).append(' ').append(resolvedType);
 
         addColumnMetaData(data, fieldBuilder, unique);

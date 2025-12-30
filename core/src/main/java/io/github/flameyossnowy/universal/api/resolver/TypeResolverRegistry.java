@@ -140,6 +140,9 @@ public class TypeResolverRegistry {
 
     public @Nullable String getType(@NotNull Class<?> type) {
         SqlTypeMapping mapping = sqlTypeMappings.get(type);
+        if (mapping == null) {
+            mapping = sqlTypeMappings.get(this.resolve(type).getType());
+        }
         return mapping != null
             ? mapping.resolve(SqlEncoding.VISUAL)
             : null;
@@ -147,6 +150,14 @@ public class TypeResolverRegistry {
 
     public @Nullable String getType(Class<?> type, SqlEncoding encoding) {
         SqlTypeMapping mapping = sqlTypeMappings.get(type);
+        if (mapping == null) {
+            mapping = sqlTypeMappings.get(this.resolve(type).getType());
+        }
+        return mapping != null ? mapping.resolve(encoding) : null;
+    }
+
+    public @Nullable String getType(TypeResolver<?> type, SqlEncoding encoding) {
+        SqlTypeMapping mapping = sqlTypeMappings.get(type.getType());
         return mapping != null ? mapping.resolve(encoding) : null;
     }
 
@@ -234,7 +245,6 @@ public class TypeResolverRegistry {
         if (type.isEnum()) {
             TypeResolver<T> enumResolver =
                 (TypeResolver<T>) TypeResolver.forEnum((Class<? extends Enum>) type);
-
             resolvers.put(key, enumResolver);
             return enumResolver;
         }
