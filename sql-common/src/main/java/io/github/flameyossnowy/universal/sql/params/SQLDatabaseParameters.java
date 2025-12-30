@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,39 +74,72 @@ public class SQLDatabaseParameters implements DatabaseParameters {
     }
 
 
+    private final Map<String, List<FieldIndex>> whereCache = new HashMap<>(6);
+
+    private static class FieldIndex {
+        final int start;
+        final int end;
+        final int index;
+
+        FieldIndex(int start, int end, int index) {
+            this.start = start;
+            this.end = end;
+            this.index = index;
+        }
+    }
+
     private void parseWhere(String where) {
-        String w = where.toLowerCase().trim();
+        List<FieldIndex> cached = whereCache.get(where);
+        if (cached != null) {
+            for (FieldIndex fi : cached) {
+                nameToIndexMap.put(where.substring(fi.start, fi.end).trim(), fi.index);
+            }
+            return;
+        }
 
-        // manual AND/OR splitting
-        List<String> parts = new ArrayList<>(4);
-
+        List<FieldIndex> resultList = new ArrayList<>();
+        String w = where;
+        int len = w.length();
+        int pos = 1;
         int start = 0;
-        for (int i = 0; i < w.length(); i++) {
-            if (w.startsWith(" and ", i) || w.startsWith(" or ", i)) {
-                parts.add(where.substring(start, i).trim());
-                start = i + (w.startsWith(" and ", i) ? 5 : 4);
+        int opPos = -1;
+
+        for (int i = 0; i < len; i++) {
+            char c = Character.toLowerCase(w.charAt(i));
+
+            // detect operator
+            if (opPos < 0) {
+                if (c == '=' || c == '<' || c == '>') {
+                    opPos = i;
+                } else if (c == 'l' && i + 3 < len &&
+                    Character.toLowerCase(w.charAt(i + 1)) == 'i' &&
+                    Character.toLowerCase(w.charAt(i + 2)) == 'k' &&
+                    Character.toLowerCase(w.charAt(i + 3)) == 'e') {
+                    opPos = i;
+                }
+            }
+
+            // detect separators
+            if (w.regionMatches(true, i, " and ", 0, 5) || w.regionMatches(true, i, " or ", 0, 4)) {
+                if (opPos >= 0) {
+                    resultList.add(new FieldIndex(start, opPos, pos++));
+                }
+                start = i + (w.regionMatches(true, i, " and ", 0, 5) ? 5 : 4);
+                i = start - 1;
+                opPos = -1;
             }
         }
-        parts.add(where.substring(start).trim());
 
-        int pos = 1;
-        for (String condition : parts) {
-            if (!condition.contains("?")) continue;
+        // last condition
+        if (opPos >= 0 && start < len) {
+            resultList.add(new FieldIndex(start, opPos, pos++));
+        }
 
-            int eq = condition.indexOf('=');
-            int lt = condition.indexOf('<');
-            int gt = condition.indexOf('>');
-            int like = condition.toLowerCase().indexOf("like");
+        whereCache.put(where, resultList);
 
-            int opPos = -1;
-            if (eq >= 0) opPos = eq;
-            else if (lt >= 0) opPos = lt;
-            else if (gt >= 0) opPos = gt;
-            else if (like >= 0) opPos = like;
-
-            if (opPos < 0) continue;
-
-            nameToIndexMap.put(condition.substring(0, opPos).trim(), pos++);
+        // populate nameToIndexMap
+        for (FieldIndex fi : resultList) {
+            nameToIndexMap.put(where.substring(fi.start, fi.end).trim(), fi.index);
         }
     }
 
