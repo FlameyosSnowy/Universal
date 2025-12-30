@@ -715,6 +715,33 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RelationalRep
                 if (repositoryInformation.getPrimaryKey() == null) {
                     return TransactionResult.success(true);
                 }
+                if (repositoryInformation.hasRelationships()) {
+                    RelationshipHandler<T, ID> handler = objectFactory.getRelationshipHandler();
+                    ID entityId = repositoryInformation.getPrimaryKey().getValue(value);
+                    handler.invalidateRelationshipsForId(entityId);
+
+                    // Reverse-edge invalidation: if this entity references other entities (child → parent)
+                    for (FieldData<?> parentField : repositoryInformation.getManyToOneCache().values()) {
+                        Object parentValue = parentField.getValue(value);
+                        if (parentValue != null) {
+                            RepositoryInformation parentRepositoryInformation =
+                                RepositoryMetadata.getMetadata(parentField.type());
+                            ID parentId = parentRepositoryInformation.getPrimaryKey().getValue(parentValue);
+                            handler.invalidateRelationshipsForId(parentId);
+                        }
+                    }
+
+                    for (FieldData<?> parentField : repositoryInformation.getOneToOneCache().values()) {
+                        Object parentValue = parentField.getValue(value);
+                        if (parentValue != null) {
+                            RepositoryInformation parentRepositoryInformation =
+                                RepositoryMetadata.getMetadata(parentField.type());
+                            ID parentId = parentRepositoryInformation.getPrimaryKey().getValue(parentValue);
+                            handler.invalidateRelationshipsForId(parentId);
+                        }
+                    }
+                }
+
                 if (!repositoryInformation.getPrimaryKey().autoIncrement()) {
                     this.objectFactory.insertCollectionEntities(value, repositoryInformation.getPrimaryKey().getValue(value), parameters);
                     if (globalCache != null) globalCache.put(repositoryInformation.getPrimaryKey().getValue(value), value);
