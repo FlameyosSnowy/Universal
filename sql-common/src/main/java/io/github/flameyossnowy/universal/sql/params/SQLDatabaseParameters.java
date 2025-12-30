@@ -77,7 +77,8 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         String w = where.toLowerCase().trim();
 
         // manual AND/OR splitting
-        List<String> parts = new ArrayList<>(w.length());
+        List<String> parts = new ArrayList<>(4);
+
         int start = 0;
         for (int i = 0; i < w.length(); i++) {
             if (w.startsWith(" and ", i) || w.startsWith(" or ", i)) {
@@ -155,10 +156,6 @@ public class SQLDatabaseParameters implements DatabaseParameters {
             nameToIndexMap.put(col, pos++);
         }
     }
-
-    // ────────────────────────────────────────────────────────────────────────────────
-    //   PARAMETER MAPPING
-    // ────────────────────────────────────────────────────────────────────────────────
 
     private int getIndexForName(Object index) {
         if (index instanceof Integer i)
