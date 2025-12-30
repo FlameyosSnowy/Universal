@@ -66,7 +66,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private final CompressionType compressionType;
     private final boolean sharding;
     private final int shardCount;
-    private final RelationshipResolver<ID> relationshipResolver;
+    private final RelationshipResolver<T, ID> relationshipResolver;
 
     private final Map<String, SecondaryIndex<ID>> indexes = new ConcurrentHashMap<>();
 
