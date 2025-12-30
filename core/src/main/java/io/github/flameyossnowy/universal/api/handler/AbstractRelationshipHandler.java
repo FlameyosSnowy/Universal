@@ -140,7 +140,7 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
             @NotNull RepositoryInformation targetInfo,
             RepositoryInformation repoInfo
     ) {
-        for (FieldData<?> relatedField : targetInfo.getFields()) {
+        for (FieldData<?> relatedField : targetInfo.getOneToOneCache().values()) {
             if (repoInfo.getType().isAssignableFrom(relatedField.type()))
                 return new OneToOneField(relatedField.name(), relatedField);
         }
