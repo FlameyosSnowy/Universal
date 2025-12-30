@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
 import io.github.flameyossnowy.universal.api.RelationalRepositoryAdapter;
+import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
@@ -11,17 +12,22 @@ import io.github.flameyossnowy.universal.sql.DatabaseImplementation;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 
 import java.sql.Array;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
 public final class ArraySupportingObjectFactory<T, ID>
         extends ObjectFactory<T, ID> {
-    public ArraySupportingObjectFactory(RepositoryInformation repoInfo, SQLConnectionProvider connectionProvider, DatabaseImplementation implementation, RelationalRepositoryAdapter<T, ID> adapter, TypeResolverRegistry typeResolverRegistry) {
+
+    private static final Object[] OBJECTS = new Object[0];
+
+    public ArraySupportingObjectFactory(RepositoryInformation repoInfo, SQLConnectionProvider connectionProvider, DatabaseImplementation implementation, RepositoryAdapter<T, ID, Connection> adapter, TypeResolverRegistry typeResolverRegistry) {
         super(repoInfo, connectionProvider, implementation, adapter, typeResolverRegistry);
     }
 
@@ -33,6 +39,8 @@ public final class ArraySupportingObjectFactory<T, ID>
         if (array == null) return List.of();
 
         Object[] raw = (Object[]) array.getArray();
+
+        // Optimization: ImmutableList doesn't copy the array, not even a null check, so we can use it directly to allow ArrayList to arraycopy it.
         return new ArrayList<>(new ImmutableList<>(raw));
     }
 
@@ -42,7 +50,9 @@ public final class ArraySupportingObjectFactory<T, ID>
         if (array == null) return List.of();
 
         Object[] raw = (Object[]) array.getArray();
-        return new HashSet<>(new ImmutableList<>(raw));
+        HashSet<Object> objects = new HashSet<>(raw.length);
+        Collections.addAll(objects, raw);
+        return objects;
     }
 
     @Override
@@ -50,7 +60,7 @@ public final class ArraySupportingObjectFactory<T, ID>
             throws Exception {
 
         Array array = rs.getArray(field.name());
-        return array == null ? new Object[0] : (Object[]) array.getArray();
+        return array == null ? OBJECTS : (Object[]) array.getArray();
     }
 
     @Override
@@ -62,7 +72,7 @@ public final class ArraySupportingObjectFactory<T, ID>
         if (value == null) return false;
 
         PreparedStatement ps = ((SQLDatabaseParameters) stmt).getStatement();
-        Array sqlArray = ps.getConnection().createArrayOf(field.name(), value.toArray());
+        Array sqlArray = ps.getConnection().createArrayOf(typeResolverRegistry.getType(field.type()), value.toArray());
         ps.setArray(paramIndex, sqlArray);
         return true;
     }
