@@ -166,7 +166,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                         .build());
             }
 
-            ResolveWith resolveWith = field.rawField().getAnnotation(ResolveWith.class);
+            ResolveWith resolveWith = field.resolveWith();
             if (resolveWith != null) {
                 try {
                     typeResolverRegistry.register(resolveWith.value().getDeclaredConstructor().newInstance());
@@ -176,7 +176,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                 }
             }
 
-            MongoResolver mongoResolver = field.rawField().getAnnotation(MongoResolver.class);
+            MongoResolver mongoResolver = field.getAnnotation(MongoResolver.class);
             if (mongoResolver != null) {
                 try {
                     codecs.add(mongoResolver.value().getDeclaredConstructor().newInstance());

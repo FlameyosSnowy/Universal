@@ -16,6 +16,7 @@ import me.sunlan.fastreflection.FastMethod;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
@@ -320,6 +321,10 @@ public class FieldData<T> {
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public <T extends Annotation> T getAnnotation(Class<T> clazz) {
+        return rawField.getAnnotation(clazz);
     }
 
     private record GenericInfo(Class<?> elementType, Class<?> mapKeyType, Class<?> mapValueType,
