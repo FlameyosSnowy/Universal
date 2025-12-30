@@ -2,14 +2,17 @@ package io.github.flameyossnowy.universal.api.options;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public record SelectQuery(List<String> columns, List<SelectOption> filters, List<SortOption> sortOptions, int limit,
-                          String joinTable) implements Query {
+                          String joinTable, Set<String> prefetch) implements Query {
     public static class SelectQueryBuilder {
         private final List<String> columns;
         private final List<SelectOption> filters = new ArrayList<>(2);
         private final List<SortOption> sortOptions = new ArrayList<>(1);
+        private final Set<String> prefetch = new HashSet<>(4);
         private int limit = -1;
         private String joinTable;
 
@@ -47,6 +50,16 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
          */
         public SelectQueryBuilder where(List<SelectOption> options) {
             filters.addAll(options);
+            return this;
+        }
+
+        public SelectQueryBuilder prefetch(String... fields) {
+            this.prefetch.addAll(Set.of(fields));
+            return this;
+        }
+
+        public SelectQueryBuilder prefetch(Collection<String> fields) {
+            this.prefetch.addAll(fields);
             return this;
         }
 
@@ -106,7 +119,7 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
          * @return a new SelectQuery instance
          */
         public SelectQuery build() {
-            return new SelectQuery(columns, filters, sortOptions, limit, joinTable);
+            return new SelectQuery(columns, filters, sortOptions, limit, joinTable, prefetch);
         }
     }
 }
