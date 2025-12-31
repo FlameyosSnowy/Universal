@@ -427,7 +427,7 @@ public class QueryParseEngine {
             }
 
             Class<?> genericType = data.elementType() != null ? data.elementType() : Object.class;
-            String resolvedType = resolverRegistry.getType(genericType.arrayType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
+            String resolvedType = resolverRegistry.getType(genericType, data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
