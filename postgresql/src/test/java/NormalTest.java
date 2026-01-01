@@ -4,8 +4,15 @@ import io.github.flameyossnowy.universal.postgresql.PostgreSQLRepositoryAdapter;
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
 import org.junit.jupiter.api.Test;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -140,5 +147,85 @@ public class NormalTest {
         System.out.println(factions);
         assertEquals(1, factions.size());
         assertEquals(faction, factions.get(0));
+    }
+
+    @Test
+    public void postgres_connection_leak_stress_test() throws Exception {
+        Logging.ENABLED = false;
+
+        PostgreSQLCredentials credentials =
+            new PostgreSQLCredentials("localhost", 5432, "test", "postgres", "test");
+
+        PostgreSQLRepositoryAdapter<Faction, Long> adapter =
+            PostgreSQLRepositoryAdapter.builder(Faction.class, Long.class)
+                .withCredentials(credentials)
+                .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
+                .build();
+
+        // Baseline connections
+        int baseline = countActiveConnections(credentials);
+
+        int threads = 16;
+        int iterationsPerThread = 200;
+
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        CountDownLatch latch = new CountDownLatch(threads);
+
+        for (int t = 0; t < threads; t++) {
+            executor.submit(() -> {
+                try {
+                    for (int i = 0; i < iterationsPerThread; i++) {
+                        adapter.executeRawQuery(
+                            "CREATE TABLE IF NOT EXISTS \"factions_tmp_" + UUID.randomUUID() + "\"" +
+                                " (id BIGSERIAL PRIMARY KEY, name TEXT)"
+                        );
+                    }
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executor.shutdown();
+
+        // Give Hikari time to return connections
+        Thread.sleep(2000);
+
+        int after = countActiveConnections(credentials);
+
+        System.out.println("Baseline connections: " + baseline);
+        System.out.println("After stress test:   " + after);
+
+        assertTrue(
+            after <= baseline + 1,
+            "Connection leak detected! Baseline=" + baseline + ", After=" + after
+        );
+    }
+
+    private static int countActiveConnections(PostgreSQLCredentials credentials) throws Exception {
+        String url = "jdbc:postgresql://" +
+            credentials.getHost() + ":" +
+            credentials.getPort() + "/" +
+            credentials.getDatabase();
+
+        try (Connection c = DriverManager.getConnection(
+            url, credentials.getUsername(), credentials.getPassword());
+             PreparedStatement ps = c.prepareStatement(
+                 """
+                 SELECT count(*)
+                 FROM pg_stat_activity
+                 WHERE datname = ?
+                   AND pid <> pg_backend_pid()
+                 """
+             )) {
+
+            ps.setString(1, credentials.getDatabase());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
     }
 }
