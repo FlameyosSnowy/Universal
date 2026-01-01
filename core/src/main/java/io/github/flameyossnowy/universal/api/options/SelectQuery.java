@@ -63,6 +63,11 @@ public record SelectQuery(List<String> columns, List<SelectOption> filters, List
             return this;
         }
 
+        public SelectQueryBuilder orderBy(List<SortOption> sortOptions) {
+            this.sortOptions.addAll(sortOptions);
+            return this;
+        }
+
         /**
          * Adds a condition to the query based on the specified key and value, using the
          * default equality operator.
