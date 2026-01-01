@@ -20,9 +20,11 @@ public class PostgreSQLRepositoryAdapter<T, ID> extends AbstractRelationalReposi
             final Class<ID> idClass,
             SessionCache<ID, T> globalCache,
             LongFunction<SessionCache<ID, T>> sessionCacheLongFunction,
-            CacheWarmer<T, ID> cacheWarmer
+            CacheWarmer<T, ID> cacheWarmer,
+            boolean cacheEnabled,
+            int maxSize
     ) {
-        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.POSTGRESQL, globalCache, sessionCacheLongFunction, cacheWarmer);
+        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.POSTGRESQL, globalCache, sessionCacheLongFunction, cacheWarmer, cacheEnabled, maxSize);
     }
 
     @NotNull

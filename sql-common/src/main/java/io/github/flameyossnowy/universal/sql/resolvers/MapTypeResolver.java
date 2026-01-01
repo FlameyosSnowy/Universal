@@ -48,20 +48,22 @@ public class MapTypeResolver<K, V, ID> {
     public Map<K, V> resolve(ID id) {
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+             PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(parameters, "id", id);
-            ResultSet resultSet = stmt.executeQuery();
-            if (!resultSet.next()) return Map.of();
-            SQLDatabaseResult result = new SQLDatabaseResult(resultSet, resolverRegistry);
 
-            Map<K, V> map = new HashMap<>(stmt.getFetchSize());
-            while (resultSet.next()) {
-                K key = keyResolver.resolve(result, "map_key");
-                V value = valueResolver.resolve(result, "map_value");
-                map.put(key, value);
+            try (ResultSet resultSet = stmt.executeQuery()) {
+                SQLDatabaseResult result = new SQLDatabaseResult(resultSet, resolverRegistry);
+                Map<K, V> map = new HashMap<>(Math.max(stmt.getFetchSize(), 32));
+
+                while (resultSet.next()) {
+                    K key = keyResolver.resolve(result, "map_key");
+                    V value = valueResolver.resolve(result, "map_value");
+                    map.put(key, value);
+                }
+
+                return map;
             }
-            return map;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.microservices.file;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.flameyossnowy.universal.api.CloseableIterator;
 import io.github.flameyossnowy.universal.api.IndexOptions;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.RepositoryRegistry;
@@ -23,6 +24,7 @@ import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.SortOrder;
 import io.github.flameyossnowy.universal.api.options.SortOption;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.api.reflect.FieldData;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
@@ -41,6 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.Comparator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -68,7 +71,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private final int shardCount;
     private final RelationshipResolver<T, ID> relationshipResolver;
 
-    private final Map<String, SecondaryIndex<ID>> indexes = new ConcurrentHashMap<>();
+    private final Map<String, SecondaryIndex<ID>> indexes = new ConcurrentHashMap<>(16);
 
     private static final int STRIPE_COUNT = 64;
     private final ReentrantReadWriteLock[] stripes = new ReentrantReadWriteLock[STRIPE_COUNT];
@@ -229,7 +232,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     private List<ID> findAllIdsFast() {
         try {
-            List<ID> ids = new ArrayList<>();
+            List<ID> ids = new ArrayList<>(32);
 
             if (sharding) {
                 for (int i = 0; i < shardCount; i++) {
@@ -317,6 +320,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     @Override
     public void close() {
         cache.clear();
+        RepositoryRegistry.unregister(repositoryInformation.getRepositoryName());
     }
 
     // File operations
@@ -425,7 +429,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     public List<T> readAll() throws IOException {
-        List<T> results = new ArrayList<>();
+        List<T> results = new ArrayList<>(32);
         if (sharding) {
             for (int i = 0; i < shardCount; i++) {
                 Path shardPath = basePath.resolve(String.valueOf(i));
@@ -696,6 +700,85 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
+    public @NotNull CloseableIterator<T> findIterator(SelectQuery query) {
+        Stream<T> stream = findStream(query);
+        Iterator<T> iterator = stream.iterator();
+
+        return new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() { return iterator.hasNext(); }
+
+            @Override
+            public T next() { return iterator.next(); }
+
+            @Override
+            public void close() { stream.close(); }
+        };
+    }
+
+    @Override
+    public @NotNull Stream<T> findStream(SelectQuery query) {
+        try {
+            // Generate a Stream<Path> that lazily scans all shards
+            Stream<T> entityStream = getFileStream();
+
+            // Apply filters lazily
+            if (query != null && query.filters() != null && !query.filters().isEmpty()) {
+                entityStream = entityStream.filter(entity -> matchesAll(entity, query.filters()));
+            }
+
+            // Apply sorting AFTER filters (sorting is eager)
+            if (query != null && query.sortOptions() != null && !query.sortOptions().isEmpty()) {
+                List<Comparator<T>> comparators = query.sortOptions().stream()
+                    .map(this::compareBySortField)
+                    .toList();
+                Comparator<T> combined = comparators.stream()
+                    .reduce(Comparator::thenComparing)
+                    .orElseThrow();
+
+                entityStream = entityStream.sorted(combined);
+            }
+
+            // Apply limit lazily
+            if (query != null && query.limit() >= 0) {
+                entityStream = entityStream.limit(query.limit());
+            }
+
+            return entityStream.onClose(() -> {
+                // nothing special to close here, Files.list() streams are already closed by map operations
+            });
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to open file stream", e);
+        }
+    }
+
+    private @NotNull Stream<T> getFileStream() {
+        Stream<Path> fileStream = Stream.iterate(0, i -> i + 1)
+            .limit(sharding ? shardCount : 1)
+            .map(i -> sharding ? basePath.resolve(String.valueOf(i)) : basePath)
+            .filter(Files::exists)
+            .flatMap(path -> {
+                try {
+                    return Files.list(path);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            })
+            .filter(Files::isRegularFile)
+            .filter(path -> path.getFileName().toString().endsWith(getFileExtension()));
+
+        // Map paths to entities lazily
+        return fileStream.map(path -> {
+            try {
+                return readEntity(path);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
+    @Override
     public @Nullable T first(SelectQuery query){
         List<T> results = find(query);
         return results.isEmpty() ? null : results.getFirst();
@@ -888,7 +971,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         if (entities.isEmpty() || indexes.isEmpty()) return;
 
         for (SecondaryIndex<ID> index : indexes.values()) {
-            var field = repositoryInformation.getField(index.field());
+            FieldData<?> field = repositoryInformation.getField(index.field());
 
             // Local aggregation: value -> IDs
             Map<Object, Set<ID>> additions = new HashMap<>();

@@ -11,6 +11,7 @@ import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -55,12 +56,14 @@ public class CollectionTypeResolver<T, ID> {
             SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(params, "id", id);
 
-            var rs = stmt.executeQuery();
-            C collection = (C) kind.create(rs.getFetchSize());
+            C collection;
+            try (var rs = stmt.executeQuery()) {
+                collection = (C) kind.create(rs.getFetchSize());
 
-            SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
-            while (rs.next()) {
-                collection.add(elementResolver.resolve(result, "value"));
+                SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
+                while (rs.next()) {
+                    collection.add(elementResolver.resolve(result, "value"));
+                }
             }
             return collection;
 
@@ -79,25 +82,20 @@ public class CollectionTypeResolver<T, ID> {
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(parameters, primaryKey.name(), id);
-            ResultSet resultSet = stmt.executeQuery();
-            if (!resultSet.next()) {
-                //noinspection unchecked
-                return (T[]) OBJECTS;
+
+            try (ResultSet resultSet = stmt.executeQuery()) {
+                SQLDatabaseResult databaseResult = new SQLDatabaseResult(resultSet, resolverRegistry);
+                ArrayList<T> list = new ArrayList<>(Math.max(32, stmt.getFetchSize()));
+
+                while (resultSet.next()) {
+                    int index = resultSet.getRow() - 1;
+                    list.add(elementResolver.resolve(databaseResult, "value"));
+                }
+
+                @SuppressWarnings("unchecked")
+                T[] arr = (T[]) Array.newInstance(elementType, list.size());
+                return list.toArray(arr);
             }
-            SQLDatabaseResult databaseResult = new SQLDatabaseResult(resultSet, resolverRegistry);
-
-            resultSet.last();
-            int size = resultSet.getRow();
-            resultSet.beforeFirst();
-
-            @SuppressWarnings("unchecked")
-            T[] array = (T[]) new Object[size];
-
-            while (resultSet.next()) {
-                int index = resultSet.getRow() - 1;
-                array[index] = elementResolver.resolve(databaseResult, "value");
-            }
-            return array;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

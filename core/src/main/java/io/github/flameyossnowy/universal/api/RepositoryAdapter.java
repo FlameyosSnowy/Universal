@@ -18,11 +18,13 @@ import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Proxy;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.EnumSet;
+import java.util.stream.Stream;
 
 @SuppressWarnings("unused")
 public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID, C> {
@@ -186,6 +188,100 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
 
     @CheckReturnValue
     Map<ID, T> findAllById(Collection<ID> keys);
+
+    /**
+     * Executes the given select query and returns an {@link Iterator} over the results.
+     *
+     * <p>The returned iterator is backed by the underlying storage cursor and
+     * may lazily fetch rows as iteration progresses.
+     *
+     * <p><strong>Resource management:</strong> the iterator holds database resources
+     * (e.g. connections, cursors) until it is fully consumed or explicitly closed.
+     * Callers <em>must</em> ensure the iterator is closed when iteration is aborted.
+     *
+     * <p>This method is intended for large result sets where loading all results
+     * into memory would be undesirable.
+     *
+     * @param query the query to execute
+     * @return an iterator over the query results
+     */
+    @CheckReturnValue
+    @NotNull
+    CloseableIterator<T> findIterator(SelectQuery query);
+
+    /**
+     * Executes the given select query and returns a {@link Stream} over the results.
+     *
+     * <p>The returned stream is backed by the underlying storage cursor and
+     * fetches rows lazily.
+     *
+     * <p><strong>Resource management:</strong> the stream holds database resources
+     * until it is closed. Callers <em>must</em> use this stream within a
+     * try-with-resources block or explicitly call {@link Stream#close()}.
+     *
+     * <p>Failure to close the stream may result in connection leaks.
+     *
+     * <p>This method is suitable for sequential processing of large result sets.
+     * Parallel stream usage is not supported unless explicitly documented by
+     * the implementation.
+     *
+     * @param query the query to execute
+     * @return a stream over the query results
+     */
+    @CheckReturnValue
+    @NotNull
+    Stream<T> findStream(SelectQuery query);
+
+    /**
+     * Asynchronously prepares an {@link Iterator} over the results of the given query.
+     *
+     * <p>The returned {@link CompletableFuture} completes when the query execution
+     * and cursor initialization have finished. Result iteration itself remains
+     * synchronous and occurs on the calling thread.
+     *
+     * <p><strong>Threading:</strong> the iterator is not thread-safe and must be
+     * consumed from a single thread.
+     *
+     * <p><strong>Resource management:</strong> the iterator holds database resources
+     * until fully consumed or explicitly closed. Callers are responsible for closing
+     * the iterator if iteration is aborted.
+     *
+     * <p>This method does <em>not</em> stream results asynchronously; it only
+     * defers query initialization.
+     *
+     * @param query the query to execute
+     * @return a future that completes with an iterator over the results
+     */
+    @CheckReturnValue
+    @NotNull
+    default CompletableFuture<CloseableIterator<T>> findIteratorAsync(SelectQuery query) {
+        return CompletableFuture.supplyAsync(() -> this.findIterator(query));
+    }
+
+    /**
+     * Asynchronously prepares a {@link Stream} over the results of the given query.
+     *
+     * <p>The returned {@link CompletableFuture} completes when the query execution
+     * and cursor initialization have finished. Stream consumption itself remains
+     * synchronous and occurs on the calling thread.
+     *
+     * <p><strong>Resource management:</strong> the stream holds database resources
+     * until {@link Stream#close()} is called. Callers <em>must</em> close the stream,
+     * typically via try-with-resources.
+     *
+     * <p><strong>Warning:</strong> delaying stream consumption after the future
+     * completes may keep database connections open longer than expected.
+     *
+     * <p>This method does <em>not</em> provide asynchronous row streaming, if you'd like to do that, use Stream#parallel.
+     *
+     * @param query the query to execute
+     * @return a future that completes with a stream over the query results
+     */
+    @CheckReturnValue
+    @NotNull
+    default CompletableFuture<Stream<T>> findStreamAsync(SelectQuery query) {
+        return CompletableFuture.supplyAsync(() -> this.findStream(query));
+    }
 
     /**
      * Finds and returns the first item that matches the given query.

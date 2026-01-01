@@ -19,9 +19,11 @@ public class SQLiteRepositoryAdapter<T, ID> extends AbstractRelationalRepository
             Class<ID> idClass,
             SessionCache<ID, T> globalCache,
             LongFunction<SessionCache<ID, T>> sessionCacheLongFunction,
-            CacheWarmer<T, ID> cacheWarmer
+            CacheWarmer<T, ID> cacheWarmer,
+            boolean cacheEnabled,
+            int maxSize
     ) {
-        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.SQLITE, globalCache, sessionCacheLongFunction, cacheWarmer);
+        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.SQLITE, globalCache, sessionCacheLongFunction, cacheWarmer, cacheEnabled, maxSize);
     }
 
     /**

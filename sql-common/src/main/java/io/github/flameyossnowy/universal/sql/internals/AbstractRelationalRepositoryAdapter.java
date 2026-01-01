@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.sql.internals;
 
 import io.github.flameyossnowy.universal.api.*;
 import io.github.flameyossnowy.universal.api.annotations.Index;
+import io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmType;
 import io.github.flameyossnowy.universal.api.cache.*;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
@@ -20,6 +21,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.SimpleTransactionContext;
+import io.github.flameyossnowy.universal.sql.iteration.ResultSetIterator;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.query.SQLQueryValidator;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
@@ -30,9 +32,16 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.LongFunction;
+import java.util.stream.Stream;
 
 @SuppressWarnings("unchecked")
 public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Connection> {
@@ -52,11 +61,15 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     private final EntityLifecycleListener<T> entityLifecycleListener;
 
     // Advanced caching features
+    @Nullable
     protected final SecondLevelCache<ID, T> l2Cache;
+
+    @Nullable
     protected final ReadThroughCache<ID, T> readThroughCache;
-    protected final PrefetchingCache<ID, T> prefetchingCache;
 
     protected long openedSessions = 1;
+
+    private final boolean cacheEnabled;
     
     // Operation-based API support
     protected final OperationContext<Connection> operationContext;
@@ -71,13 +84,17 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             QueryParseEngine.SQLType sqlType,
             SessionCache<ID, T> globalCache,
             LongFunction<SessionCache<ID, T>> sessionCacheSupplier,
-            CacheWarmer<T, ID> cacheWarmer) {
+            CacheWarmer<T, ID> cacheWarmer,
+            boolean cacheEnabled,
+            int maxSize) {
         this.sessionCacheSupplier = sessionCacheSupplier;
         this.idClass = idClass;
         this.dataSource = dataSource;
         this.cache = cache;
         this.repository = repository;
         this.globalCache = globalCache;
+        this.cacheEnabled = cacheEnabled;
+
         Logging.info("Initializing repository: " + repository.getSimpleName());
 
         this.repositoryInformation = RepositoryMetadata.getMetadata(repository);
@@ -102,10 +119,14 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         this.auditLogger = (AuditLogger<T>) repositoryInformation.getAuditLogger();
         
         // Initialize advanced caches
-        this.l2Cache = new SecondLevelCache<>(10000, 300000, io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED);
-        this.readThroughCache = new ReadThroughCache<>(10000, io.github.flameyossnowy.universal.api.annotations.enums.CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED, this::loadFromDatabase);
-        this.prefetchingCache = new PrefetchingCache<>(3, 10);
-        
+        if (cacheEnabled) {
+            this.l2Cache = new SecondLevelCache<>(maxSize, 300000, CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED);
+            this.readThroughCache = new ReadThroughCache<>(maxSize, CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED, this::loadFromDatabase);
+        } else {
+            this.l2Cache = null;
+            this.readThroughCache = null;
+        }
+
         Logging.info("Advanced caching enabled: L2 Cache, Read-Through Cache, Prefetching Cache");
 
         // Initialize operation-based API support
@@ -121,26 +142,23 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             cacheWarmer.warmCache(this);
         }
 
-        CompletableFuture.supplyAsync(() -> engine.parseRepository(true))
-            .thenApply((result) -> {
-                for (Index index : repositoryInformation.getIndexes()) {
-                    TransactionResult<Boolean> indexResult = executeRawQuery(engine.parseIndex(IndexOptions.builder(repository)
-                        .indexName(index.name())
-                        .fields(index.fields())
-                        .type(index.type())
-                        .build()));
-                    if (indexResult.isError()) {
-                        return indexResult;
-                    }
-                }
-                return TransactionResult.success(true);
-            })
-            .thenAccept((result) -> result.expect("Should have been able to create repository/indexes"));
+        engine.parseRepository(true);
+        for (Index index : repositoryInformation.getIndexes()) {
+            TransactionResult<Boolean> indexResult = executeRawQuery(engine.parseIndex(IndexOptions.builder(repository)
+                .indexName(index.name())
+                .fields(index.fields())
+                .type(index.type())
+                .build()));
+            if (indexResult.isError()) {
+                Logging.error("Failed to create index: " + index.name() + " for repository: " + repositoryInformation.getRepositoryName());
+            }
+        }
     }
 
     @Override
     public void close() {
         dataSource.close();
+        RepositoryRegistry.unregister(repositoryInformation.getRepositoryName());
     }
 
     @Override
@@ -156,7 +174,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
         TypeResolver<ID> resolver = resolverRegistry.resolve(idClass);
 
-        List<ID> list = new ArrayList<>(rs.getMetaData().getColumnCount());
+        List<ID> list = new ArrayList<>(32);
 
         SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
         while (rs.next()) {
@@ -170,6 +188,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     private @NotNull List<T> search(String sql, boolean first, SelectQuery selectQuery, @NotNull List<SelectOption> filters) throws Exception {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
+            statement.setFetchSize(repositoryInformation.getFetchPageSize() > 0 ? repositoryInformation.getFetchPageSize() : 100);
+
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             this.addFilterToPreparedStatement(filters, parameters);
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -204,9 +224,11 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         return executeQuery(engine.parseSelect(null, false), null);
     }
 
+    @SuppressWarnings("DataFlowIssue")
     @Override
     public T findById(ID key) {
         FieldData<?> primaryKey = validatePrimaryKey();
+        if (!cacheEnabled) return first(Query.select().where(primaryKey.name(), key).build());
 
         // Check L2 cache first
         T cached = l2Cache.get(key);
@@ -215,10 +237,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             return cached;
         }
         
-        // Load from database
         T entity = first(Query.select().where(primaryKey.name(), key).build());
         
-        // Store in L2 cache
         if (entity != null) {
             l2Cache.put(key, entity);
         }
@@ -247,10 +267,99 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         for (T t : ts) {
             ID id = primaryKey.getValue(t);
             result.put(id, t);
-            l2Cache.put(id, t);
-            readThroughCache.put(id, t);
+            if (cacheEnabled) {
+                //noinspection DataFlowIssue
+                l2Cache.put(id, t);
+                //noinspection DataFlowIssue
+                readThroughCache.put(id, t);
+            }
         }
         return result;
+    }
+
+    @Override
+    public CloseableIterator<T> findIterator(SelectQuery q) {
+        try {
+            String sql = engine.parseSelect(q, false);
+
+            return executeForIteration(
+                sql,
+                q,
+                q == null ? List.of() : q.filters(),
+                rs -> new ResultSetIterator<>(
+                    rs,
+                    r -> {
+                        try {
+                            return repositoryInformation.hasRelationships()
+                                ? objectFactory.createWithRelationships(r)
+                                : objectFactory.create(r);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    },
+                    repositoryInformation.getFetchPageSize()
+                )
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create iterator", e);
+        }
+    }
+
+    @Override
+    public Stream<T> findStream(SelectQuery q) {
+        try {
+            String sql = engine.parseSelect(q, false);
+
+            return executeForIteration(
+                sql,
+                q,
+                q == null ? List.of() : q.filters(),
+                rs -> ResultSetIterator.stream(
+                    rs,
+                    r -> {
+                        try {
+                            return repositoryInformation.hasRelationships()
+                                ? objectFactory.createWithRelationships(r)
+                                : objectFactory.create(r);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    },
+                    repositoryInformation.getFetchPageSize()
+                )
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create stream", e);
+        }
+    }
+
+    private <R> R executeForIteration(
+        String sql,
+        SelectQuery selectQuery,
+        List<SelectOption> filters,
+        Function<ResultSet, R> resultSetConsumer
+    ) throws Exception {
+
+        Connection connection = dataSource.getConnection();
+        PreparedStatement statement = dataSource.prepareStatement(sql, connection);
+
+        int fetchSize = repositoryInformation.getFetchPageSize() > 0
+            ? repositoryInformation.getFetchPageSize()
+            : 100;
+
+        statement.setFetchSize(fetchSize);
+
+        SQLDatabaseParameters parameters =
+            new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
+
+        this.addFilterToPreparedStatement(filters, parameters);
+
+        ResultSet resultSet = statement.executeQuery();
+
+        // IMPORTANT: cleanup must cascade from the ResultSet
+        return resultSetConsumer.apply(
+            new DelegatingResultSet(resultSet, statement, connection)
+        );
     }
 
     /**
@@ -291,7 +400,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
              PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
 
-            connection.setAutoCommit(false);
+            if (transactionContext == null) connection.setAutoCommit(false);
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryInformation);
             try {
                 // Process in chunks to prevent OOM and timeout issues
@@ -351,8 +460,12 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         if (result.isSuccess()) {
             // Invalidate L2 cache for this entity
             try {
-                l2Cache.invalidate(id);
-                readThroughCache.invalidate(id);
+                if (cacheEnabled) {
+                    //noinspection DataFlowIssue
+                    l2Cache.invalidate(id);
+                    //noinspection DataFlowIssue
+                    readThroughCache.invalidate(id);
+                }
                 Logging.deepInfo("Invalidated caches for entity ID: " + id);
             } catch (Exception e) {
                 Logging.error("Failed to invalidate cache: " + e.getMessage());
@@ -595,7 +708,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         }
     }
 
-    public List<T> executeQuery(String query, SelectQuery selectQuery, Object... params) {
+    public List<T> executeQuery(String query, SelectQuery selectQuery) {
         List<T> result;
         try {
             return cache != null && (result = cache.fetch(query)) != null ? result : search(query, false, selectQuery, List.of());
@@ -726,7 +839,10 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
                         if (parentValue != null) {
                             RepositoryInformation parentRepositoryInformation =
                                 RepositoryMetadata.getMetadata(parentField.type());
+
+                            @SuppressWarnings("DataFlowIssue") // Not worth null checking
                             ID parentId = parentRepositoryInformation.getPrimaryKey().getValue(parentValue);
+
                             handler.invalidateRelationshipsForId(parentId);
                         }
                     }
@@ -736,7 +852,10 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
                         if (parentValue != null) {
                             RepositoryInformation parentRepositoryInformation =
                                 RepositoryMetadata.getMetadata(parentField.type());
+
+                            @SuppressWarnings("DataFlowIssue") // not even worth null checking
                             ID parentId = parentRepositoryInformation.getPrimaryKey().getValue(parentValue);
+
                             handler.invalidateRelationshipsForId(parentId);
                         }
                     }
@@ -747,23 +866,25 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
                     if (globalCache != null) globalCache.put(repositoryInformation.getPrimaryKey().getValue(value), value);
                     return TransactionResult.success(true);
                 }
-                ResultSet generatedKeys = statement.getGeneratedKeys();
-                SQLDatabaseResult result = new SQLDatabaseResult(generatedKeys, resolverRegistry);
-                if (generatedKeys.next()) {
-                    TypeResolver<ID> resolver = resolverRegistry.resolve(idClass);
-                    ID generatedId = resolver.resolve(result, repositoryInformation.getPrimaryKey().name());
 
-                    repositoryInformation.getPrimaryKey().setValue(value, generatedId);
+                try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+                    SQLDatabaseResult result = new SQLDatabaseResult(generatedKeys, resolverRegistry);
+                    if (generatedKeys.next()) {
+                        TypeResolver<ID> resolver = resolverRegistry.resolve(idClass);
+                        ID generatedId = resolver.resolve(result, repositoryInformation.getPrimaryKey().name());
 
-                    if (globalCache != null) globalCache.put(generatedId, value);
+                        repositoryInformation.getPrimaryKey().setValue(value, generatedId);
 
-                    this.objectFactory.insertCollectionEntities(value, generatedId, parameters);
+                        if (globalCache != null) globalCache.put(generatedId, value);
+
+                        this.objectFactory.insertCollectionEntities(value, generatedId, parameters);
+                    }
+                    if (cache != null) cache.clear();
+                    if (auditLogger != null) auditLogger.onInsert(value);
+                    if (entityLifecycleListener != null) entityLifecycleListener.onPostInsert(value);
+
+                    return TransactionResult.success(true);
                 }
-                if (cache != null) cache.clear();
-                if (auditLogger != null) auditLogger.onInsert(value);
-                if (entityLifecycleListener != null) entityLifecycleListener.onPostInsert(value);
-
-                return TransactionResult.success(true);
             }
             return TransactionResult.success(false);
         } catch (Exception exception) {

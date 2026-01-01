@@ -20,9 +20,11 @@ public class MySQLRepositoryAdapter<T, ID> extends AbstractRelationalRepositoryA
             final Class<ID> idClass,
             SessionCache<ID, T> globalCache,
             LongFunction<SessionCache<ID, T>> sessionCacheLongFunction,
-            CacheWarmer<T, ID> cacheWarmer
+            CacheWarmer<T, ID> cacheWarmer,
+            boolean cacheEnabled,
+            int maxSize
     ) {
-        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.MYSQL, globalCache, sessionCacheLongFunction, cacheWarmer);
+        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.MYSQL, globalCache, sessionCacheLongFunction, cacheWarmer, cacheEnabled, maxSize);
     }
 
     /**

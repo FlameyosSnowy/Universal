@@ -47,20 +47,22 @@ public class MultiMapTypeResolver<K, V, ID> {
             SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
             idResolver.insert(params, "id", id);
 
-            var rs = stmt.executeQuery();
-            Map<K, C> map = new HashMap<>(rs.getFetchSize());
+            Map<K, C> map;
+            try (var rs = stmt.executeQuery()) {
+                map = new HashMap<>(rs.getFetchSize());
 
-            SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
-            while (rs.next()) {
-                K key = keyResolver.resolve(result, "map_key");
-                V value = valueResolver.resolve(result, "map_value");
-                map.computeIfAbsent(key, k -> {
-                    try {
-                        return (C) kind.create(rs.getFetchSize());
-                    } catch (SQLException e) {
-                        throw new RuntimeException(e);
-                    }
-                }).add(value);
+                SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
+                while (rs.next()) {
+                    K key = keyResolver.resolve(result, "map_key");
+                    V value = valueResolver.resolve(result, "map_value");
+                    map.computeIfAbsent(key, k -> {
+                        try {
+                            return (C) kind.create(rs.getFetchSize());
+                        } catch (SQLException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }).add(value);
+                }
             }
             return map;
         } catch (Exception e) {

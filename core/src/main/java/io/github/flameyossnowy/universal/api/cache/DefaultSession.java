@@ -41,6 +41,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
     @Override
     public void close() {
         transactionContext.close();
+        cache.clear();
     }
 
     @Override
@@ -102,7 +103,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
         Runnable operation = () -> {
             TransactionResult<Boolean> result = repository.insert(entity, transactionContext);
             results.add(result);
-            if (result.getResult().orElse(Boolean.FALSE)) return;
+            if (!result.getResult().orElse(Boolean.FALSE)) return;
             cache.put(entityId, entity);
         };
 

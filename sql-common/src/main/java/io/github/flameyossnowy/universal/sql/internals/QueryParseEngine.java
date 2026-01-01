@@ -294,6 +294,7 @@ public class QueryParseEngine {
             tableName
         );
 
+        //noinspection ConstantValue
         if (!childTableQueue.isEmpty()) {
             Logging.deepInfo("Creating " + childTableQueue.size() + " child tables");
         }

@@ -40,6 +40,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.LongFunction;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static com.mongodb.client.model.Filters.*;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
@@ -136,7 +138,11 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         MongoDatabase database = this.client.getDatabase(dbName);
         this.collection = database.getCollection(repositoryInformation.getRepositoryName());
 
-        if (client != null) queued.forEach(this::createIndex);
+        if (client != null) {
+            for (IndexOptions indexOptions : queued) {
+                createIndex(indexOptions).expect("Should be able to create index successfully");
+            }
+        }
 
         if (cacheWarmer != null) {
             cacheWarmer.warmCache(this);
@@ -329,6 +335,49 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         }
 
         return result;
+    }
+
+    @Override
+    public @NotNull CloseableIterator<T> findIterator(@NotNull SelectQuery query) {
+        Document filter = createFilterDocument(query.filters());
+        FindIterable<Document> iterable = process(query, collection.find(filter), repositoryInformation.getFetchPageSize());
+        MongoCursor<Document> cursor = iterable.iterator();
+
+        return new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                boolean has = cursor.hasNext();
+                if (!has) close();
+                return has;
+            }
+
+            @Override
+            public T next() {
+                return objectFactory.fromDocument(cursor.next());
+            }
+
+            @Override
+            public void close() {
+                cursor.close();
+            }
+        };
+    }
+
+    @Override
+    public @NotNull Stream<T> findStream(@NotNull SelectQuery query) {
+        CloseableIterator<T> iterator = findIterator(query);
+
+        // Convert iterator to stream and ensure close is called when stream ends
+        return StreamSupport.stream(
+            Spliterators.spliteratorUnknownSize(iterator, 0),
+            false
+        ).onClose(() -> {
+            try {
+                iterator.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     private T loadFromDatabase(ID key) {
@@ -718,7 +767,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> createIndex(@NotNull IndexOptions index) {
-        if (index.fields().isEmpty()) throw new IllegalArgumentException("Cannot create an index without fields.");
+        if (index.fields().isEmpty()) {
+            throw new IllegalArgumentException("Cannot create an index without fields.");
+        }
         Document indexDoc = new Document();
         for (FieldData<?> field : index.fields()) indexDoc.put(field.name(), 1);
 
@@ -809,6 +860,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     @Override
     public void close() {
         client.close();
+        RepositoryRegistry.unregister(repositoryInformation.getRepositoryName());
         collection = null;
     }
 

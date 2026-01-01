@@ -1,10 +1,12 @@
 package io.github.flameyossnowy.universal.api.cache;
 
+import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLRUCache;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class DefaultSessionCache<ID, T> implements SessionCache<ID, T> {
-    private final Map<ID, T> internalCache = new ConcurrentHashMap<>(16);
+    private final Map<ID, T> internalCache = new ConcurrentLRUCache<>(512);
     private final CacheStatistics statistics = new CacheStatistics();
 
     @Override

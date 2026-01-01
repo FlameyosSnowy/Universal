@@ -73,10 +73,17 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
         RepositoryInformation information = Objects.requireNonNull(RepositoryMetadata.getMetadata(this.repository));
 
         Cacheable cacheable = information.getCacheable();
-
         GlobalCacheable globalCacheable = information.getGlobalCacheable();
 
-        DefaultResultCache<String, T, ID> resultCache = cacheable != null ? new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null;
+        boolean cacheEnabled = cacheable != null;
+        int maxSize = 0;
+
+        DefaultResultCache<String, T, ID> resultCache = null;
+
+        if (cacheEnabled) {
+            maxSize = cacheable.maxCacheSize();
+            resultCache = new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm());
+        }
 
         if (globalCacheable != null) {
             try {
@@ -87,7 +94,9 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
                         this.idClass,
                         (SessionCache<ID, T>) globalCacheable.sessionCache().getDeclaredConstructor().newInstance(),
                         sessionCacheSupplier,
-                        cacheWarmer
+                        cacheWarmer,
+                        cacheEnabled,
+                        maxSize
                 );
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
                      NoSuchMethodException e) {
@@ -98,12 +107,14 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
                 this.connectionProvider != null
                 ? this.connectionProvider.apply(credentials, this.optimizations)
                 : new MySQLSimpleConnectionProvider(this.credentials, this.optimizations),
-                cacheable != null ? new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm()) : null,
+                resultCache,
                 this.repository,
                 this.idClass,
                 null,
                 sessionCacheSupplier,
-                cacheWarmer
+                cacheWarmer,
+                cacheEnabled,
+                maxSize
         );
     }
 }

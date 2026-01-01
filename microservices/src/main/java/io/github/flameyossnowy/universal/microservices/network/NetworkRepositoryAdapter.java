@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.microservices.network;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.flameyossnowy.universal.api.CloseableIterator;
 import io.github.flameyossnowy.universal.api.IndexOptions;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.RepositoryRegistry;
@@ -44,6 +45,8 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Network-based repository adapter for microservices communication.
@@ -54,6 +57,8 @@ import java.util.function.Supplier;
  * @param <ID> The ID type
  */
 public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, HttpClient> {
+    private static final int DEFAULT_PAGE_SIZE = 100;
+
     private final Class<T> entityType;
     private final Class<ID> idType;
     private final RepositoryInformation repositoryInformation;
@@ -265,6 +270,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             responseCache.clear();
         }
         httpClient.close();
+        RepositoryRegistry.unregister(repositoryInformation.getRepositoryName());
     }
 
     public HttpRequest.Builder createRequestBuilder(String endpoint) {
@@ -544,6 +550,83 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             results.put(key, findById(key));
         }
         return results;
+    }
+
+    @Override
+    public @NotNull CloseableIterator<T> findIterator(SelectQuery query) {
+        Stream<T> stream = findStream(query);
+        Iterator<T> it = stream.iterator();
+
+        return new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return it.hasNext();
+            }
+
+            @Override
+            public T next() {
+                return it.next();
+            }
+
+            @Override
+            public void close() {
+                stream.close();
+            }
+        };
+    }
+
+    @Override
+    public @NotNull Stream<T> findStream(SelectQuery query) {
+        final int pageSize = query != null && query.limit() > 0
+            ? query.limit()
+            : DEFAULT_PAGE_SIZE;
+
+        Iterator<T> iterator = new Iterator<>() {
+            private int offset = 0;
+            private Iterator<T> currentPage = Collections.emptyIterator();
+            private boolean finished = false;
+
+            private void loadNextPage() {
+                if (finished) return;
+
+                SelectQuery pageQuery = Query.select()
+                    .where(query != null ? query.filters() : List.of())
+                    .orderBy(query != null ? query.sortOptions() : List.of())
+                    .limit(pageSize)
+                    .build();
+
+                List<T> page = find(pageQuery);
+
+                if (page.isEmpty()) {
+                    finished = true;
+                    return;
+                }
+
+                offset += page.size();
+                currentPage = page.iterator();
+            }
+
+            @Override
+            public boolean hasNext() {
+                while (!currentPage.hasNext() && !finished) {
+                    loadNextPage();
+                }
+                return currentPage.hasNext();
+            }
+
+            @Override
+            public T next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                return currentPage.next();
+            }
+        };
+
+        return StreamSupport.stream(
+            Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED),
+            false
+        );
     }
 
     @Override
