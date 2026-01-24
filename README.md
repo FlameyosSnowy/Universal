@@ -103,13 +103,13 @@ To include Universal in your project, add it as a dependency in your `pom.xml` (
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifact>core</artifactId>
-  <version>4.0.0</version>
+  <version>6.1.6</version>
 </dependency>
 
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifactId>PLATFORM</artifactId>
-  <version>4.0.0</version>
+  <version>6.1.6</version>
 </dependency>
 ```
 
@@ -119,8 +119,8 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.FlameyosSnowy.Universal:core:4.0.0")
-    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:4.0.0")
+    implementation("com.github.FlameyosSnowy.Universal:core:6.1.6")
+    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:6.1.6")
 }
 ```
 
