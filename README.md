@@ -221,13 +221,10 @@ MySQLRepositoryAdapter<User, UUID> userAdapter = MySQLRepositoryAdapter
     .withCredentials(mySQLCredentials)
     .build();
 
-CassandraRepositoryAdapter<PathEntry, Path> cacheAdapter = CassandraRepositoryAdapter
+MongoRepositoryAdapter<PathEntry, Path> cacheAdapter = CassandraRepositoryAdapter
     .builder(PathEntry.class, Path.class)
-    .withCredentials(cassandraCredentials)
+    .withCredentials(mongoCredentials)
     .build();
-
-RepositoryRegistry.register("user-adapter", userAdapter);
-RepositoryRegistry.register("cache-adapter", cacheAdapter);
 
 // Use cross-platform relationships
 User user = userAdapter.findById(userId);
