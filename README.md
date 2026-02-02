@@ -201,16 +201,18 @@ public class User {
     
     private String username;
     
-    // Reference to PathEntry stored in Cassandra
+    // Reference to PathEntry stored in MongoDB
     @ExternalRepository(adapter = "cache-adapter")
     @OneToOne
     private PathEntry cachePath;
 }
 
-// PathEntry entity in Cassandra
+// PathEntry entity in MongoDB
 @Repository(name = "path_entries")
 public record PathEntry(
-    @Id Path entry,
+    @Id
+    long id,
+    Path entry,
     @OneToMany(mappedBy = Path.class) List<Path> directories,
     FileAttributes attributes
 ) {}
@@ -221,14 +223,14 @@ MySQLRepositoryAdapter<User, UUID> userAdapter = MySQLRepositoryAdapter
     .withCredentials(mySQLCredentials)
     .build();
 
-MongoRepositoryAdapter<PathEntry, Path> cacheAdapter = CassandraRepositoryAdapter
+MongoRepositoryAdapter<PathEntry, Path> cacheAdapter = MongoRepositoryAdapter
     .builder(PathEntry.class, Path.class)
     .withCredentials(mongoCredentials)
     .build();
 
 // Use cross-platform relationships
 User user = userAdapter.findById(userId);
-PathEntry cache = user.getCachePath(); // Automatically fetched from Cassandra!
+PathEntry cache = user.getCachePath(); // Automatically fetched from MongoDB!
 ```
 
 ## Supported Databases
