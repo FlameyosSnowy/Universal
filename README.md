@@ -205,17 +205,24 @@ public class User {
     @ExternalRepository(adapter = "cache-adapter")
     @OneToOne
     private PathEntry cachePath;
+
+    // add getters and setters
 }
 
 // PathEntry entity in MongoDB
 @Repository(name = "path_entries")
-public record PathEntry(
+public class PathEntry {
     @Id
-    long id,
-    Path entry,
-    @OneToMany(mappedBy = Path.class) List<Path> directories,
-    FileAttributes attributes
-) {}
+    private long id;
+    private Path entry;
+    private List<Path> directories;
+    private FileAttributes attributes;
+
+    @OneToOne
+    private User user;
+
+    // add getters and setters
+}
 
 // Register adapters
 MySQLRepositoryAdapter<User, UUID> userAdapter = MySQLRepositoryAdapter
