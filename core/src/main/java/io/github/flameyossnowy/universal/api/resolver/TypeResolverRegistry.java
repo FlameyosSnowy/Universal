@@ -3,12 +3,16 @@ package io.github.flameyossnowy.universal.api.resolver;
 import io.github.flameyossnowy.universal.api.handler.DataHandler;
 import io.github.flameyossnowy.universal.api.handler.DataHandler.DatabaseReader;
 import io.github.flameyossnowy.universal.api.handler.DataHandler.DatabaseWriter;
+import io.github.flameyossnowy.universal.api.json.DefaultJsonCodec;
+import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.velocis.cache.algorithms.LRUCache;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -45,12 +49,16 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 public class TypeResolverRegistry {
     private final Map<ResolverKey, TypeResolver<?>> resolvers = new ConcurrentHashMap<>(24);
     private final Map<Class<?>, DataHandler<?>> dataHandlers = new ConcurrentHashMap<>(24);
     private final LRUCache<ResolverKey, TypeResolver<?>> assignableCache = new LRUCache<>(32);
+
+    private final Map<Class<? extends JsonCodec<?>>, JsonCodec<?>> jsonCodecs = new ConcurrentHashMap<>(8);
+    private volatile Supplier<ObjectMapper> objectMapperSupplier;
 
     private static final TypeResolver<?> NULL_MARKER = new TypeResolver<>() {
         @Override
@@ -142,6 +150,66 @@ public class TypeResolverRegistry {
     public TypeResolverRegistry() {
         registerDefaultHandlers();
         registerDefaults();
+    }
+
+    /**
+     * Configure the ObjectMapper supplier used to instantiate codecs that require it
+     * (e.g. {@link DefaultJsonCodec}).
+     */
+    public void setObjectMapperSupplier(@Nullable Supplier<ObjectMapper> objectMapperSupplier) {
+        this.objectMapperSupplier = objectMapperSupplier;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> @NotNull JsonCodec<T> getJsonCodec(@NotNull Class<? extends JsonCodec<?>> codecClass) {
+        if (codecClass == null) {
+            throw new IllegalArgumentException("codecClass cannot be null");
+        }
+
+        return (JsonCodec<T>) jsonCodecs.computeIfAbsent(codecClass, c -> {
+            try {
+                // Special-case DefaultJsonCodec(ObjectMapper)
+                if (DefaultJsonCodec.class.equals(c)) {
+                    Supplier<ObjectMapper> supplier = this.objectMapperSupplier;
+                    if (supplier == null) {
+                        throw new IllegalStateException(
+                            "DefaultJsonCodec requires an ObjectMapper, but no ObjectMapper supplier was configured"
+                        );
+                    }
+                    return new DefaultJsonCodec<>(supplier.get());
+                }
+
+                // Prefer no-args ctor
+                try {
+                    Constructor<?> ctor = c.getDeclaredConstructor();
+                    ctor.setAccessible(true);
+                    return (JsonCodec<?>) ctor.newInstance();
+                } catch (NoSuchMethodException ignored) {
+                    // fall through
+                }
+
+                // Fallback: ObjectMapper ctor if available
+                Supplier<ObjectMapper> supplier = this.objectMapperSupplier;
+                if (supplier != null) {
+                    try {
+                        Constructor<?> ctor = c.getDeclaredConstructor(ObjectMapper.class);
+                        ctor.setAccessible(true);
+                        return (JsonCodec<?>) ctor.newInstance(supplier.get());
+                    } catch (NoSuchMethodException ignored) {
+                        // fall through
+                    }
+                }
+
+                throw new IllegalStateException(
+                    "Cannot instantiate JsonCodec: " + c.getName() + ". Provide a public no-args constructor " +
+                        "or an ObjectMapper constructor (and configure an ObjectMapper supplier)."
+                );
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to instantiate JsonCodec: " + c.getName(), e);
+            }
+        });
     }
 
     @Nullable
