@@ -39,7 +39,7 @@ import java.lang.annotation.Target;
  * @see OneToMany
  * @see ManyToOne
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface ExternalRepository {
     /**

@@ -1,19 +1,18 @@
 package io.github.flameyossnowy.universal.mysql;
 
+import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.Optimizations;
-import io.github.flameyossnowy.universal.api.annotations.Cacheable;
-import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
+import io.github.flameyossnowy.universal.api.cache.CacheConfig;
 import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
 import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
 import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.mysql.connections.MySQLSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.mysql.credentials.MySQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -23,6 +22,10 @@ import java.util.function.LongFunction;
 
 @SuppressWarnings("unused")
 public class MySQLRepositoryAdapterBuilder<T, ID> {
+    static {
+        ModelsBootstrap.init();
+    }
+
     private MySQLCredentials credentials;
     private BiFunction<MySQLCredentials, EnumSet<Optimizations>, SQLConnectionProvider> connectionProvider;
     private final EnumSet<Optimizations> optimizations = EnumSet.noneOf(Optimizations.class);
@@ -70,51 +73,31 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
     @SuppressWarnings("unchecked")
     public MySQLRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
-        RepositoryInformation information = Objects.requireNonNull(RepositoryMetadata.getMetadata(this.repository));
+        RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(this.repository));
 
-        Cacheable cacheable = information.getCacheable();
-        GlobalCacheable globalCacheable = information.getGlobalCacheable();
+        CacheConfig cacheConfig = information.getCacheConfig();
+        boolean globalCacheable = information.isGlobalCacheable();
 
-        boolean cacheEnabled = cacheable != null;
+        boolean cacheEnabled = cacheConfig != null;
         int maxSize = 0;
 
         DefaultResultCache<String, T, ID> resultCache = null;
 
         if (cacheEnabled) {
-            maxSize = cacheable.maxCacheSize();
-            resultCache = new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm());
+            maxSize = cacheConfig.maxSize();
+            resultCache = new DefaultResultCache<>(maxSize, cacheConfig.cacheAlgorithmType());
         }
 
-        if (globalCacheable != null) {
-            try {
-                return new MySQLRepositoryAdapter<>(
-                        this.connectionProvider != null ? this.connectionProvider.apply(credentials, this.optimizations) : new MySQLSimpleConnectionProvider(this.credentials, this.optimizations),
-                        resultCache,
-                        this.repository,
-                        this.idClass,
-                        (SessionCache<ID, T>) globalCacheable.sessionCache().getDeclaredConstructor().newInstance(),
-                        sessionCacheSupplier,
-                        cacheWarmer,
-                        cacheEnabled,
-                        maxSize
-                );
-            } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
-                     NoSuchMethodException e) {
-                throw new RuntimeException(e);
-            }
-        }
         return new MySQLRepositoryAdapter<>(
-                this.connectionProvider != null
-                ? this.connectionProvider.apply(credentials, this.optimizations)
-                : new MySQLSimpleConnectionProvider(this.credentials, this.optimizations),
-                resultCache,
-                this.repository,
-                this.idClass,
-                null,
-                sessionCacheSupplier,
-                cacheWarmer,
-                cacheEnabled,
-                maxSize
+            this.connectionProvider != null ? this.connectionProvider.apply(credentials, this.optimizations) : new MySQLSimpleConnectionProvider(this.credentials, this.optimizations),
+            resultCache,
+            this.repository,
+            this.idClass,
+            information.createGlobalSessionCache(),
+            sessionCacheSupplier,
+            cacheWarmer,
+            cacheEnabled,
+            maxSize
         );
     }
 }

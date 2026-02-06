@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
  * @param <T> The entity type
  * @param <ID> The ID type
  */
-public class FileOperationExecutor<T, ID> implements OperationExecutor<FileContext> {
+public class FileOperationExecutor<T, ID> implements OperationExecutor<T, ID, FileContext> {
     private final FileRepositoryAdapter<T, ID> adapter;
 
     public FileOperationExecutor(FileRepositoryAdapter<T, ID> adapter) {
@@ -22,56 +22,56 @@ public class FileOperationExecutor<T, ID> implements OperationExecutor<FileConte
     @Override
     @NotNull
     public <R> TransactionResult<R> executeRead(
-            @NotNull Operation<R, FileContext> operation,
-            @NotNull OperationContext<FileContext> context) {
+            @NotNull Operation<T, ID, R, FileContext> operation,
+            @NotNull OperationContext<T, ID, FileContext> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeWrite(
-            @NotNull Operation<R, FileContext> operation,
-            @NotNull OperationContext<FileContext> context) {
+            @NotNull Operation<T, ID, R, FileContext> operation,
+            @NotNull OperationContext<T, ID, FileContext> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeUpdate(
-            @NotNull Operation<R, FileContext> operation,
-            @NotNull OperationContext<FileContext> context) {
+            @NotNull Operation<T, ID, R, FileContext> operation,
+            @NotNull OperationContext<T, ID, FileContext> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeDelete(
-            @NotNull Operation<R, FileContext> operation,
-            @NotNull OperationContext<FileContext> context) {
+            @NotNull Operation<T, ID, R, FileContext> operation,
+            @NotNull OperationContext<T, ID, FileContext> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeSchema(
-            @NotNull Operation<R, FileContext> operation,
-            @NotNull OperationContext<FileContext> context) {
+            @NotNull Operation<T, ID, R, FileContext> operation,
+            @NotNull OperationContext<T, ID, FileContext> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeCustom(
-            @NotNull Operation<R, FileContext> operation,
-            @NotNull OperationContext<FileContext> context) {
+            @NotNull Operation<T, ID, R, FileContext> operation,
+            @NotNull OperationContext<T, ID, FileContext> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeRemote(
-            @NotNull Operation<R, FileContext> operation,
-            @NotNull OperationContext<FileContext> context) {
+            @NotNull Operation<T, ID, R, FileContext> operation,
+            @NotNull OperationContext<T, ID, FileContext> context) {
         throw new UnsupportedOperationException("Remote operations not supported for file repositories");
     }
 }

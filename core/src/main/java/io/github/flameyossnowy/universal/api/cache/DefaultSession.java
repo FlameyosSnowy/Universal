@@ -2,7 +2,7 @@ package io.github.flameyossnowy.universal.api.cache;
 
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 
 import java.util.*;
@@ -11,7 +11,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
     private final SessionCache<ID, T> cache;
     private final RepositoryAdapter<T, ID, C> repository;
     private final TransactionContext<C> transactionContext;
-    private final RepositoryInformation information;
+    private final RepositoryModel<T, ID> information;
     private final long id;
     private final EnumSet<SessionOption> options;
 
@@ -23,7 +23,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
         this.repository = repository;
         this.transactionContext = repository.beginTransaction();
         this.cache = cache;
-        this.information = repository.getRepositoryInformation();
+        this.information = repository.getRepositoryModel();
         this.id = id;
         this.options = options != null ? options : EnumSet.noneOf(SessionOption.class);
     }
@@ -98,7 +98,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
 
     @Override
     public boolean insert(T entity) {
-        ID entityId = information.getPrimaryKey().getValue(entity);
+        ID entityId = information.getPrimaryKeyValue(entity);
 
         Runnable operation = () -> {
             TransactionResult<Boolean> result = repository.insert(entity, transactionContext);
@@ -123,7 +123,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
 
     @Override
     public boolean delete(T entity) {
-        ID entityId = information.getPrimaryKey().getValue(entity);
+        ID entityId = information.getPrimaryKeyValue(entity);
         T previous = findById(entityId);
 
         Runnable operation = () -> {
@@ -151,7 +151,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
 
     @Override
     public boolean update(T entity) {
-        ID entityId = information.getPrimaryKey().getValue(entity);
+        ID entityId = information.getPrimaryKeyValue(entity);
         T previous = findById(entityId);
 
         Runnable operation = () -> {
@@ -178,6 +178,6 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
     }
     
     private void log(String message) {
-        Logging.info("[MongoSession " + id + "] " + message);
+        Logging.info("[DefaultSession " + id + "] " + message);
     }
 }

@@ -28,7 +28,7 @@ import java.lang.annotation.Target;
  * @author flameyosflow
  * @version 4.0.0
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface GlobalCacheable {
     Class<?> sessionCache() default SessionCache.class;

@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.api.proxy;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.annotations.proxy.*;
 import io.github.flameyossnowy.universal.api.options.Query;
+import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -58,10 +59,16 @@ public class ProxiedAdapterHandler<T, ID, C> implements InvocationHandler {
         }
 
         if (methodData.insert != null) {
-            adapter.insert((T) args[0]);
+            adapter.insert((T) args[0])
+                .ifError(error -> {
+                    throw new RuntimeException(error);
+                });
             return null;
         } else if (methodData.update != null) {
-            adapter.updateAll((T) args[0]);
+            adapter.updateAll((T) args[0])
+                .ifError(error -> {
+                    throw new RuntimeException(error);
+                });
             return null;
         } else if (methodData.select != null) {
             var selectQuery = Query.select();
@@ -69,24 +76,43 @@ public class ProxiedAdapterHandler<T, ID, C> implements InvocationHandler {
             for (int parameterIndex = 0; parameterIndex < size; parameterIndex++) {
                 Filter filter = methodData.filters[parameterIndex];
                 Object value = args[parameterIndex];
-                selectQuery = selectQuery.where(filter.value(), filter.operator(), value);
+
+                SelectQuery.SelectQueryBuilder.QueryField where = selectQuery.where(filter.value());
+                selectQuery = switch (filter.operator()) {
+                    case "=" -> where.eq(value);
+                    case ">=" -> where.gte(value);
+                    case "<=" -> where.lte(value);
+                    case ">" -> where.gt(value);
+                    case "<" -> where.lt(value);
+                    case "!=" -> where.ne(value);
+                    case "IN" -> where.in((Collection<?>) value);
+                    case "LIKE" -> where.like((String) value);
+                    case "NOT" -> where.not();
+                    case "AND" -> where.and();
+                    case "OR" -> where.or();
+                    default -> throw new IllegalArgumentException("Unsupported operator: " + filter.operator());
+                };
             }
             if (methodData.limit != null) selectQuery = selectQuery.limit(methodData.limit.value());
             if (methodData.orderBy != null) selectQuery = selectQuery.orderBy(methodData.orderBy.value(), methodData.orderBy.order());
-            List<T> result = adapter.find(selectQuery.build());
 
             Class<?> returnType = method.getReturnType();
             if (returnType == List.class || returnType == Iterable.class) {
-                return result;
+                return adapter.find(selectQuery.build());
             } else if (returnType == Set.class) {
+                List<T> result = adapter.find(selectQuery.build());
                 return result.isEmpty() ? Set.of() : new HashSet<>(result);
             } else if (returnType == elementType) {
+                List<T> result = adapter.find(selectQuery.build());
                 return result.isEmpty() ? null : result.getFirst();
             } else if (returnType == Iterator.class) {
+                List<T> result = adapter.find(selectQuery.build());
                 return result.iterator();
             } else if (returnType == Optional.class) {
+                List<T> result = adapter.find(selectQuery.build()); // Would use findIterator and findStream, but we can't guarantee that the user will actually use CloseableIterator or manually close the Stream
                 return result.isEmpty() ? Optional.empty() : Optional.of(result.getFirst());
             } else if (returnType == Stream.class) {
+                List<T> result = adapter.find(selectQuery.build());
                 return result.stream();
             } else {
                 throw new IllegalStateException("Unsupported return type: " + returnType);

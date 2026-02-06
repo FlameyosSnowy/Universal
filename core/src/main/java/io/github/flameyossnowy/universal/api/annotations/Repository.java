@@ -13,7 +13,7 @@ import java.lang.annotation.Target;
  * Whether as a SQL Table, MongoDB Collection, etc.
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface Repository {
     /**

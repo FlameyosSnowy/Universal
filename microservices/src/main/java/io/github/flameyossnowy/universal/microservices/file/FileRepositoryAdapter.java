@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.flameyossnowy.universal.api.CloseableIterator;
 import io.github.flameyossnowy.universal.api.IndexOptions;
+import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.RepositoryRegistry;
 import io.github.flameyossnowy.universal.api.annotations.FileRepository;
@@ -15,19 +16,28 @@ import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.factory.ObjectModel;
+import io.github.flameyossnowy.universal.api.factory.RelationshipLoader;
+import io.github.flameyossnowy.universal.api.meta.FieldModel;
+import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
+import io.github.flameyossnowy.universal.api.meta.GeneratedObjectFactories;
+import io.github.flameyossnowy.universal.api.meta.GeneratedRelationshipLoaders;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.options.FilterOption;
+import io.github.flameyossnowy.universal.api.options.JsonSelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.SortOrder;
 import io.github.flameyossnowy.universal.api.options.SortOption;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
-import io.github.flameyossnowy.universal.api.reflect.FieldData;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.microservices.MicroservicesJsonCodecBridge;
+import io.github.flameyossnowy.universal.microservices.TypeResolverJacksonModule;
 import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategies;
 import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategy;
 import io.github.flameyossnowy.universal.microservices.file.indexes.SecondaryIndex;
@@ -35,6 +45,8 @@ import io.github.flameyossnowy.universal.microservices.relationship.Microservice
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.*;
 import java.nio.file.*;
@@ -56,12 +68,16 @@ import java.util.zip.GZIPOutputStream;
  * @param <ID> The ID type
  */
 public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, FileContext> {
+    static {
+        ModelsBootstrap.init();
+    }
+
     private final Class<T> entityType;
     private final Class<ID> idType;
-    private final RepositoryInformation repositoryInformation;
+    private final RepositoryModel<T, ID> repositoryModel;
     private final TypeResolverRegistry resolverRegistry;
-    private final OperationExecutor<FileContext> operationExecutor;
-    private final OperationContext<FileContext> operationContext;
+    private final OperationExecutor<T, ID, FileContext> operationExecutor;
+    private final OperationContext<T, ID, FileContext> operationContext;
     private final ObjectMapper objectMapper;
     private final Path basePath;
     private final FileFormat format;
@@ -69,7 +85,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private final CompressionType compressionType;
     private final boolean sharding;
     private final int shardCount;
-    private final RelationshipResolver<T, ID> relationshipResolver;
+    private final RelationshipLoader<T, ID> relationshipLoader;
+    private final ObjectModel<T, ID> objectModel;
 
     private final Map<String, SecondaryIndex<ID>> indexes = new ConcurrentHashMap<>(16);
 
@@ -89,6 +106,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     // In-memory cache for quick access
     private final Map<ID, T> cache = new ConcurrentHashMap<>(128);
+
+    private final RelationshipResolver<T, ID> relationshipResolver;
 
     public FileRepositoryAdapter(
             @NotNull Class<T> entityType,
@@ -111,31 +130,53 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         this.sharding = sharding;
         this.shardCount = shardCount;
 
-        this.repositoryInformation = RepositoryMetadata.getMetadata(entityType);
-        if (repositoryInformation == null) {
+        this.repositoryModel = GeneratedMetadata.getByEntityClass(entityType);
+        if (repositoryModel == null) {
             throw new IllegalArgumentException("Entity " + entityType.getName() + " must be annotated with @Repository");
         }
-        this.resolverRegistry = new TypeResolverRegistry();
 
-        // Configure Jackson ObjectMapper
+        this.resolverRegistry = new TypeResolverRegistry();
+        for (Class<? extends TypeResolver<?>> resolverClass : repositoryModel.getRequiredResolvers()) {
+            try {
+                this.resolverRegistry.register(resolverClass.getDeclaredConstructor().newInstance());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to instantiate TypeResolver: " + resolverClass, e);
+            }
+        }
+
         this.objectMapper = new ObjectMapper();
-        this.objectMapper.registerModule(new JavaTimeModule());
+        this.objectMapper.registerModule(new TypeResolverJacksonModule(resolverRegistry));
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         this.objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
+        // Enable DefaultJsonCodec usage in microservices/file layer
+        this.resolverRegistry.setObjectMapperSupplier(() -> this.objectMapper);
+
         this.operationExecutor = new FileOperationExecutor<>(this);
         this.operationContext = new OperationContext<>(
-            repositoryInformation,
+            repositoryModel,
             resolverRegistry,
             operationExecutor
         );
 
-        this.relationshipResolver = new RelationshipResolver<>(new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry));
-        RepositoryRegistry.register(repositoryInformation.getRepositoryName(), this);
+        this.objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
 
-        // Create base directory if it doesn't exist
+        MicroserviceRelationshipHandler<T, ID, FileContext> handler = new MicroserviceRelationshipHandler<>(repositoryModel, idType, resolverRegistry);
+        this.relationshipLoader = GeneratedRelationshipLoaders.get(repositoryModel.entityQualifiedName(), handler, null, repositoryModel);
+        this.relationshipResolver = new RelationshipResolver<>(handler);
+
+        RepositoryRegistry.register(repositoryModel.tableName(), this);
+
         try {
+            if (Files.exists(basePath)) {
+                return;
+            }
             Files.createDirectories(basePath);
+            if (sharding) {
+                for (int i = 0; i < shardCount; i++) {
+                    Files.createDirectories(basePath.resolve(String.valueOf(i)));
+                }
+            }
         } catch (IOException e) {
             throw new RuntimeException("Failed to create base directory: " + basePath, e);
         }
@@ -170,27 +211,27 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     @Override
     @NotNull
     public <R> TransactionResult <R> execute(
-        @NotNull Operation< R, FileContext > operation,
-        @NotNull TransactionContext < FileContext > transactionContext) {
+        @NotNull Operation<T, ID, R, FileContext> operation,
+        @NotNull TransactionContext<FileContext> transactionContext) {
         return operation.executeWithTransaction(operationContext, transactionContext);
     }
 
     @Override
     @NotNull
-    public OperationContext<FileContext> getOperationContext() {
+    public OperationContext<T, ID, FileContext> getOperationContext() {
         return operationContext;
     }
 
     @Override
     @NotNull
-    public OperationExecutor<FileContext> getOperationExecutor() {
+    public OperationExecutor<T, ID, FileContext> getOperationExecutor() {
         return operationExecutor;
     }
 
     @Override
     @NotNull
-    public RepositoryInformation getRepositoryInformation() {
-        return repositoryInformation;
+    public RepositoryModel<T, ID> getRepositoryModel() {
+        return repositoryModel;
     }
 
     @Override
@@ -311,16 +352,23 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private T readEntity(Path path) throws IOException {
         try (InputStream is = Files.newInputStream(path)) {
             InputStream input = compressed ? unwrapCompression(is) : is;
-            T entity = objectMapper.readValue(input, entityType);
-            relationshipResolver.resolve(entity, repositoryInformation);
-            return entity;
+            var storedNode = objectMapper.readTree(input);
+            T result = MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                objectMapper,
+                resolverRegistry,
+                repositoryModel,
+                entityType,
+                storedNode
+            );
+            objectModel.populateRelationships(result, objectModel.getId(result), relationshipLoader);
+            return result;
         }
     }
 
     @Override
     public void close() {
         cache.clear();
-        RepositoryRegistry.unregister(repositoryInformation.getRepositoryName());
+        RepositoryRegistry.unregister(repositoryModel.tableName());
     }
 
     // File operations
@@ -365,7 +413,10 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
                 OutputStream output = compressed ? wrapCompression(os) : os;
 
                 if (Objects.requireNonNull(format) == FileFormat.JSON) {
-                    objectMapper.writeValue(output, entity);
+                    objectMapper.writeValue(
+                        output,
+                        MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryModel, entity)
+                    );
                 }
 
                 if (compressed) {
@@ -403,11 +454,16 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             try (InputStream is = Files.newInputStream(path)) {
                 InputStream input = compressed ? unwrapCompression(is) : is;
 
-                T entity = switch (format) {
-                    case JSON -> objectMapper.readValue(input, entityType);
-                };
+                var storedNode = objectMapper.readTree(input);
+                T entity = MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                    objectMapper,
+                    resolverRegistry,
+                    repositoryModel,
+                    entityType,
+                    storedNode
+                );
 
-                relationshipResolver.resolve(entity, repositoryInformation);
+                relationshipResolver.resolve(entity, repositoryModel);
                 cache.put(id, entity);
                 return entity;
             }
@@ -455,8 +511,16 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
                 .map(path -> {
                     try (InputStream is = Files.newInputStream(path)) {
                         InputStream input = compressed ? unwrapCompression(is) : is;
-                        T entity = objectMapper.readValue(input, entityType);
-                        relationshipResolver.resolve(entity, repositoryInformation);
+
+                        var storedNode = objectMapper.readTree(input);
+                        T entity = MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                            objectMapper,
+                            resolverRegistry,
+                            repositoryModel,
+                            entityType,
+                            storedNode
+                        );
+                        relationshipResolver.resolve(entity, repositoryModel);
                         return entity;
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -490,20 +554,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     @Override
     public TransactionResult<Boolean> createRepository(boolean ifNotExists){
-        try {
-            if (ifNotExists && Files.exists(basePath)) {
-                return TransactionResult.success(true);
-            }
-            Files.createDirectories(basePath);
-            if (sharding) {
-                for (int i = 0; i < shardCount; i++) {
-                    Files.createDirectories(basePath.resolve(String.valueOf(i)));
-                }
-            }
-            return TransactionResult.success(true);
-        } catch (IOException e) {
-            return TransactionResult.failure(e);
-        }
+        return TransactionResult.success(true);
     }
 
     @Override
@@ -601,7 +652,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private @NotNull Comparator<T> compareBySortField(SortOption sortOption) {
         Comparator currentComparator = Comparator.comparing(entity -> {
             try {
-                return (Comparable) repositoryInformation.getField(sortOption.field()).getValue(entity);
+                return (Comparable) ((FieldModel<Object>) repositoryModel.fieldByName(sortOption.field())).getValue(entity);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to get sort field value", e);
             }
@@ -614,59 +665,117 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         return currentComparator;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private boolean matches(T entity, SelectOption filter){
+    private boolean matches(T entity, FilterOption filter){
         try {
-            var field = repositoryInformation.getField(filter.option());
-            if (field == null) {
-                return false;
-            }
-            Object value = field.getValue(entity);
-            Object filterValue = filter.value();
-            String operator = filter.operator();
-
-            if (value == null) {
-                return filterValue == null;
+            if (filter instanceof SelectOption s) {
+                return matchesSelectOption(entity, s);
             }
 
-            return switch (operator) {
-                case "=" -> value.equals(filterValue);
-                case "!=" -> !value.equals(filterValue);
-                case ">" -> {
-                    if (value instanceof Comparable) {
-                        yield ((Comparable) value).compareTo(filterValue) > 0;
-                    }
-                    yield false;
-                }
-                case "<" -> {
-                    if (value instanceof Comparable) {
-                        yield ((Comparable) value).compareTo(filterValue) < 0;
-                    }
-                    yield false;
-                }
-                case ">=" -> {
-                    if (value instanceof Comparable) {
-                        yield ((Comparable) value).compareTo(filterValue) >= 0;
-                    }
-                    yield false;
-                }
-                case "<=" -> {
-                    if (value instanceof Comparable) {
-                        yield ((Comparable) value).compareTo(filterValue) <= 0;
-                    }
-                    yield false;
-                }
-                case "IN" -> {
-                    if (filterValue instanceof Collection) {
-                        yield ((Collection<?>) filterValue).contains(value);
-                    }
-                    yield false;
-                }
-                default -> false;
-            };
+            if (filter instanceof JsonSelectOption j) {
+                return matchesJsonSelectOption(entity, j);
+            }
+
+            return false;
         } catch (Exception e) {
             return false;
         }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private boolean matchesSelectOption(T entity, SelectOption filter) {
+        var field = repositoryModel.fieldByName(filter.option());
+        if (field == null) {
+            return false;
+        }
+
+        Object value = field.getValue(entity);
+        Object filterValue = filter.value();
+        String operator = filter.operator();
+
+        if (value == null) {
+            return filterValue == null;
+        }
+
+        return switch (operator) {
+            case "=" -> value.equals(filterValue);
+            case "!=" -> !value.equals(filterValue);
+            case ">" -> value instanceof Comparable && filterValue != null && ((Comparable) value).compareTo(filterValue) > 0;
+            case "<" -> value instanceof Comparable && filterValue != null && ((Comparable) value).compareTo(filterValue) < 0;
+            case ">=" -> value instanceof Comparable && filterValue != null && ((Comparable) value).compareTo(filterValue) >= 0;
+            case "<=" -> value instanceof Comparable && filterValue != null && ((Comparable) value).compareTo(filterValue) <= 0;
+            case "IN" -> filterValue instanceof Collection<?> list && list.contains(value);
+            default -> false;
+        };
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private boolean matchesJsonSelectOption(T entity, JsonSelectOption filter) {
+        var jsonField = repositoryModel.fieldByName(filter.field());
+        if (jsonField == null) {
+            return false;
+        }
+
+        Object jsonValue = jsonField.getValue(entity);
+        if (jsonValue == null) {
+            return filter.value() == null;
+        }
+
+        JsonNode root = objectMapper.valueToTree(jsonValue);
+        JsonNode selected = selectJsonPath(root, filter.jsonPath());
+        if (selected == null || selected.isMissingNode() || selected.isNull()) {
+            return filter.value() == null;
+        }
+
+        Object actual = objectMapper.convertValue(selected, Object.class);
+        Object expected = filter.value();
+        String operator = filter.operator();
+
+        if (actual == null) {
+            return expected == null;
+        }
+
+        return switch (operator) {
+            case "=" -> actual.equals(expected);
+            case "!=" -> !actual.equals(expected);
+            case ">" -> actual instanceof Comparable comparable && expected != null && comparable.compareTo(expected) > 0;
+            case "<" -> actual instanceof Comparable comparable && expected != null && comparable.compareTo(expected) < 0;
+            case ">=" -> actual instanceof Comparable comparable && expected != null && comparable.compareTo(expected) >= 0;
+            case "<=" -> actual instanceof Comparable comparable && expected != null && comparable.compareTo(expected) <= 0;
+            case "IN" -> expected instanceof Collection<?> list && list.contains(actual);
+            default -> false;
+        };
+    }
+
+    private static @Nullable JsonNode selectJsonPath(@NotNull JsonNode root, @Nullable String jsonPath) {
+        if (jsonPath == null || jsonPath.isBlank()) {
+            return null;
+        }
+
+        // Supported: $.a.b.c
+        if (!jsonPath.startsWith("$")) {
+            return null;
+        }
+
+        String path = jsonPath;
+        if (path.startsWith("$.")) {
+            path = path.substring(2);
+        } else if ("$".equals(path)) {
+            return root;
+        } else {
+            return null;
+        }
+
+        JsonNode current = root;
+        for (String part : path.split("\\.")) {
+            if (part.isEmpty()) {
+                return null;
+            }
+            current = current.get(part);
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
     }
 
     @Override
@@ -675,7 +784,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @Override
-    public T findById(ID key){
+    public T findById(ID key) {
         try {
             return readEntity(key);
         } catch (IOException e) {
@@ -719,22 +828,20 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     @Override
     public @NotNull Stream<T> findStream(SelectQuery query) {
         try {
-            // Generate a Stream<Path> that lazily scans all shards
             Stream<T> entityStream = getFileStream();
 
-            // Apply filters lazily
             if (query != null && query.filters() != null && !query.filters().isEmpty()) {
                 entityStream = entityStream.filter(entity -> matchesAll(entity, query.filters()));
             }
 
-            // Apply sorting AFTER filters (sorting is eager)
             if (query != null && query.sortOptions() != null && !query.sortOptions().isEmpty()) {
-                List<Comparator<T>> comparators = query.sortOptions().stream()
-                    .map(this::compareBySortField)
-                    .toList();
-                Comparator<T> combined = comparators.stream()
-                    .reduce(Comparator::thenComparing)
-                    .orElseThrow();
+                List<Comparator<T>> comparators = new ArrayList<>();
+                for (SortOption sortOption : query.sortOptions()) {
+                    Comparator<T> tComparator = compareBySortField(sortOption);
+                    comparators.add(tComparator);
+                }
+
+                Comparator<T> combined = findCombinedComparator(comparators);
 
                 entityStream = entityStream.sorted(combined);
             }
@@ -744,13 +851,30 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
                 entityStream = entityStream.limit(query.limit());
             }
 
-            return entityStream.onClose(() -> {
-                // nothing special to close here, Files.list() streams are already closed by map operations
-            });
+            // nothing special to close here, Files.list() streams are already closed by map operations
+            return entityStream;
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to open file stream", e);
         }
+    }
+
+    private static <T> @NotNull Comparator<T> findCombinedComparator(List<Comparator<T>> comparators) {
+        boolean seen = false;
+        Comparator<T> acc = null;
+        for (Comparator<T> comparator : comparators) {
+            if (!seen) {
+                seen = true;
+                acc = comparator;
+            } else {
+                acc = acc.thenComparing(comparator);
+            }
+        }
+        Comparator<T> combined = (seen ? acc : null);
+        if (combined == null) {
+            throw new IllegalArgumentException("Should not be null.");
+        }
+        return combined;
     }
 
     private @NotNull Stream<T> getFileStream() {
@@ -893,8 +1017,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private void removeFromIndexes(ID id, T entity) {
         indexes.values().forEach(index -> {
             try {
-                Object value = repositoryInformation
-                    .getField(index.field())
+                Object value = repositoryModel
+                    .fieldByName(index.field())
                     .getValue(entity);
 
                 Set<ID> ids = index.map().get(value);
@@ -908,11 +1032,11 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         });
     }
 
-    private boolean matchesAll(T entity, List<SelectOption> filters) {
+    private boolean matchesAll(T entity, List<FilterOption> filters) {
         if (filters == null || filters.isEmpty()) {
             return true;
         }
-        for (SelectOption filter : filters) {
+        for (FilterOption filter : filters) {
             if (!matches(entity, filter)) {
                 return false;
             }
@@ -924,7 +1048,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         Map<String, Object> updates = query.updates();
         updates.forEach((fieldName, newValue) -> {
             try {
-                var field = repositoryInformation.getField(fieldName);
+                var field = repositoryModel.fieldByName(fieldName);
                 if (field == null) {
                     throw new IllegalArgumentException("Unknown field: " + fieldName);
                 }
@@ -971,24 +1095,12 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         if (entities.isEmpty() || indexes.isEmpty()) return;
 
         for (SecondaryIndex<ID> index : indexes.values()) {
-            FieldData<?> field = repositoryInformation.getField(index.field());
+            FieldModel<T> field = repositoryModel.fieldByName(index.field());
 
             // Local aggregation: value -> IDs
             Map<Object, Set<ID>> additions = new HashMap<>();
 
-            for (T entity : entities) {
-                try {
-                    Object value = field.getValue(entity);
-                    ID id = extractId(entity);
-
-                    additions
-                        .computeIfAbsent(value, k -> new HashSet<>())
-                        .add(id);
-
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            updateCollectionFromEntities(entities, field, additions);
 
             // Apply to index map in bulk
             additions.forEach((value, ids) ->
@@ -999,27 +1111,32 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
+    private void updateCollectionFromEntities(Collection<T> entities, FieldModel<T> field, Map<Object, Set<ID>> additions) {
+        for (T entity : entities) {
+            try {
+                Object value = field.getValue(entity);
+                ID id = extractId(entity);
+
+                additions
+                    .computeIfAbsent(value, k -> new HashSet<>())
+                    .add(id);
+
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     private void removeFromIndexesBatch(Collection<T> entities) {
         if (entities.isEmpty() || indexes.isEmpty()) return;
 
         for (SecondaryIndex<ID> index : indexes.values()) {
-            var field = repositoryInformation.getField(index.field());
+            var field = repositoryModel.fieldByName(index.field());
 
             // value -> IDs to remove
             Map<Object, Set<ID>> removals = new HashMap<>();
 
-            for (T entity : entities) {
-                try {
-                    Object value = field.getValue(entity);
-                    ID id = extractId(entity);
-
-                    removals
-                        .computeIfAbsent(value, k -> new HashSet<>())
-                        .add(id);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            updateCollectionFromEntities(entities, field, removals);
 
             // Apply removals
             removals.forEach((value, ids) -> {
@@ -1088,7 +1205,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             SecondaryIndex<ID> idx = new SecondaryIndex<>(field, index.type() == IndexType.UNIQUE);
 
             for (T entity : readAll()) {
-                Object value = repositoryInformation.getField(field).getValue(entity);
+                Object value = repositoryModel.fieldByName(field).getValue(entity);
                 ID id = extractId(entity);
 
                 Map<Object, Set<ID>> map = idx.map();
@@ -1117,8 +1234,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         if (indexes.isEmpty()) return;
         indexes.values().forEach(index -> {
             try {
-                Object value = repositoryInformation
-                    .getField(index.field())
+                Object value = repositoryModel
+                    .fieldByName(index.field())
                     .getValue(entity);
 
                 Map<Object, Set<ID>> map = index.map();
@@ -1139,11 +1256,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     // Helper methods
     public ID extractId(T entity) {
         try {
-            var idField = repositoryInformation.getPrimaryKey();
-            if (idField == null) {
-                throw new IllegalArgumentException("Cannot extract ID from " + repositoryInformation.getRepositoryName() + " because there's no id.");
-            }
-            return idField.getValue(entity);
+            return repositoryModel.getPrimaryKeyValue(entity);
         } catch (Exception e) {
             throw new RuntimeException("Failed to extract ID from entity", e);
         }

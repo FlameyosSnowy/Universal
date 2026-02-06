@@ -1,13 +1,15 @@
 package io.github.flameyossnowy.universal.mongodb.query;
 
+import io.github.flameyossnowy.universal.api.meta.FieldModel;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.options.FilterOption;
+import io.github.flameyossnowy.universal.api.options.JsonSelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
 import io.github.flameyossnowy.universal.api.options.validator.ValidationEstimation;
-import io.github.flameyossnowy.universal.api.reflect.FieldData;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,7 +29,7 @@ import java.util.regex.Pattern;
  * - Collection scan warnings for unindexed queries
  * - Document size limits
  */
-public record MongoQueryValidator(RepositoryInformation repositoryInformation) implements QueryValidator {
+public record MongoQueryValidator(RepositoryModel<?, ?> repositoryInformation) implements QueryValidator {
 
     private static final int MAX_DOCUMENT_SIZE = 16 * 1024 * 1024; // 16MB
     private static final Pattern INVALID_FIELD_PATTERN = Pattern.compile(".*\\..*|^\\$.*");
@@ -38,8 +40,8 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
     @Override
     public ValidationEstimation validateSelectQuery(SelectQuery query) {
         // Validate limit
-        if (query.limit() < 0) {
-            return ValidationEstimation.fail("Limit must be greater than 0");
+        if (query.limit() < -1) {
+            return ValidationEstimation.fail("Limit must be -1 (no limit) or greater than or equal to 0");
         }
 
         // MongoDB supports very large limits, but warn for extremely large values
@@ -51,35 +53,10 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
         }
 
         // Validate filters
-        List<SelectOption> filters = query.filters();
-        for (SelectOption filter : filters) {
-            // Validate field exists
-            FieldData<?> field = repositoryInformation.getField(filter.option());
-            ValidationEstimation validationEstimation = getValidationEstimation(filter, field);
+        List<FilterOption> filters = query.filters();
+        for (FilterOption filter : filters) {
+            ValidationEstimation validationEstimation = validateFilterOption(filter, filters.size() == 1);
             if (validationEstimation != null) return validationEstimation;
-
-            // Validate operator
-            String operator = filter.operator();
-            if (isInvalidMongoOperator(operator)) {
-                return ValidationEstimation.fail(
-                    "Operator '" + operator + "' is not a valid MongoDB operator. " +
-                    "Valid operators: =, !=, <, <=, >, >=, IN, NOT IN, REGEX, EXISTS, TYPE, SIZE, ALL, ELEM_MATCH"
-                );
-            }
-
-            // Warn about unindexed fields (performance)
-            if (!field.primary() && field.notIndexed() && filters.size() == 1) {
-                // Single unindexed filter may cause collection scan
-                Logging.warn(
-                    "Filter field '" + filter.option() + "' is not indexed. " +
-                    "This query will perform a collection scan which can be slow on large collections. " +
-                    "Consider adding an index on this field."
-                );
-            }
-
-            String value = filter.value().toString();
-            ValidationEstimation regexValidation = validateRegex(filter, operator, value);
-            if (regexValidation != null) return regexValidation;
         }
 
         // Validate sort options
@@ -91,7 +68,7 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
         }
 
         for (String column : query.columns()) {
-            FieldData<?> field = repositoryInformation.getField(column);
+            FieldModel<?> field = repositoryInformation.fieldByName(column);
             if (field == null) return ValidationEstimation.fail("Selected column '" + column + "' does not exist in schema");
         }
 
@@ -100,7 +77,7 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
 
     @Override
     public ValidationEstimation validateDeleteQuery(DeleteQuery query) {
-        List<SelectOption> filters = query.filters();
+        List<FilterOption> filters = query.filters();
 
         if (filters.isEmpty()) {
             return ValidationEstimation.fail(
@@ -110,26 +87,17 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
         }
 
         // Validate all filter fields
-        for (SelectOption filter : filters) {
-            FieldData<?> field = repositoryInformation.getField(filter.option());
-            ValidationEstimation validationEstimation = getValidationEstimation(filter, field);
+        for (FilterOption filter : filters) {
+            ValidationEstimation validationEstimation = validateFilterOption(filter, false);
             if (validationEstimation != null) return validationEstimation;
-
-            // Validate operator
-            if (isInvalidMongoOperator(filter.operator())) {
-                return ValidationEstimation.fail(
-                    "Operator '" + filter.operator() + "' is not a valid MongoDB operator"
-                );
-            }
         }
 
         // Warn about unindexed deletes (performance)
-        if (filters.size() == 1) {
-            SelectOption filter = filters.getFirst();
-            FieldData<?> field = repositoryInformation.getField(filter.option());
-            if (field != null && !field.primary() && field.notIndexed()) {
+        if (filters.size() == 1 && filters.getFirst() instanceof SelectOption so) {
+            FieldModel<?> field = repositoryInformation.fieldByName(so.option());
+            if (field != null && !field.id() && field.notIndexed()) {
                 Logging.warn(
-                    "DELETE filter on unindexed field '" + filter.option() + "' may be slow. " +
+                    "DELETE filter on unindexed field '" + so.option() + "' may be slow. " +
                     "Consider adding an index or using _id for deletion."
                 );
             }
@@ -138,25 +106,93 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
         return ValidationEstimation.PASS;
     }
 
-    private static @Nullable ValidationEstimation getValidationEstimation(SelectOption filter, FieldData<?> field) {
-        if (field == null) {
-            return ValidationEstimation.fail("Filter field '" + filter.option() + "' does not exist in schema");
+    private @Nullable ValidationEstimation validateFilterOption(FilterOption filter, boolean warnIfUnindexed) {
+        if (filter instanceof SelectOption so) {
+            FieldModel<?> field = repositoryInformation.fieldByName(so.option());
+            if (field == null) {
+                return ValidationEstimation.fail("Filter field '" + so.option() + "' does not exist in schema");
+            }
+
+            // Validate field name
+            if (INVALID_FIELD_PATTERN.matcher(so.option()).matches()) {
+                return ValidationEstimation.fail(
+                    "Field name '" + so.option() + "' is invalid. " +
+                    "MongoDB field names cannot contain dots or start with $"
+                );
+            }
+
+            // Validate operator
+            String operator = so.operator();
+            if (isInvalidMongoOperator(operator)) {
+                return ValidationEstimation.fail(
+                    "Operator '" + operator + "' is not a valid MongoDB operator. " +
+                    "Valid operators: =, !=, <, <=, >, >=, IN, NOT IN, REGEX, EXISTS, TYPE, SIZE, ALL, ELEM_MATCH"
+                );
+            }
+
+            // Warn about unindexed fields (performance)
+            if (warnIfUnindexed && !field.id() && field.notIndexed()) {
+                Logging.warn(
+                    "Filter field '" + so.option() + "' is not indexed. " +
+                    "This query will perform a collection scan which can be slow on large collections. " +
+                    "Consider adding an index on this field."
+                );
+            }
+
+            String value = String.valueOf(so.value());
+            return validateRegex(so, operator, value);
         }
 
-        // Validate field name
-        if (INVALID_FIELD_PATTERN.matcher(filter.option()).matches()) {
+        if (filter instanceof JsonSelectOption jso) {
+            return validateJsonSelectOption(jso);
+        }
+
+        return ValidationEstimation.fail("Unsupported filter option type: " + filter.getClass().getName());
+    }
+
+    private ValidationEstimation validateJsonSelectOption(JsonSelectOption option) {
+        FieldModel<?> field = repositoryInformation.fieldByName(option.field());
+        if (field == null) {
             return ValidationEstimation.fail(
-                    "Field name '" + filter.option() + "' is invalid. " +
-                            "MongoDB field names cannot contain dots or start with $"
+                "JSON field '" + option.field() + "' does not exist"
             );
         }
-        return null;
+
+        if (!field.isJson()) {
+            return ValidationEstimation.fail(
+                "Field '" + option.field() + "' is not a JSON field"
+            );
+        }
+
+        if (!field.jsonQueryable()) {
+            return ValidationEstimation.fail(
+                "JSON querying is disabled for field '" + option.field() + "'"
+            );
+        }
+
+        if (!isValidJsonPath(option.jsonPath())) {
+            return ValidationEstimation.fail(
+                "Invalid JSON path '" + option.jsonPath() + "'"
+            );
+        }
+
+        if (isInvalidMongoOperator(option.operator())) {
+            return ValidationEstimation.fail(
+                "Operator '" + option.operator() + "' is not a valid MongoDB operator"
+            );
+        }
+
+        return ValidationEstimation.PASS;
+    }
+
+    private static boolean isValidJsonPath(String path) {
+        return path != null && path.startsWith("$.") && path.length() > 2;
     }
 
     @Override
     public ValidationEstimation validateUpdateQuery(UpdateQuery query) {
         Map<String, Object> updates = query.updates();
-        List<SelectOption> conditions = query.filters();
+        List<FilterOption> conditions = query.filters();
 
         // Validate update fields
         if (updates.isEmpty()) {
@@ -168,7 +204,7 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
             Object value = entry.getValue();
 
             // Validate field exists
-            FieldData<?> field = repositoryInformation.getField(fieldName);
+            FieldModel<?> field = repositoryInformation.fieldByName(fieldName);
             if (field == null) {
                 return ValidationEstimation.fail("Update field '" + fieldName + "' does not exist in schema");
             }
@@ -182,7 +218,7 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
             }
 
             // Cannot update _id field
-            if (fieldName.equals("_id") || field.primary()) {
+            if (fieldName.equals("_id") || field.id()) {
                 return ValidationEstimation.fail(
                     "Cannot update primary key field '" + fieldName + "'. " +
                     "The _id field is immutable in MongoDB."
@@ -207,35 +243,17 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
         }
 
         // Validate condition fields
-        for (SelectOption condition : conditions) {
-            FieldData<?> field = repositoryInformation.getField(condition.option());
-            if (field == null) {
-                return ValidationEstimation.fail("Condition field '" + condition.option() + "' does not exist in schema");
-            }
-
-            // Validate field name
-            if (INVALID_FIELD_PATTERN.matcher(condition.option()).matches()) {
-                return ValidationEstimation.fail(
-                    "Field name '" + condition.option() + "' is invalid. " +
-                    "MongoDB field names cannot contain dots or start with $"
-                );
-            }
-
-            // Validate operator
-            if (isInvalidMongoOperator(condition.operator())) {
-                return ValidationEstimation.fail(
-                    "Operator '" + condition.operator() + "' is not a valid MongoDB operator"
-                );
-            }
+        for (FilterOption condition : conditions) {
+            ValidationEstimation validationEstimation = validateFilterOption(condition, false);
+            if (validationEstimation != null) return validationEstimation;
         }
 
         // Warn about unindexed updates
-        if (conditions.size() == 1) {
-            SelectOption condition = conditions.getFirst();
-            FieldData<?> field = repositoryInformation.getField(condition.option());
-            if (field != null && !field.primary() && field.notIndexed()) {
+        if (conditions.size() == 1 && conditions.getFirst() instanceof SelectOption so) {
+            FieldModel<?> field = repositoryInformation.fieldByName(so.option());
+            if (field != null && !field.id() && field.notIndexed()) {
                 Logging.warn(
-                    "UPDATE condition on unindexed field '" + condition.option() + "' may be slow. " +
+                    "UPDATE condition on unindexed field '" + so.option() + "' may be slow. " +
                     "Consider adding an index or using _id for updates."
                 );
             }
@@ -249,12 +267,12 @@ public record MongoQueryValidator(RepositoryInformation repositoryInformation) i
             return null;
         }
         for (var sortOption : query.sortOptions()) {
-            FieldData<?> field = repositoryInformation.getField(sortOption.field());
+            FieldModel<?> field = repositoryInformation.fieldByName(sortOption.field());
             if (field == null) {
                 return ValidationEstimation.fail("Sort field '" + sortOption.field() + "' does not exist in schema");
             }
 
-            if (!field.primary() && field.notIndexed()) {
+            if (!field.id() && field.notIndexed()) {
                 Logging.warn(
                         "Sort field '" + sortOption.field() + "' is not indexed. " +
                                 "Sorting on unindexed fields can be slow and may fail if result set exceeds 32MB. " +

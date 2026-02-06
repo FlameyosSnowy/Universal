@@ -15,13 +15,13 @@ import org.jetbrains.annotations.Nullable;
  * @param <T> The entity type
  * @param <C> The connection type
  */
-public class UpdateOperation<T, C> implements Operation<Boolean, C> {
+public class UpdateOperation<T, ID, C> implements Operation<T, ID, Boolean, C> {
     private final T entity;
     private final UpdateQuery query;
-    private final UpdateExecutor<T, C> executor;
+    private final UpdateExecutor<T, ID, C> executor;
     private final OperationMetadata metadata;
 
-    public UpdateOperation(T entity, UpdateExecutor<T, C> executor) {
+    public UpdateOperation(T entity, UpdateExecutor<T, ID, C> executor) {
         this.entity = entity;
         this.query = null;
         this.executor = executor;
@@ -32,7 +32,7 @@ public class UpdateOperation<T, C> implements Operation<Boolean, C> {
                 .build();
     }
 
-    public UpdateOperation(UpdateQuery query, UpdateExecutor<T, C> executor) {
+    public UpdateOperation(UpdateQuery query, UpdateExecutor<T, ID, C> executor) {
         this.entity = null;
         this.query = query;
         this.executor = executor;
@@ -51,7 +51,7 @@ public class UpdateOperation<T, C> implements Operation<Boolean, C> {
 
     @Override
     @NotNull
-    public TransactionResult<Boolean> execute(@NotNull OperationContext<C> context) {
+    public TransactionResult<Boolean> execute(@NotNull OperationContext<T, ID, C> context) {
         try {
             boolean success = entity != null 
                     ? executor.updateEntity(entity, context)
@@ -68,8 +68,8 @@ public class UpdateOperation<T, C> implements Operation<Boolean, C> {
         return metadata;
     }
 
-    public interface UpdateExecutor<T, C> {
-        boolean updateEntity(T entity, OperationContext<C> context) throws Exception;
-        boolean updateByQuery(UpdateQuery query, OperationContext<C> context) throws Exception;
+    public interface UpdateExecutor<T, ID, C> {
+        boolean updateEntity(T entity, OperationContext<T, ID, C> context) throws Exception;
+        boolean updateByQuery(UpdateQuery query, OperationContext<T, ID, C> context) throws Exception;
     }
 }

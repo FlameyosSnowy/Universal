@@ -1,13 +1,58 @@
 package io.github.flameyossnowy.universal.checker;
 
-import io.github.flameyossnowy.universal.api.annotations.*;
+import io.github.flameyossnowy.universal.api.annotations.AutoIncrement;
+import io.github.flameyossnowy.universal.api.annotations.Binary;
+import io.github.flameyossnowy.universal.api.annotations.Cacheable;
+import io.github.flameyossnowy.universal.api.annotations.Condition;
+import io.github.flameyossnowy.universal.api.annotations.Constraint;
+import io.github.flameyossnowy.universal.api.annotations.DefaultValue;
+import io.github.flameyossnowy.universal.api.annotations.DefaultValueProvider;
+import io.github.flameyossnowy.universal.api.annotations.EnumAsOrdinal;
+import io.github.flameyossnowy.universal.api.annotations.ExternalRepository;
+import io.github.flameyossnowy.universal.api.annotations.FetchPageSize;
+import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
+import io.github.flameyossnowy.universal.api.annotations.Id;
+import io.github.flameyossnowy.universal.api.annotations.Index;
+import io.github.flameyossnowy.universal.api.annotations.JsonField;
+import io.github.flameyossnowy.universal.api.annotations.JsonIndex;
+import io.github.flameyossnowy.universal.api.annotations.ManyToOne;
+import io.github.flameyossnowy.universal.api.annotations.Named;
+import io.github.flameyossnowy.universal.api.annotations.NonNull;
+import io.github.flameyossnowy.universal.api.annotations.Now;
+import io.github.flameyossnowy.universal.api.annotations.OnDelete;
+import io.github.flameyossnowy.universal.api.annotations.OnUpdate;
+import io.github.flameyossnowy.universal.api.annotations.OneToMany;
+import io.github.flameyossnowy.universal.api.annotations.OneToOne;
+import io.github.flameyossnowy.universal.api.annotations.Repository;
+import io.github.flameyossnowy.universal.api.annotations.RepositoryAuditLogger;
+import io.github.flameyossnowy.universal.api.annotations.RepositoryEventLifecycleListener;
+import io.github.flameyossnowy.universal.api.annotations.RepositoryExceptionHandler;
+import io.github.flameyossnowy.universal.api.annotations.Unique;
+import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
+import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
+import io.github.flameyossnowy.universal.api.cache.CacheConfig;
+import io.github.flameyossnowy.universal.api.cache.SessionCache;
+import io.github.flameyossnowy.universal.api.meta.IndexModel;
+import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
+import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
+import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
+import io.github.flameyossnowy.universal.checker.processor.AnnotationUtils;
+import io.github.flameyossnowy.universal.checker.processor.TypeMirrorUtils;
+
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.*;
 import javax.lang.model.type.*;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
+import javax.tools.FileObject;
+import javax.tools.StandardLocation;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.*;
-import java.util.stream.Collectors;
+
+import static io.github.flameyossnowy.universal.api.meta.RelationshipKind.*;
 
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 @SupportedAnnotationTypes({
@@ -18,19 +63,50 @@ import java.util.stream.Collectors;
     "io.github.flameyossnowy.universal.api.annotations.OneToMany",
     "io.github.flameyossnowy.universal.api.annotations.OneToOne",
     "io.github.flameyossnowy.universal.api.annotations.Constraint",
+    "io.github.flameyossnowy.universal.api.annotations.AutoIncrement",
     "io.github.flameyossnowy.universal.api.annotations.Index",
-    "io.github.flameyossnowy.universal.api.annotations.ExternalRepository"
+    "io.github.flameyossnowy.universal.api.annotations.ExternalRepository",
+    "io.github.flameyossnowy.universal.api.annotations.Binary",
+    "io.github.flameyossnowy.universal.api.annotations.Unique",
+    "io.github.flameyossnowy.universal.api.annotations.FetchPageSize",
+    "io.github.flameyossnowy.universal.api.annotations.EnumAsOrdinal",
+    "io.github.flameyossnowy.universal.api.annotations.RepositoryAuditLogger",
+    "io.github.flameyossnowy.universal.api.annotations.RepositoryEntityLifecycleHandler",
+    "io.github.flameyossnowy.universal.api.annotations.RepositoryExceptionHandler",
+    "io.github.flameyossnowy.universal.api.annotations.FileRepository",
+    "io.github.flameyossnowy.universal.api.annotations.RemoteEndpoint",
+    "io.github.flameyossnowy.universal.api.annotations.OnUpdate",
+    "io.github.flameyossnowy.universal.api.annotations.OnDelete",
+    "io.github.flameyossnowy.universal.api.annotations.Now",
+    "io.github.flameyossnowy.universal.api.annotations.NonNull",
+    "io.github.flameyossnowy.universal.api.annotations.Named",
+    "io.github.flameyossnowy.universal.api.annotations.DefaultValue",
+    "io.github.flameyossnowy.universal.api.annotations.DefaultValueProvider",
 })
 public class RepositoryValidatorProcessor extends AbstractProcessor {
-
+    // TODO: implement Instant.now() processing
+    private Types types;
     private Messager messager;
+    private Elements elements;
+    private Filer filer;
 
-    // Tracks repository names per processing round to avoid cross-round issues
-    private final Set<String> repositoryNames = new HashSet<>();
+    private static final String RESOURCE =
+        "META-INF/universal/models.list";
+
+    private final List<String> qualifiedNames = new ArrayList<>(16);
+
+    private final Set<String> repositoryNames = new HashSet<>(16);
+    private final Map<String, String> repositoryModelByEntity = new LinkedHashMap<>(16);
+
+    private TypeMirror map;
+    private TypeMirror list;
+    private TypeMirror set;
+    private TypeMirror queue;
+    private TypeMirror deque;
 
     private static final List<String> FIELD_ANNOTATIONS = List.of(
         ManyToOne.class.getCanonicalName(),
-        OneToMany.class.getCanonicalName(),
+        OneToOne.class.getCanonicalName(),
         OneToOne.class.getCanonicalName(),
         Unique.class.getCanonicalName(),
         NonNull.class.getCanonicalName(),
@@ -43,57 +119,73 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         Constraint.class.getCanonicalName(),
         DefaultValue.class.getCanonicalName(),
         DefaultValueProvider.class.getCanonicalName(),
-        ExternalRepository.class.getCanonicalName()
+        ExternalRepository.class.getCanonicalName(),
+        Binary.class.getCanonicalName()
     );
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
+        this.types = processingEnv.getTypeUtils();
         this.messager = processingEnv.getMessager();
+        this.filer = processingEnv.getFiler();
+
+        Elements elements = processingEnv.getElementUtils();
+        this.elements = elements;
+
+        this.map = TypeMirrorUtils.typeOf(Map.class, elements);
+        this.list = TypeMirrorUtils.typeOf(List.class, elements);
+        this.set = TypeMirrorUtils.typeOf(Set.class, elements);
+        this.queue = TypeMirrorUtils.typeOf(Queue.class, elements);
+        this.deque = TypeMirrorUtils.typeOf(Deque.class, elements);
     }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        for (Element element : roundEnv.getElementsAnnotatedWith(Repository.class)) {
+            if (!(element instanceof TypeElement type)) continue;
 
-        Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Repository.class);
-        if (elements.isEmpty()) return false;
+            handleRepository(type, type.getKind());
 
-        for (Element element : elements) {
-            if (!(element instanceof TypeElement typeElement)) continue;
+            boolean hasNoArgCtor = false;
+            boolean hasId = false;
+            boolean hasRelationship = false;
 
-            ElementKind kind = typeElement.getKind();
+            for (Element e : type.getEnclosedElements()) {
+                if (e.getKind() == ElementKind.CONSTRUCTOR) {
+                    if (((ExecutableElement) e).getParameters().isEmpty()) {
+                        hasNoArgCtor = true;
+                    }
+                }
 
-            handleRepository(typeElement, kind);
+                if (e.getKind() == ElementKind.FIELD) {
+                    if (AnnotationUtils.hasAnnotation(e, Id.class.getCanonicalName())) hasId = true;
+                    if (AnnotationUtils.hasAnnotation(e, OneToOne.class.getCanonicalName())
+                        || AnnotationUtils.hasAnnotation(e, OneToMany.class.getCanonicalName())) {
+                        hasRelationship = true;
+                    }
 
-            boolean hasNoArgConstructor = typeElement.getEnclosedElements().stream()
-                .anyMatch(e -> e.getKind() == ElementKind.CONSTRUCTOR &&
-                    ((ExecutableElement) e).getParameters().isEmpty());
-
-            boolean hasIdField = typeElement.getEnclosedElements().stream()
-                .filter(e -> e.getKind() == ElementKind.FIELD)
-                .anyMatch(e -> hasAnnotation(e, Id.class.getCanonicalName()));
-
-            boolean hasRelationshipField = typeElement.getEnclosedElements().stream()
-                .filter(e -> e.getKind() == ElementKind.FIELD)
-                .anyMatch(e -> hasAnnotation(e, OneToOne.class.getCanonicalName()) ||
-                    hasAnnotation(e, OneToMany.class.getCanonicalName()));
-
-            for (Element enclosedElement : typeElement.getEnclosedElements()) {
-                if (enclosedElement.getKind() != ElementKind.FIELD) continue;
-                handleField(typeElement, (VariableElement) enclosedElement);
+                    handleField((VariableElement) e);
+                }
             }
 
-            if (hasRelationshipField && !hasIdField) {
+            if (hasRelationship && !hasId) {
                 messager.printMessage(Diagnostic.Kind.ERROR,
-                    "@Repository " + typeElement.getSimpleName() + " has relationship fields but no @Id field.",
-                    typeElement);
+                    "@Repository " + type.getSimpleName() +
+                        " has relationship fields but no @Id field.",
+                    type);
             }
 
-            if (!hasNoArgConstructor) {
+            if (!hasNoArgCtor && type.getKind() != ElementKind.RECORD) {
                 messager.printMessage(Diagnostic.Kind.ERROR,
-                    "@Repository " + typeElement.getSimpleName() + " must have a no-arg constructor",
-                    typeElement);
+                    "@Repository " + type.getSimpleName() +
+                        " must have a no-arg constructor",
+                    type);
             }
+        }
+
+        if (roundEnv.processingOver()) {
+            writeResource();
         }
 
         return true;
@@ -102,140 +194,879 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     private void handleRepository(TypeElement element, ElementKind kind) {
         if (!kind.isClass()) return;
 
-        Repository repository = element.getAnnotation(Repository.class);
-        if (repository == null) return;
+        Repository repo = element.getAnnotation(Repository.class);
+        if (repo == null) return;
 
-        String repoName = repository.name();
-        if (repoName == null || repoName.isBlank()) {
+        if (repo.name().isBlank()) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                "@Repository " + element.getSimpleName() + " name cannot be empty",
-                element);
+                "@Repository name cannot be empty", element);
             return;
         }
 
-        if (repositoryNames.contains(repoName)) {
+        if (!repositoryNames.add(repo.name())) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                "@Repository " + element.getSimpleName() + " repository name must be unique",
-                element);
-            return;
+                "@Repository name must be unique", element);
         }
-
-        repositoryNames.add(repoName);
 
         if (element.getModifiers().contains(Modifier.ABSTRACT)) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                "@Repository " + element.getSimpleName() + " cannot be abstract",
-                element);
+                "@Repository cannot be abstract", element);
         }
 
-        if (kind == ElementKind.ENUM || kind == ElementKind.INTERFACE) {
+        if (kind == ElementKind.INTERFACE || kind == ElementKind.ENUM) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                "@Repository " + element.getSimpleName() + " cannot be enum or interface",
-                element);
+                "@Repository cannot be enum or interface", element);
         }
 
         checkIndexAndConstraintReferences(element);
+        checkAccessors(element);
+
+        RepositoryModel model = buildRepositoryModel(element);
+
+        Set<String> fieldNames = new HashSet<>(16);
+        for (FieldModel field : model.fields()) {
+            fieldNames.add(field.name());
+        }
+
+        validateIndexes(model.indexes(), fieldNames, element);
+        validateConstraints(model.constraints(), fieldNames, element);
+        UnifiedFactoryGenerator gen = new UnifiedFactoryGenerator(processingEnv, processingEnv.getFiler());
+        gen.generate(model);
+        qualifiedNames.addAll(gen.getQualifiedNames());
+
+        repositoryModelByEntity.put(
+            model.entityQualifiedName(),
+            model.packageName() + "." + model.entitySimpleName() + "_RepositoryModel"
+        );
     }
 
-    private void checkIndexAndConstraintReferences(TypeElement classElement) {
-        Set<String> fieldNames = classElement.getEnclosedElements().stream()
-            .filter(e -> e.getKind() == ElementKind.FIELD)
-            .map(e -> e.getSimpleName().toString())
-            .collect(Collectors.toSet());
+    public void writeResource() {
+        try {
+            FileObject file = filer.createResource(StandardLocation.CLASS_OUTPUT, "", RESOURCE);
 
-        for (Element enclosed : classElement.getEnclosedElements()) {
-            getAnnotations(enclosed, Index.class.getCanonicalName()).forEach(am ->
-                validateColumns("Index", getStringArrayValue(am), fieldNames, enclosed, classElement));
-            getAnnotations(enclosed, Constraint.class.getCanonicalName()).forEach(am ->
-                validateColumns("Constraint", getStringArrayValue(am), fieldNames, enclosed, classElement));
+            try (Writer w = file.openWriter()) {
+                for (String fqcn : qualifiedNames) {
+                    w.write(fqcn);
+                    w.write('\n');
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Couldn't write resource.", e);
         }
     }
 
-    private void validateColumns(String kind, List<String> columns, Set<String> validFields, Element target, TypeElement classElement) {
-        for (String column : columns) {
-            if (!validFields.contains(column)) {
+    private void checkAccessors(TypeElement entity) {
+        if (entity.getKind() == ElementKind.RECORD) return;
+
+        Map<String, ExecutableElement> methods = new HashMap<>(16);
+
+        for (Element e : entity.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.METHOD) {
+                methods.put(e.getSimpleName().toString(), (ExecutableElement) e);
+            }
+        }
+
+        for (Element e : entity.getEnclosedElements()) {
+            if (e.getKind() != ElementKind.FIELD) continue;
+
+            VariableElement field = (VariableElement) e;
+            String name = field.getSimpleName().toString();
+            String cap = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+
+            ExecutableElement getter = methods.get("get" + cap);
+            if (getter == null || !getter.getParameters().isEmpty()) {
                 messager.printMessage(Diagnostic.Kind.ERROR,
-                    "@" + kind + " on " + classElement.getSimpleName() + " refers to unknown field: '" + column + "'",
+                    "Missing getter get" + cap + "() for field " + name, field);
+            }
+
+            if (!field.getModifiers().contains(Modifier.FINAL)) {
+                ExecutableElement setter = methods.get("set" + cap);
+                if (setter == null || setter.getParameters().size() != 1) {
+                    messager.printMessage(Diagnostic.Kind.ERROR,
+                        "Missing setter set" + cap + "(..) for field " + name, field);
+                }
+            }
+        }
+    }
+
+    private void checkIndexAndConstraintReferences(TypeElement type) {
+        Set<String> fields = new HashSet<>(16);
+
+        for (Element e : type.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.FIELD) {
+                fields.add(e.getSimpleName().toString());
+            }
+        }
+
+        for (Element e : type.getEnclosedElements()) {
+            for (AnnotationMirror am : AnnotationUtils.getAnnotations(e, Index.class.getCanonicalName())) {
+                validateColumns("Index", AnnotationUtils.getStringArrayValue(am), fields, e);
+            }
+            for (AnnotationMirror am : AnnotationUtils.getAnnotations(e, Constraint.class.getCanonicalName())) {
+                validateColumns("Constraint", AnnotationUtils.getStringArrayValue(am), fields, e);
+            }
+        }
+    }
+
+    private void validateColumns(
+        String kind,
+        List<String> cols,
+        Set<String> valid,
+        Element target
+    ) {
+        for (String c : cols) {
+            if (!valid.contains(c)) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                    "@" + kind + " refers to unknown field '" + c + "'",
                     target);
             }
         }
     }
 
-    private void handleField(Element parent, VariableElement field) {
-        if (field.getModifiers().contains(Modifier.STATIC)) checkFieldAnnotations(parent, field, true);
-        if (field.getModifiers().contains(Modifier.TRANSIENT)) checkFieldAnnotations(parent, field, true);
-        if (field.getModifiers().contains(Modifier.FINAL) && !field.getModifiers().contains(Modifier.STATIC)) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
-                "@Repository " + parent.getSimpleName() + " cannot have final field " + field.getSimpleName(),
-                field);
+    private void handleField(VariableElement field) {
+        if (field.getModifiers().contains(Modifier.STATIC)
+            || field.getModifiers().contains(Modifier.TRANSIENT)) {
+            checkFieldAnnotations(field);
         }
-        checkRelationshipFieldAnnotations(parent, field);
+
+        if (field.getModifiers().contains(Modifier.FINAL)
+            && !field.getModifiers().contains(Modifier.STATIC)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                "Final fields are not allowed", field);
+        }
+
+        checkRelationshipFieldAnnotations(field);
         checkRawTypes(field);
     }
 
-    private void checkFieldAnnotations(Element parent, VariableElement field, boolean error) {
-        for (String annotation : FIELD_ANNOTATIONS) {
-            if (hasAnnotation(field, annotation)) {
-                messager.printMessage(error ? Diagnostic.Kind.ERROR : Diagnostic.Kind.WARNING,
-                    "@Repository " + parent.getSimpleName() + " field " + field.getSimpleName() +
-                        " cannot have annotation " + annotation,
-                    field);
+    private void checkFieldAnnotations(VariableElement field) {
+        for (String ann : FIELD_ANNOTATIONS) {
+            if (AnnotationUtils.hasAnnotation(field, ann)) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field " + field.getSimpleName() +
+                        " cannot have @" + ann, field);
             }
         }
     }
 
-    private void checkRelationshipFieldAnnotations(Element parent, VariableElement field) {
-        boolean hasOneToOne = hasAnnotation(field, OneToOne.class.getCanonicalName());
-        boolean hasOneToMany = hasAnnotation(field, OneToMany.class.getCanonicalName());
-        boolean hasManyToOne = hasAnnotation(field, ManyToOne.class.getCanonicalName());
-        boolean hasExternal = hasAnnotation(field, ExternalRepository.class.getCanonicalName());
-
+    private void checkRelationshipFieldAnnotations(VariableElement field) {
         int count = 0;
-        if (hasOneToOne) count++;
-        if (hasOneToMany) count++;
-        if (hasManyToOne) count++;
+        if (AnnotationUtils.hasAnnotation(field, OneToOne.class.getCanonicalName())) count++;
+        if (AnnotationUtils.hasAnnotation(field, OneToMany.class.getCanonicalName())) count++;
+        if (AnnotationUtils.hasAnnotation(field, ManyToOne.class.getCanonicalName())) count++;
+
         if (count > 1) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                "Field " + field.getSimpleName() + " has multiple relationship annotations",
-                field);
+                "Multiple relationship annotations", field);
         }
     }
 
     private void checkRawTypes(VariableElement field) {
-        TypeMirror type = field.asType();
-        if (type.getKind() != TypeKind.DECLARED) return;
-        DeclaredType declaredType = (DeclaredType) type;
-        Element element = declaredType.asElement();
-        if (!(element instanceof TypeElement typeElement)) return;
-        if (!typeElement.getTypeParameters().isEmpty() && declaredType.getTypeArguments().isEmpty()) {
+        if (!(field.asType() instanceof DeclaredType dt)) return;
+
+        TypeElement te = (TypeElement) dt.asElement();
+
+        if (te.getTypeParameters().isEmpty()) {
+            return;
+        }
+
+        if (dt.getTypeArguments().isEmpty()) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                "Field " + field.getSimpleName() + " is raw type " + typeElement.getSimpleName(),
-                field);
+                "Raw generic type not allowed - please specify type parameters", field);
         }
     }
 
-    private boolean hasAnnotation(Element element, String annotationCanonicalName) {
-        return element.getAnnotationMirrors().stream()
-            .anyMatch(am -> ((TypeElement) am.getAnnotationType().asElement()).getQualifiedName().contentEquals(annotationCanonicalName));
+    private RepositoryModel buildRepositoryModel(TypeElement entity) {
+        String packageName =
+            elements.getPackageOf(entity).getQualifiedName().toString();
+
+        Repository repo = entity.getAnnotation(Repository.class);
+        FetchPageSize fetchPageSize = entity.getAnnotation(FetchPageSize.class);
+
+        // Extract entity-level caching annotations
+        Cacheable cacheable = entity.getAnnotation(Cacheable.class);
+        GlobalCacheable globalCacheable = entity.getAnnotation(GlobalCacheable.class);
+
+        CacheConfig cacheConfig = CacheConfig.none();
+        if (cacheable != null) {
+            cacheConfig = new CacheConfig(
+                cacheable.maxCacheSize(),
+                cacheable.algorithm()
+            );
+        }
+
+        List<FieldModel> fields = new ArrayList<>(16);
+        List<FieldModel> primaryKeys = new ArrayList<>(16);
+
+        List<io.github.flameyossnowy.universal.checker.IndexModel> indexes = extractIndexes(entity);
+        Set<io.github.flameyossnowy.universal.checker.IndexModel> indexModelSet = new LinkedHashSet<>(indexes);
+
+        List<ConstraintModel> constraints = extractConstraints(entity);
+        List<RelationshipModel> relationships = new ArrayList<>(8);
+
+        TypeMirror idType = null;
+
+        for (Element enclosed : entity.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.FIELD) continue;
+
+            VariableElement field = (VariableElement) enclosed;
+
+            // ========== Basic Metadata ==========
+            boolean isId = AnnotationUtils.hasAnnotation(field, Id.class.getCanonicalName());
+            if (isId) {
+                idType = field.asType();
+            }
+
+            boolean auto = AnnotationUtils.hasAnnotation(field, AutoIncrement.class.getCanonicalName());
+
+            String columnName = field.getSimpleName().toString();
+            Named named = field.getAnnotation(Named.class);
+            if (named != null && !named.value().isBlank()) {
+                columnName = named.value();
+            }
+
+            TypeMirror type = field.asType();
+            String fieldName = field.getSimpleName().toString();
+
+            String capitalized =
+                Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+
+            boolean nullable =
+                !isId && !AnnotationUtils.hasAnnotation(field, NonNull.class.getCanonicalName());
+
+            boolean insertable = !auto;
+            boolean updatable = !isId;
+
+            boolean hasNow = AnnotationUtils.hasAnnotation(field, Now.class.getCanonicalName());
+            boolean hasBinary = AnnotationUtils.hasAnnotation(field, Binary.class.getCanonicalName());
+            boolean hasUnique = AnnotationUtils.hasAnnotation(field, Unique.class.getCanonicalName());
+            boolean enumAsOrdinal = AnnotationUtils.hasAnnotation(field, EnumAsOrdinal.class.getCanonicalName());
+
+            String defaultValue = null;
+            DefaultValue defaultValueAnn = field.getAnnotation(DefaultValue.class);
+
+            if (defaultValueAnn != null) {
+                defaultValue = defaultValueAnn.value();
+            }
+
+            String defaultValueProviderClass = null;
+            DefaultValueProvider providerAnn = field.getAnnotation(DefaultValueProvider.class);
+            if (providerAnn != null) {
+                AnnotationMirror providerMirror = AnnotationUtils.getAnnotationMirror(
+                    field,
+                    DefaultValueProvider.class.getCanonicalName()
+                );
+                if (providerMirror != null) {
+                    TypeMirror providerType = AnnotationUtils.getClassValue(providerMirror, "value");
+                    if (providerType != null) {
+                        defaultValueProviderClass = TypeMirrorUtils.qualifiedName(providerType);
+
+                        // Validate it's not void.class
+                        if ("java.lang.Void".equals(defaultValueProviderClass)) {
+                            error("@DefaultValueProvider cannot be void.class", field);
+                            defaultValueProviderClass = null;
+                        }
+                    }
+                }
+            }
+
+            String externalRepo = null;
+            ExternalRepository extRepo = field.getAnnotation(ExternalRepository.class);
+            if (extRepo != null && !extRepo.adapter().isBlank()) {
+                externalRepo = extRepo.adapter();
+            }
+
+            if (defaultValue != null && defaultValueProviderClass != null) {
+                error("Field cannot have both @DefaultValue and @DefaultValueProvider", field);
+            }
+
+            if (hasNow) {
+                String typeName = type.toString();
+                if (!typeName.contains("LocalDateTime") &&
+                    !typeName.contains("LocalDate") &&
+                    !typeName.contains("Instant") &&
+                    !typeName.contains("ZonedDateTime") &&
+                    !typeName.contains("OffsetDateTime") &&
+                    !typeName.contains("Date") &&
+                    !typeName.contains("Timestamp")) {
+                    error("@Now can only be used on temporal types (LocalDateTime, Date, etc.)", field);
+                }
+            }
+
+            if (enumAsOrdinal) {
+                TypeElement typeElement = null;
+                if (type instanceof DeclaredType dt) {
+                    typeElement = (TypeElement) dt.asElement();
+                }
+                if (typeElement == null || typeElement.getKind() != ElementKind.ENUM) {
+                    error("@EnumAsOrdinal can only be used on enum fields", field);
+                }
+            }
+
+            Condition condition = field.getAnnotation(Condition.class);
+            OnDelete onDelete = field.getAnnotation(OnDelete.class);
+            OnUpdate onUpdate = field.getAnnotation(OnUpdate.class);
+
+            String resolveWithClass = null;
+            ResolveWith resolveWith = field.getAnnotation(ResolveWith.class);
+            if (resolveWith != null) {
+                AnnotationMirror resolveWithMirror = AnnotationUtils.getAnnotationMirror(
+                    field,
+                    ResolveWith.class.getCanonicalName()
+                );
+                if (resolveWithMirror != null) {
+                    TypeMirror resolverType = AnnotationUtils.getClassValue(resolveWithMirror, "value");
+                    if (resolverType != null) {
+                        resolveWithClass = TypeMirrorUtils.qualifiedName(resolverType);
+                    }
+                }
+            }
+
+            TypeMirror elementType = resolveElementTypeMirror(type);
+            TypeMirror mapKeyType = resolveMapKeyTypeMirror(type);
+            TypeMirror mapValueType = resolveMapValueTypeMirror(type);
+
+            boolean indexed = checkIfIndexed(indexModelSet, fieldName);
+
+            CollectionKind collectionKind = CollectionKind.OTHER;
+
+            if (TypeMirrorUtils.isList(types, elements, type)) {
+                collectionKind = CollectionKind.LIST;
+            } else if (TypeMirrorUtils.isSet(types, elements, type)) {
+                collectionKind = CollectionKind.SET;
+            } else if (TypeMirrorUtils.isMap(types, elements, type)) {
+                if (TypeMirrorUtils.isCollectionValueMap(types, elements, type)) {
+                    collectionKind = CollectionKind.MULTIMAP; // Map<K, Collection<V>>
+                } else {
+                    collectionKind = CollectionKind.MAP;
+                }
+            }
+
+            RelationshipModel rel = extractRelationship(field);
+            if (rel != null) {
+                relationships.add(rel);
+            }
+
+            AnnotationMirror jsonField = AnnotationUtils.getAnnotationMirror(field, JsonField.class.getCanonicalName());
+            boolean isJson = jsonField != null;
+            JsonStorageKind jsonStorageKind = JsonStorageKind.COLUMN;
+            String jsonColumnDefinition = null;
+            String jsonCodecClass = null;
+            boolean jsonQueryable = false;
+            boolean jsonPartialUpdate = false;
+
+            if (isJson) {
+                String storageName = AnnotationUtils.getEnumValueName(jsonField, "storage");
+                if ("TABLE".equals(storageName)) {
+                    jsonStorageKind = JsonStorageKind.TABLE;
+                }
+
+                String columnDef = AnnotationUtils.getStringValue(jsonField, "columnDefinition");
+                if (columnDef != null && !columnDef.isBlank()) {
+                    jsonColumnDefinition = columnDef;
+                }
+
+                TypeMirror codecMirror = AnnotationUtils.getClassValue(jsonField, "codec");
+                jsonCodecClass = codecMirror == null
+                    ? "io.github.flameyossnowy.universal.api.json.DefaultJsonCodec"
+                    : TypeMirrorUtils.qualifiedName(codecMirror);
+
+                jsonQueryable = AnnotationUtils.getBooleanValue(jsonField, "queryable");
+                jsonPartialUpdate = AnnotationUtils.getBooleanValue(jsonField, "supportsPartialUpdate");
+            }
+
+            List<AnnotationMirror> jsonIndexMirrors = AnnotationUtils.getAnnotations(field, JsonIndex.class.getCanonicalName());
+            List<JsonIndexModel> jsonIndexes;
+            if (jsonIndexMirrors.isEmpty()) {
+                jsonIndexes = List.of();
+            } else {
+                jsonIndexes = new java.util.ArrayList<>(jsonIndexMirrors.size());
+                for (AnnotationMirror jsonIndex : jsonIndexMirrors) {
+                    String path = AnnotationUtils.getStringValue(jsonIndex, "path");
+                    boolean unique = AnnotationUtils.getBooleanValue(jsonIndex, "unique");
+                    jsonIndexes.add(new JsonIndexModel(path, unique));
+                }
+            }
+
+            FieldModel model = new FieldModel(
+                fieldName,
+                columnName,
+                type,
+                TypeMirrorUtils.qualifiedName(type),
+                isId,
+                auto,
+                nullable,
+                rel != null,
+                rel == null ? null : rel.relationshipKind(),
+                rel == null ? Consistency.NONE : rel.consistency(),
+                "get" + capitalized,
+                "set" + capitalized,
+                rel != null && rel.lazy(),
+                insertable,
+                updatable,
+                hasNow,
+                hasBinary,
+                hasUnique,
+                defaultValue,
+                defaultValueProviderClass,
+                enumAsOrdinal,
+                externalRepo,
+                condition,
+                onDelete,
+                onUpdate,
+                resolveWithClass,
+                elementType,
+                mapKeyType,
+                mapValueType,
+                indexed,
+                collectionKind,
+                isJson,
+                jsonStorageKind,
+                jsonColumnDefinition,
+                jsonCodecClass,
+                jsonQueryable,
+                jsonPartialUpdate,
+                jsonIndexes
+            );
+
+            fields.add(model);
+            if (isId) primaryKeys.add(model);
+        }
+
+        AnnotationMirror auditLogger =
+            AnnotationUtils.getAnnotationMirror(entity, RepositoryAuditLogger.class.getCanonicalName());
+
+        AnnotationMirror exceptionHandler =
+            AnnotationUtils.getAnnotationMirror(entity, RepositoryExceptionHandler.class.getCanonicalName());
+
+        AnnotationMirror lifecycleListener =
+            AnnotationUtils.getAnnotationMirror(entity, RepositoryEventLifecycleListener.class.getCanonicalName());
+
+        TypeMirror auditLoggerType = AnnotationUtils.getClassValue(auditLogger, "value");
+        TypeMirror exceptionHandlerType = AnnotationUtils.getClassValue(exceptionHandler, "value");
+        TypeMirror lifecycleListenerType = AnnotationUtils.getClassValue(lifecycleListener, "value");
+
+        //noinspection unchecked
+        return new RepositoryModel(
+            packageName,
+            entity.getSimpleName().toString(),
+            entity.getQualifiedName().toString(),
+            repo.name(),
+            entity.getKind() == ElementKind.RECORD,
+            entity.asType(),
+            idType,
+            fields,
+            primaryKeys,
+            indexes,
+            constraints,
+            relationships,
+            fetchPageSize == null ? -1 : fetchPageSize.value(),
+            cacheable != null,
+            cacheConfig,
+            globalCacheable != null,
+            globalCacheable != null ? (Class<? extends SessionCache<?, ?>>) globalCacheable.sessionCache() : null,
+            auditLoggerType,
+            exceptionHandlerType,
+            lifecycleListenerType
+        );
     }
 
-    private List<? extends AnnotationMirror> getAnnotations(Element element, String annotationCanonicalName) {
-        return element.getAnnotationMirrors().stream()
-            .filter(am -> ((TypeElement) am.getAnnotationType().asElement()).getQualifiedName().contentEquals(annotationCanonicalName))
-            .toList();
+    private boolean checkIfIndexed(Collection<io.github.flameyossnowy.universal.checker.IndexModel> indexes, String fieldName) {
+        for (io.github.flameyossnowy.universal.checker.IndexModel index : indexes) {
+            if (index.fields().contains(fieldName)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    private static List<String> getStringArrayValue(AnnotationMirror am) {
-        return am.getElementValues()
-            .entrySet()
-            .stream()
-            .filter(e -> e.getKey().getSimpleName().contentEquals("fields"))
-            .map(e -> {
+    private TypeMirror resolveElementTypeMirror(TypeMirror type) {
+        if (type instanceof DeclaredType dt) {
+            List<? extends TypeMirror> args = dt.getTypeArguments();
+            if (!args.isEmpty()) {
+                String rawName = dt.asElement().toString();
+                if (rawName.equals("java.util.List") || rawName.equals("java.util.Set")) {
+                    return args.getFirst();
+                }
+                if (rawName.equals("java.util.Map") && args.size() == 2) {
+                    return args.get(1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private TypeMirror resolveMapKeyTypeMirror(TypeMirror type) {
+        if (type instanceof DeclaredType dt) {
+            List<? extends TypeMirror> args = dt.getTypeArguments();
+            if (!args.isEmpty() && dt.asElement().toString().equals("java.util.Map")) {
+                return args.getFirst();
+            }
+        }
+        return null;
+    }
+
+    private TypeMirror resolveMapValueTypeMirror(TypeMirror type) {
+        if (type instanceof DeclaredType dt) {
+            List<? extends TypeMirror> args = dt.getTypeArguments();
+            if (!args.isEmpty() && dt.asElement().toString().equals("java.util.Map") && args.size() == 2) {
+                return args.get(1);
+            }
+        }
+        return null;
+    }
+
+    private RelationshipModel extractRelationship(VariableElement field) {
+        AnnotationMirror otm = AnnotationUtils.getAnnotationMirror(field, OneToMany.class.getCanonicalName());
+        AnnotationMirror mto = AnnotationUtils.getAnnotationMirror(field, ManyToOne.class.getCanonicalName());
+        AnnotationMirror oto = AnnotationUtils.getAnnotationMirror(field, OneToOne.class.getCanonicalName());
+
+        int count = (otm != null ? 1 : 0)
+            + (mto != null ? 1 : 0)
+            + (oto != null ? 1 : 0);
+
+        if (count == 0) return null;
+
+        if (count > 1) {
+            error("Field may only have one relationship annotation", field);
+            return null;
+        }
+
+        if (otm != null) return extractOneToMany(field, otm);
+        if (mto != null) return extractManyToOne(field, mto);
+        return extractOneToOne(field, oto);
+    }
+
+    private RelationshipModel extractManyToOne(
+        VariableElement field,
+        AnnotationMirror mto
+    ) {
+        TypeMirror target = field.asType();
+
+        if (!(target instanceof DeclaredType dt)) {
+            error("@ManyToOne field must be a declared type", field);
+            return null;
+        }
+
+        TypeElement targetElement = (TypeElement) dt.asElement();
+
+        if (targetElement.getAnnotation(Repository.class) == null) {
+            error("@ManyToOne target must be a @Repository entity", field);
+            return null;
+        }
+
+        return RelationshipModel.create(
+            MANY_TO_ONE,
+            field.getSimpleName().toString(),
+            target,
+            target,
+            null,
+            AnnotationUtils.getBooleanValue(mto, "lazy"),
+            CollectionKind.OTHER,
+            AnnotationUtils.getConsistencyValue(mto, "consistency")
+        );
+    }
+
+    private CollectionKind collectionKind(
+        TypeMirror mirror
+    ) {
+        if (!(mirror instanceof DeclaredType declared)) {
+            return CollectionKind.OTHER;
+        }
+
+        TypeMirror raw = types.erasure(declared);
+
+        if (types.isAssignable(raw, deque)) {
+            return CollectionKind.DEQUE;
+        }
+        if (types.isAssignable(raw, queue)) {
+            return CollectionKind.QUEUE;
+        }
+        if (types.isAssignable(raw, set)) {
+            return CollectionKind.SET;
+        }
+
+        if (types.isAssignable(raw, list)) {
+            return CollectionKind.LIST;
+        }
+
+        if (types.isAssignable(raw, map)) {
+            return CollectionKind.MAP;
+        }
+
+        return CollectionKind.OTHER;
+    }
+
+    private RelationshipModel extractOneToOne(
+        VariableElement field,
+        AnnotationMirror oto
+    ) {
+        TypeMirror target = field.asType();
+
+        if (!(target instanceof DeclaredType dt)) {
+            error("@OneToOne field must be a declared type", field);
+            return null;
+        }
+
+        TypeElement targetElement = (TypeElement) dt.asElement();
+
+        if (targetElement.getAnnotation(Repository.class) == null) {
+            error("@OneToOne target must be a @Repository entity", field);
+            return null;
+        }
+
+         String mappedBy = AnnotationUtils.getStringValue(oto, "mappedBy");
+         if (mappedBy != null) {
+             mappedBy = mappedBy.trim();
+             if (mappedBy.isEmpty()) {
+                 mappedBy = null;
+             }
+         }
+
+         if (mappedBy != null) {
+             boolean found = false;
+             for (Element e : targetElement.getEnclosedElements()) {
+                 if (e.getKind() != ElementKind.FIELD) continue;
+                 if (!e.getSimpleName().contentEquals(mappedBy)) continue;
+
+                 found = true;
+                 if (!(AnnotationUtils.hasAnnotation(e, ManyToOne.class.getCanonicalName())
+                     || AnnotationUtils.hasAnnotation(e, OneToOne.class.getCanonicalName()))) {
+                     error("@OneToOne mappedBy must refer to a ManyToOne or OneToOne field", field);
+                     return null;
+                 }
+
+                 if (!typesMatch(e.asType(), field.getEnclosingElement().asType())) {
+                     error("@OneToOne mappedBy field type does not match source entity type", field);
+                     return null;
+                 }
+                 break;
+             }
+
+             if (!found) {
+                 error("@OneToOne mappedBy field not found on target entity: " + mappedBy, field);
+                 return null;
+             }
+         }
+
+        return RelationshipModel.create(
+            ONE_TO_ONE,
+            field.getSimpleName().toString(),
+            target,
+            target,
+            mappedBy,
+            AnnotationUtils.getBooleanValue(oto, "lazy"),
+            CollectionKind.OTHER,
+            AnnotationUtils.getConsistencyValue(oto, "consistency")
+        );
+    }
+
+    private RelationshipModel extractOneToMany(
+        VariableElement field,
+        AnnotationMirror otm
+    ) {
+        // Must be a parameterized collection
+        if (!(field.asType() instanceof DeclaredType dt)
+            || dt.getTypeArguments().size() != 1) {
+            error("@OneToMany field must be a generic collection", field);
+            return null;
+        }
+
+        TypeMirror childType = dt.getTypeArguments().getFirst();
+
+        // mappedBy
+        TypeMirror mappedByMirror = AnnotationUtils.getClassValue(otm, "mappedBy");
+        if (mappedByMirror == null) {
+            error("@OneToMany must define mappedBy", field);
+            return null;
+        }
+
+        String mappedByQN = TypeMirrorUtils.qualifiedName(mappedByMirror);
+
+        if (mappedByQN.equals("java.lang.Void")) {
+            error("@OneToMany mappedBy cannot be void.class", field);
+            return null;
+        }
+
+        // mappedBy must be a @Repository
+        TypeElement mappedByElement =
+            (TypeElement) ((DeclaredType) mappedByMirror).asElement();
+
+        if (mappedByElement.getAnnotation(Repository.class) == null) {
+            error("mappedBy must reference a @Repository entity", field);
+            return null;
+        }
+
+        // Validate inverse field exists
+        boolean inverseFound = false;
+        for (Element e : mappedByElement.getEnclosedElements()) {
+            if (e.getKind() != ElementKind.FIELD) continue;
+
+            if (AnnotationUtils.hasAnnotation(e, ManyToOne.class.getCanonicalName())
+                || AnnotationUtils.hasAnnotation(e, OneToOne.class.getCanonicalName())) {
+
+                if (typesMatch(e.asType(), field.getEnclosingElement().asType())) {
+                    inverseFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (!inverseFound) {
+            error(
+                "mappedBy entity does not contain a matching ManyToOne or OneToOne field",
+                field
+            );
+            return null;
+        }
+
+        CollectionKind collectionKind = collectionKind(dt);
+
+        TypeMirror elementType = dt.getTypeArguments().getFirst();
+
+        return RelationshipModel.create(
+            ONE_TO_MANY,
+            field.getSimpleName().toString(),
+            field.asType(),   // ← List<Faction>
+            elementType,      // ← Faction
+            mappedByQN,
+            AnnotationUtils.getBooleanValue(otm, "lazy"),
+            collectionKind,
+            AnnotationUtils.getConsistencyValue(otm, "consistency")
+        );
+    }
+
+    private boolean typesMatch(TypeMirror a, TypeMirror b) {
+        if (a == null || b == null) return false;
+
+        TypeMirror ea = types.erasure(a);
+        TypeMirror eb = types.erasure(b);
+
+        return types.isSameType(ea, eb)
+            || types.isAssignable(ea, eb)
+            || types.isAssignable(eb, ea);
+    }
+
+    private List<ConstraintModel> extractConstraints(TypeElement entity) {
+        List<ConstraintModel> out = new ArrayList<>(4);
+
+        for (AnnotationMirror am : AnnotationUtils.getAnnotations(entity, Constraint.class.getCanonicalName())) {
+            out.add(parseConstraint(am));
+        }
+
+        for (Element e : entity.getEnclosedElements()) {
+            for (AnnotationMirror am : AnnotationUtils.getAnnotations(e, Constraint.class.getCanonicalName())) {
+                out.add(parseConstraint(am));
+            }
+        }
+
+        return out;
+    }
+
+    private static ConstraintModel parseConstraint(AnnotationMirror am) {
+        String name = null;
+        List<String> fields = List.of();
+
+        for (var e : am.getElementValues().entrySet()) {
+            String k = e.getKey().getSimpleName().toString();
+            Object v = e.getValue().getValue();
+
+            if (k.equals("name")) {
+                name = v.toString();
+            } else if (k.equals("fields")) {
                 @SuppressWarnings("unchecked")
-                List<? extends AnnotationValue> list = (List<? extends AnnotationValue>) e.getValue().getValue();
-                return list.stream().map(av -> av.getValue().toString()).toList();
-            })
-            .flatMap(List::stream)
-            .toList();
+                List<AnnotationValue> vals = (List<AnnotationValue>) v;
+                List<String> result = new ArrayList<>();
+                for (AnnotationValue x : vals) {
+                    result.add(x.getValue().toString());
+                }
+                fields = result;
+            }
+        }
+
+        return new ConstraintModel(name, fields);
+    }
+
+    private void validateConstraints(
+        List<ConstraintModel> constraints,
+        Set<String> validFields,
+        Element target
+    ) {
+        Set<String> names = new HashSet<>();
+
+        for (ConstraintModel c : constraints) {
+            if (!names.add(c.name())) {
+                error("Duplicate constraint: " + c.name(), target);
+            }
+
+            for (String f : c.fields()) {
+                if (!validFields.contains(f)) {
+                    error("Constraint refers to unknown field: " + f, target);
+                }
+            }
+        }
+    }
+
+    private void validateIndexes(
+        List<io.github.flameyossnowy.universal.checker.IndexModel> indexes,
+        Set<String> validFields,
+        Element target
+    ) {
+        Set<String> names = new HashSet<>();
+
+        for (io.github.flameyossnowy.universal.checker.IndexModel idx : indexes) {
+            if (!names.add(idx.name())) {
+                error("Duplicate index name: " + idx.name(), target);
+            }
+
+            for (String f : idx.fields()) {
+                if (!validFields.contains(f)) {
+                    error("Index refers to unknown field: " + f, target);
+                }
+            }
+        }
+    }
+
+    private List<io.github.flameyossnowy.universal.checker.IndexModel> extractIndexes(TypeElement entity) {
+        List<io.github.flameyossnowy.universal.checker.IndexModel> out = new ArrayList<>(4);
+
+        for (AnnotationMirror am : AnnotationUtils.getAnnotations(entity, Index.class.getCanonicalName())) {
+            String name = null;
+            List<String> fields = List.of();
+            IndexType type = IndexType.NORMAL;
+
+            for (var e : am.getElementValues().entrySet()) {
+                String key = e.getKey().getSimpleName().toString();
+                Object v = e.getValue().getValue();
+
+                switch (key) {
+                    case "name" -> name = v.toString();
+                    case "fields" -> {
+                        @SuppressWarnings("unchecked")
+                        List<AnnotationValue> vals = (List<AnnotationValue>) v;
+                        List<String> result = new ArrayList<>();
+                        for (AnnotationValue x : vals) {
+                            String string = x.getValue().toString();
+                            result.add(string);
+                        }
+                        fields = result;
+                    }
+                    case "type" -> type = IndexType.valueOf(v.toString());
+                }
+            }
+
+            if (name == null || name.isBlank()) {
+                error("@Index name cannot be empty", entity);
+            }
+
+            out.add(new io.github.flameyossnowy.universal.checker.IndexModel(name, fields, type));
+        }
+
+        return out;
+    }
+
+    private void error(String msg, Element e) {
+        messager.printMessage(Diagnostic.Kind.ERROR, msg, e);
     }
 }

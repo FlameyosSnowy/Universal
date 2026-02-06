@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
  * Set the action to be taken when an entity is deleted.
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface OnDelete {
     OnModify value() default OnModify.CASCADE;

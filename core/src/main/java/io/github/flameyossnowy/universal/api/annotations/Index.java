@@ -12,7 +12,7 @@ import java.lang.annotation.*;
  * Doesn't do anything for NetworkRepositoryAdapter
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 @Repeatable(Indexes.class)
 public @interface Index {

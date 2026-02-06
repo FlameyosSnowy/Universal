@@ -3,8 +3,8 @@ package io.github.flameyossnowy.universal.api.exceptions.handler;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import org.jetbrains.annotations.NotNull;
 
@@ -12,22 +12,22 @@ import java.util.List;
 
 public class DefaultExceptionHandler<T, ID, C> implements ExceptionHandler<T, ID, C> {
     @Override
-    public TransactionResult<Boolean> handleInsert(@NotNull Exception exception, @NotNull RepositoryInformation information, @NotNull RepositoryAdapter<T, ID, C> adapter) {
+    public TransactionResult<Boolean> handleInsert(@NotNull Exception exception, @NotNull RepositoryModel<T, ID> information, @NotNull RepositoryAdapter<T, ID, C> adapter) {
         return handleException(exception, information, adapter, "Insert");
     }
 
     @Override
-    public TransactionResult<Boolean> handleDelete(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter) {
+    public TransactionResult<Boolean> handleDelete(Exception exception, RepositoryModel<T, ID> information, RepositoryAdapter<T, ID, C> adapter) {
         return handleException(exception, information, adapter, "Delete");
     }
 
     @Override
-    public TransactionResult<Boolean> handleUpdate(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter) {
+    public TransactionResult<Boolean> handleUpdate(Exception exception, RepositoryModel<T, ID> information, RepositoryAdapter<T, ID, C> adapter) {
         return handleException(exception, information, adapter, "Update");
     }
 
     @NotNull
-    private TransactionResult<Boolean> handleException(Exception exception, RepositoryInformation information, RepositoryAdapter<T, ID, C> adapter, String update) {
+    private TransactionResult<Boolean> handleException(Exception exception, RepositoryModel<T, ID> information, RepositoryAdapter<T, ID, C> adapter, String update) {
         String message = createExceptionMessage(exception, information, adapter, update);
         checkForUnrecoverableErrors(exception, message);
         Logging.error(message, exception);
@@ -35,7 +35,7 @@ public class DefaultExceptionHandler<T, ID, C> implements ExceptionHandler<T, ID
     }
 
     @Override
-    public List<T> handleRead(@NotNull Exception exception, @NotNull RepositoryInformation information, SelectQuery query, @NotNull RepositoryAdapter<T, ID, C> adapter) {
+    public List<T> handleRead(@NotNull Exception exception, @NotNull RepositoryModel<T, ID> information, SelectQuery query, @NotNull RepositoryAdapter<T, ID, C> adapter) {
         String message = createExceptionMessage(exception, information, adapter, "Read elements");
         checkForUnrecoverableErrors(exception, message);
         Logging.error(message, exception);
@@ -43,7 +43,7 @@ public class DefaultExceptionHandler<T, ID, C> implements ExceptionHandler<T, ID
     }
 
     @Override
-    public List<ID> handleReadIds(Exception exception, RepositoryInformation information, SelectQuery query, RepositoryAdapter<T, ID, C> adapter) {
+    public List<ID> handleReadIds(Exception exception, RepositoryModel<T, ID> information, SelectQuery query, RepositoryAdapter<T, ID, C> adapter) {
         String message = createExceptionMessage(exception, information, adapter, "Read ids");
         checkForUnrecoverableErrors(exception, message);
         Logging.error(message, exception);
@@ -57,7 +57,7 @@ public class DefaultExceptionHandler<T, ID, C> implements ExceptionHandler<T, ID
         }
     }
 
-    private static <T, ID, C> @NotNull String createExceptionMessage(@NotNull Exception exception, @NotNull RepositoryInformation information, @NotNull RepositoryAdapter<T, ID, C> adapter, String update) {
-        return update + " exception in repository [" + information.getRepositoryName() + "] with adapter [" + adapter.getClass().getSimpleName() + "]: " + exception.getMessage();
+    private static <T, ID, C> @NotNull String createExceptionMessage(@NotNull Exception exception, @NotNull RepositoryModel<T, ID> information, @NotNull RepositoryAdapter<T, ID, C> adapter, String update) {
+        return update + " exception in repository [" + information.tableName() + "] with adapter [" + adapter.getClass().getSimpleName() + "]: " + exception.getMessage();
     }
 }

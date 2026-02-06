@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
  * <p>
  * This will not work on non-numeric IDs or on MongoDB.
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface AutoIncrement {
 }

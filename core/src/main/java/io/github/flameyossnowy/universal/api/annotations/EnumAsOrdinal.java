@@ -7,7 +7,7 @@ import java.lang.annotation.*;
  * @author FlameyosFlow
  * @version 5.0.0
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface EnumAsOrdinal {
 }

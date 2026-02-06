@@ -1,7 +1,7 @@
 package io.github.flameyossnowy.universal.api.operation;
 
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,19 +15,19 @@ import java.util.Optional;
  *
  * @param <C> The connection/context type
  */
-public record OperationContext<C>(
-        @NotNull RepositoryInformation repositoryInformation,
+public record OperationContext<T, ID, C>(
+        @NotNull RepositoryModel<T, ID> repositoryModel,
         @NotNull TypeResolverRegistry resolverRegistry,
         @Nullable TransactionContext<C> transactionContext,
         @NotNull Map<String, Object> attributes,
-        @NotNull OperationExecutor<C> executor
+        @NotNull OperationExecutor<T, ID, C> executor
 ) {
     public OperationContext(
-            @NotNull RepositoryInformation repositoryInformation,
+            @NotNull RepositoryModel<T, ID> repositoryModel,
             @NotNull TypeResolverRegistry resolverRegistry,
-            @NotNull OperationExecutor<C> executor
+            @NotNull OperationExecutor<T, ID, C> executor
     ) {
-        this(repositoryInformation, resolverRegistry, null, new HashMap<>(), executor);
+        this(repositoryModel, resolverRegistry, null, new HashMap<>(), executor);
     }
 
     @NotNull
@@ -39,9 +39,9 @@ public record OperationContext<C>(
      * Creates a new context with the given transaction context.
      */
     @NotNull
-    public OperationContext<C> withTransaction(@NotNull TransactionContext<C> transactionContext) {
+    public OperationContext<T, ID, C> withTransaction(@NotNull TransactionContext<C> transactionContext) {
         return new OperationContext<>(
-                repositoryInformation,
+            repositoryModel,
                 resolverRegistry,
                 transactionContext,
                 attributes,

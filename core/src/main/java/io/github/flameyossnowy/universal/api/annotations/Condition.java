@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
  * @author flameyosflow
  * @version 2.0.0
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface Condition {
     String value();

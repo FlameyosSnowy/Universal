@@ -5,13 +5,16 @@ import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
+import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.operations.*;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+
 import io.github.flameyossnowy.universal.api.proxy.ProxiedAdapterHandler;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -759,14 +762,14 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * about the repository, such as the entity class, table name, fields,
      * constraints, and other configuration details.
      *
-     * @return the {@link RepositoryInformation} instance containing
+     * @return the {@link RepositoryModel} instance containing
      *         metadata about the repository.
      */
     @ApiStatus.Internal
     @Override
     @NotNull
     @CheckReturnValue
-    RepositoryInformation getRepositoryInformation();
+    RepositoryModel<T, ID> getRepositoryModel();
 
     /**
      * Gets the element/entity type for this repository.
@@ -797,7 +800,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
     @Override
     @NotNull
     @CheckReturnValue
-    default <R> TransactionResult<R> execute(@NotNull Operation<R, C> operation) {
+    default <R> TransactionResult<R> execute(@NotNull Operation<T, ID, R, C> operation) {
         return executeOperation(operation);
     }
 
@@ -808,7 +811,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
     @NotNull
     @CheckReturnValue
     default <R> TransactionResult<R> execute(
-            @NotNull Operation<R, C> operation,
+            @NotNull Operation<T, ID, R, C> operation,
             @NotNull TransactionContext<C> transactionContext) {
         return operation.executeWithTransaction(getOperationContext(), transactionContext);
     }
@@ -821,7 +824,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      */
     @NotNull
     @CheckReturnValue
-    default Operation<List<T>, C> createFindOperation(@NotNull SelectQuery query) {
+    default Operation<T, ID, List<T>, C> createFindOperation(@NotNull SelectQuery query) {
         return new FindOperation<>(query, (q, ctx) -> find(q));
     }
 
@@ -833,7 +836,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      */
     @NotNull
     @CheckReturnValue
-    default Operation<Boolean, C> createInsertOperation(@NotNull T entity) {
+    default Operation<T, ID, Boolean, C> createInsertOperation(@NotNull T entity) {
         return new InsertOperation<>(entity, (e, ctx) -> {
             TransactionResult<Boolean> result = insert(e);
             return result.getOr(false);
@@ -848,16 +851,16 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      */
     @NotNull
     @CheckReturnValue
-    default Operation<Boolean, C> createUpdateOperation(@NotNull T entity) {
+    default Operation<T, ID, Boolean, C> createUpdateOperation(@NotNull T entity) {
         return new UpdateOperation<>(entity, new UpdateOperation.UpdateExecutor<>() {
             @Override
-            public boolean updateEntity(T e, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+            public boolean updateEntity(T e, OperationContext<T, ID, C> context) {
                 TransactionResult<Boolean> result = updateAll(e);
                 return result.getOr(false);
             }
 
             @Override
-            public boolean updateByQuery(UpdateQuery query, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+            public boolean updateByQuery(UpdateQuery query, OperationContext<T, ID, C> context) {
                 TransactionResult<Boolean> result = updateAll(query);
                 return result.getOr(false);
             }
@@ -872,22 +875,22 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      */
     @NotNull
     @CheckReturnValue
-    default Operation<Boolean, C> createDeleteOperation(@NotNull T entity) {
-        return DeleteOperation.fromEntity(entity, new DeleteOperation.DeleteExecutor<T, ID, C>() {
+    default Operation<T, ID, Boolean, C> createDeleteOperation(@NotNull T entity) {
+        return DeleteOperation.fromEntity(entity, new DeleteOperation.DeleteExecutor<>() {
             @Override
-            public boolean deleteEntity(T e, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+            public boolean deleteEntity(T e, OperationContext<T, ID, C> context) {
                 TransactionResult<Boolean> result = delete(e);
                 return result.getOr(false);
             }
 
             @Override
-            public boolean deleteById(ID id, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+            public boolean deleteById(ID id, OperationContext<T, ID, C> context) {
                 TransactionResult<Boolean> result = RepositoryAdapter.this.deleteById(id);
                 return result.getOr(false);
             }
 
             @Override
-            public boolean deleteByQuery(DeleteQuery query, io.github.flameyossnowy.universal.api.operation.OperationContext<C> context) {
+            public boolean deleteByQuery(DeleteQuery query, OperationContext<T, ID, C> context) {
                 TransactionResult<Boolean> result = delete(query);
                 return result.getOr(false);
             }

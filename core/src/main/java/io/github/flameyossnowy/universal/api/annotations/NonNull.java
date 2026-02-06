@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * Indicates that a field should not be null when it hits the database.
  * @see Unique
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface NonNull {
 }

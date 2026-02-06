@@ -1,7 +1,8 @@
 package io.github.flameyossnowy.universal.sql.resolvers;
 
 import io.github.flameyossnowy.universal.api.factory.CollectionKind;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
@@ -20,38 +21,45 @@ public class MultiMapTypeResolver<K, V, ID> {
     private final TypeResolver<ID> idResolver;
     private final SQLConnectionProvider connectionProvider;
     private final TypeResolverRegistry resolverRegistry;
-    private final RepositoryInformation information;
+    private final RepositoryModel<?, ID> information;
+    private final CollectionHandler collectionHandler;
+    private final boolean supportsArrays;
 
     public MultiMapTypeResolver(Class<ID> idType, Class<K> keyType, @NotNull Class<V> valueType,
                                 SQLConnectionProvider connectionProvider,
-                                @NotNull RepositoryInformation information,
-                                @NotNull TypeResolverRegistry resolverRegistry) {
+                                @NotNull RepositoryModel<?, ID> information,
+                                @NotNull TypeResolverRegistry resolverRegistry,
+                                CollectionHandler collectionHandler, boolean supportsArrays) {
         this.connectionProvider = connectionProvider;
         this.information = information;
         this.resolverRegistry = resolverRegistry;
+        this.collectionHandler = collectionHandler;
+        this.supportsArrays = supportsArrays;
 
-        this.tableName = information.getRepositoryName() + "_" + valueType.getSimpleName().toLowerCase() + "_map";
+        this.tableName = information.tableName() + "_" + valueType.getSimpleName().toLowerCase() + "s";
         this.keyResolver = resolverRegistry.resolve(keyType);
         this.valueResolver = resolverRegistry.resolve(valueType);
         this.idResolver = resolverRegistry.resolve(idType);
 
-        if (keyResolver == null || valueResolver == null || idResolver == null)
+        if (keyResolver == null || valueResolver == null || idResolver == null) {
             throw new IllegalStateException("No resolver found for one of the types");
+        }
     }
 
+    @SuppressWarnings("unchecked")
     public <C extends Collection<V>> Map<K, C> resolve(ID id, CollectionKind kind) {
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
         try (var connection = connectionProvider.getConnection();
              var stmt = connectionProvider.prepareStatement(query, connection)) {
 
-            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information, collectionHandler, supportsArrays);
             idResolver.insert(params, "id", id);
 
             Map<K, C> map;
             try (var rs = stmt.executeQuery()) {
                 map = new HashMap<>(rs.getFetchSize());
 
-                SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry);
+                SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry, collectionHandler, supportsArrays, information);
                 while (rs.next()) {
                     K key = keyResolver.resolve(result, "map_key");
                     V value = valueResolver.resolve(result, "map_value");
@@ -75,7 +83,7 @@ public class MultiMapTypeResolver<K, V, ID> {
         try (var connection = connectionProvider.getConnection();
              var stmt = connectionProvider.prepareStatement(query, connection)) {
 
-            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            SQLDatabaseParameters params = new SQLDatabaseParameters(stmt, resolverRegistry, query, information, collectionHandler, supportsArrays);
             for (var entry : map.entrySet()) {
                 K key = entry.getKey();
                 for (V value : entry.getValue()) {

@@ -8,7 +8,7 @@ import java.lang.annotation.*;
  * @version 2.0.0
  */
 @Target({ElementType.FIELD, ElementType.TYPE})
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Repeatable(value = Constraints.class)
 public @interface Constraint {
     String name();

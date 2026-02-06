@@ -11,7 +11,7 @@ import org.jetbrains.annotations.Nullable;
  * @param <R> The result type
  * @param <C> The connection type
  */
-public abstract class QueryOperation<R, C> implements Operation<R, C> {
+public abstract class QueryOperation<T, ID, R, C> implements Operation<T, ID, R, C> {
     protected final Query query;
     protected final OperationMetadata metadata;
 
@@ -33,5 +33,5 @@ public abstract class QueryOperation<R, C> implements Operation<R, C> {
 
     @Override
     @NotNull
-    public abstract TransactionResult<R> execute(@NotNull OperationContext<C> context);
+    public abstract TransactionResult<R> execute(@NotNull OperationContext<T, ID, C> context);
 }

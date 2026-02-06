@@ -1,5 +1,7 @@
 package io.github.flameyossnowy.universal.mongodb.result;
 
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import org.bson.Document;
 import org.jetbrains.annotations.Nullable;
@@ -9,10 +11,14 @@ import org.jetbrains.annotations.Nullable;
  */
 public class MongoDatabaseResult implements DatabaseResult {
     private final Document document;
+    private final CollectionHandler collectionHandler;
+    private final RepositoryModel<?, ?> repositoryModel;
     private String[] columnNames;
 
-    public MongoDatabaseResult(Document document) {
+    public MongoDatabaseResult(Document document, CollectionHandler collectionHandler, RepositoryModel<?, ?> repositoryModel) {
         this.document = document;
+        this.collectionHandler = collectionHandler;
+        this.repositoryModel = repositoryModel;
     }
 
     private String[] getColumnNamesLazy() {
@@ -20,6 +26,21 @@ public class MongoDatabaseResult implements DatabaseResult {
             columnNames = document.keySet().toArray(new String[0]);
         }
         return columnNames;
+    }
+
+    @Override
+    public CollectionHandler getCollectionHandler() {
+        return collectionHandler;
+    }
+
+    @Override
+    public boolean supportsArraysNatively() {
+        return false;
+    }
+
+    @Override
+    public RepositoryModel<?, ?> repositoryModel() {
+        return repositoryModel;
     }
 
     @Override

@@ -1,18 +1,18 @@
 package io.github.flameyossnowy.universal.api;
 
 import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
-import io.github.flameyossnowy.universal.api.reflect.FieldData;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.api.meta.FieldModel;
+import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
-public record IndexOptions(IndexType type, List<FieldData<?>> fields, String indexName) {
+public record IndexOptions(IndexType type, List<FieldModel<?>> fields, String indexName) {
     public String getJoinedFields() {
         StringJoiner joiner = new StringJoiner(", ");
-        for (FieldData<?> field : fields) {
+        for (FieldModel<?> field : fields) {
             joiner.add(field.name());
         }
         return joiner.toString();
@@ -25,15 +25,15 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
 
     public static class Builder {
         private IndexType type = IndexType.NORMAL;
-        private final List<FieldData<?>> fields = new ArrayList<>(1);
+        private final List<FieldModel<?>> fields = new ArrayList<>(1);
 
-        private RepositoryInformation information;
+        private RepositoryModel<?, ?> information;
         private final Class<?> repositoryType;
 
         private String indexName;
 
-        private RepositoryInformation getInformation() {
-            return this.information == null ? (information = RepositoryMetadata.getMetadata(repositoryType)) : this.information;
+        private RepositoryModel<?, ?> getInformation() {
+            return this.information == null ? (information = GeneratedMetadata.getByEntityClass(repositoryType)) : this.information;
         }
 
         Builder(final Class<?> repositoryType) {
@@ -71,7 +71,7 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
          * @return this builder
          * @throws NullPointerException if the given field is null
          */
-        public Builder field(@NotNull FieldData<?> field) {
+        public Builder field(@NotNull FieldModel<?> field) {
             Objects.requireNonNull(field, "Field cannot be null");
             this.fields.add(field);
             return this;
@@ -84,7 +84,7 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
          * @return this builder
          * @throws NullPointerException if the given fields array is null
          */
-        public Builder fields(@NotNull FieldData<?>... fields) {
+        public Builder fields(@NotNull FieldModel<?>... fields) {
             Objects.requireNonNull(fields, "Fields cannot be null");
             if (fields.length == 0) {
                 throw new IllegalArgumentException("Fields cannot be empty");
@@ -101,7 +101,7 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
          * @return this builder
          * @throws NullPointerException if the given fields array is null
          */
-        public Builder fields(Collection<FieldData<?>> fields) {
+        public Builder fields(Collection<FieldModel<?>> fields) {
             Objects.requireNonNull(fields, "Fields cannot be null");
             if (fields.isEmpty()) {
                 throw new IllegalArgumentException("Fields cannot be empty");
@@ -119,7 +119,7 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
          * @throws NullPointerException if the given fields array is null
          */
         public Builder field(String name) {
-            return this.field(getInformation().getField(name));
+            return this.field(getInformation().fieldByName(name));
         }
 
         /**
@@ -131,8 +131,8 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
          */
         public Builder fields(String... names) {
             return this.fields(Arrays.stream(names)
-                    .map(getInformation()::getField)
-                    .toArray(FieldData<?>[]::new));
+                    .map(getInformation()::fieldByName)
+                    .toArray(FieldModel<?>[]::new));
         }
 
         /**
@@ -143,9 +143,13 @@ public record IndexOptions(IndexType type, List<FieldData<?>> fields, String ind
          * @throws NullPointerException if the given fields array is null
          */
         public Builder rawFields(@NotNull Collection<String> names) {
-            return this.fields(names.stream()
-                    .map(getInformation()::getField)
-                    .toArray(FieldData<?>[]::new));
+            List<FieldModel<?>> list = new ArrayList<>();
+            RepositoryModel<?, ?> repositoryModel = getInformation();
+            for (String name : names) {
+                FieldModel<?> fieldModel = repositoryModel.fieldByName(name);
+                list.add(fieldModel);
+            }
+            return this.fields(list.toArray(new FieldModel<?>[0]));
         }
 
         /**

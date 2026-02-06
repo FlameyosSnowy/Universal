@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.mongodb.params;
 
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
@@ -10,12 +11,38 @@ import org.jetbrains.annotations.Nullable;
  * Supports mapping between repository fields and query parameters.
  */
 public class MongoDatabaseParameters implements DatabaseParameters {
-    private final Document document = new Document();
+    private final Document document;
+    private final CollectionHandler collectionHandler;
 
     /**
      * Creates a new instance with default settings.
      */
-    public MongoDatabaseParameters() {
+    public MongoDatabaseParameters(CollectionHandler collectionHandler) {
+        this(new Document(), collectionHandler);
+    }
+
+
+    /**
+     * Creates a new instance with a Document passed
+     */
+    public MongoDatabaseParameters(Document document, CollectionHandler collectionHandler) {
+        this.document = document;
+        this.collectionHandler = collectionHandler;
+    }
+
+    @Override
+    public CollectionHandler getCollectionHandler() {
+        return collectionHandler;
+    }
+
+    @Override
+    public String getAdapterType() {
+        return "mongodb";
+    }
+
+    @Override
+    public boolean supportsArraysNatively() {
+        return true;
     }
 
     @Override
@@ -58,6 +85,6 @@ public class MongoDatabaseParameters implements DatabaseParameters {
      * @return the BSON document
      */
     public @NotNull Document toDocument() {
-        return new Document(document);
+        return document;
     }
 }

@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.sqlite;
 
+import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.annotations.Cacheable;
 import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
@@ -7,8 +8,8 @@ import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
 import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
 import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.connections.SQLiteSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
@@ -24,6 +25,10 @@ import java.util.function.LongFunction;
 
 @SuppressWarnings("unused")
 public class SQLiteRepositoryAdapterBuilder<T, ID> {
+    static {
+        ModelsBootstrap.init();
+    }
+
     private SQLiteCredentials credentials;
     private BiFunction<SQLiteCredentials, EnumSet<Optimizations>, SQLConnectionProvider> connectionProvider;
     private final EnumSet<Optimizations> optimizations = EnumSet.noneOf(Optimizations.class);
@@ -149,21 +154,20 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
      */
     @SuppressWarnings("unchecked")
     public SQLiteRepositoryAdapter<T, ID> build() {
-        RepositoryInformation information = Objects.requireNonNull(RepositoryMetadata.getMetadata(this.repository));
-        Cacheable cacheable = information.getCacheable();
+        RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(this.repository));
+        boolean cacheable = information.isCacheable();
 
-        boolean cacheEnabled = cacheable != null;
         int maxSize = 0;
 
         DefaultResultCache<String, T, ID> resultCache = null;
 
-        if (cacheEnabled) {
-            maxSize = cacheable.maxCacheSize();
-            resultCache = new DefaultResultCache<>(cacheable.maxCacheSize(), cacheable.algorithm());
+        if (cacheable) {
+            maxSize = information.getCacheConfig().maxSize();
+            resultCache = new DefaultResultCache<>(maxSize, information.getCacheConfig().cacheAlgorithmType());
         }
 
-        GlobalCacheable globalCacheable = information.getGlobalCacheable();
-        if (globalCacheable == null)
+        boolean globalCacheable = information.isGlobalCacheable();
+        if (!globalCacheable)
             return new SQLiteRepositoryAdapter<>(
                     connectionProvider != null
                         ? this.connectionProvider.apply(credentials, optimizations)
@@ -174,22 +178,14 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
                     null,
                     sessionCacheSupplier,
                     cacheWarmer,
-                    cacheEnabled,
+                    cacheable,
                     maxSize
             );
 
-        Class<?> cacheableClass = globalCacheable.sessionCache();
-
-        try {
-            return new SQLiteRepositoryAdapter<>(
-                    connectionProvider != null ? this.connectionProvider.apply(credentials, optimizations) : new SQLiteSimpleConnectionProvider(this.credentials, optimizations),
-                    resultCache, this.repository, this.idClass, (SessionCache<ID, T>) cacheableClass.getDeclaredConstructor().newInstance(), sessionCacheSupplier, cacheWarmer,
-                    cacheEnabled, maxSize
-            );
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalArgumentException("Session resultCache must have default no-arg constructor.", e);
-        }
+        return new SQLiteRepositoryAdapter<>(
+                connectionProvider != null ? this.connectionProvider.apply(credentials, optimizations) : new SQLiteSimpleConnectionProvider(this.credentials, optimizations),
+                resultCache, this.repository, this.idClass, information.createGlobalSessionCache(), sessionCacheSupplier, cacheWarmer,
+                cacheable, maxSize
+        );
     }
 }

@@ -23,7 +23,7 @@ import java.lang.annotation.Target;
  * </pre>
  *
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface Cacheable {
     int maxCacheSize() default 1024;

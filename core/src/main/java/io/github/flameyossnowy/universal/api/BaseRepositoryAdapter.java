@@ -3,12 +3,13 @@ package io.github.flameyossnowy.universal.api;
 import com.google.errorprone.annotations.CheckReturnValue;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.CompletableFuture;
@@ -34,7 +35,7 @@ public interface BaseRepositoryAdapter<T, ID, C> extends AutoCloseable {
      */
     @CheckReturnValue
     @NotNull
-    <R> TransactionResult<R> execute(@NotNull Operation<R, C> operation);
+    <R> TransactionResult<R> execute(@NotNull Operation<T, ID, R, C> operation);
 
     /**
      * Executes an operation asynchronously.
@@ -45,7 +46,7 @@ public interface BaseRepositoryAdapter<T, ID, C> extends AutoCloseable {
      */
     @CheckReturnValue
     @NotNull
-    default <R> CompletableFuture<TransactionResult<R>> executeAsync(@NotNull Operation<R, C> operation) {
+    default <R> CompletableFuture<TransactionResult<R>> executeAsync(@NotNull Operation<T, ID, R, C> operation) {
         return CompletableFuture.supplyAsync(() -> execute(operation));
     }
 
@@ -60,7 +61,7 @@ public interface BaseRepositoryAdapter<T, ID, C> extends AutoCloseable {
     @CheckReturnValue
     @NotNull
     <R> TransactionResult<R> execute(
-            @NotNull Operation<R, C> operation,
+            @NotNull Operation<T, ID, R, C> operation,
             @NotNull TransactionContext<C> transactionContext);
 
     /**
@@ -69,7 +70,7 @@ public interface BaseRepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @return The operation context
      */
     @NotNull
-    OperationContext<C> getOperationContext();
+    OperationContext<T, ID, C> getOperationContext();
 
     /**
      * Gets the operation executor for this adapter.
@@ -77,7 +78,7 @@ public interface BaseRepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @return The operation executor
      */
     @NotNull
-    OperationExecutor<C> getOperationExecutor();
+    OperationExecutor<T, ID, C> getOperationExecutor();
 
     /**
      * Gets the repository information.
@@ -85,7 +86,7 @@ public interface BaseRepositoryAdapter<T, ID, C> extends AutoCloseable {
      * @return The repository information
      */
     @NotNull
-    RepositoryInformation getRepositoryInformation();
+    RepositoryModel<T, ID> getRepositoryModel();
 
     /**
      * Gets the type resolver registry.
@@ -124,9 +125,9 @@ public interface BaseRepositoryAdapter<T, ID, C> extends AutoCloseable {
      * Default implementation that delegates to the operation executor.
      */
     @NotNull
-    default <R> TransactionResult<R> executeOperation(@NotNull Operation<R, C> operation) {
-        OperationContext<C> context = getOperationContext();
-        OperationExecutor<C> executor = getOperationExecutor();
+    default <R> TransactionResult<R> executeOperation(@NotNull Operation<T, ID, R, C> operation) {
+        OperationContext<T, ID, C> context = getOperationContext();
+        OperationExecutor<T, ID, C> executor = getOperationExecutor();
 
         return switch (operation.getOperationType()) {
             case READ -> executor.executeRead(operation, context);

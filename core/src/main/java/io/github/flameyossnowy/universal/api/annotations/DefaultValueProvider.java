@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
 /**
  * Default value provider to provide a default value for a field.
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface DefaultValueProvider {
     /**

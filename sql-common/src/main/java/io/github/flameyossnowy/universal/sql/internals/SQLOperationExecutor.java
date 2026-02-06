@@ -14,7 +14,7 @@ import java.sql.Connection;
  * @param <T> The entity type
  * @param <ID> The ID type
  */
-public class SQLOperationExecutor<T, ID> implements OperationExecutor<Connection> {
+public class SQLOperationExecutor<T, ID> implements OperationExecutor<T, ID, Connection> {
     private final AbstractRelationalRepositoryAdapter<T, ID> adapter;
 
     public SQLOperationExecutor(AbstractRelationalRepositoryAdapter<T, ID> adapter) {
@@ -24,56 +24,56 @@ public class SQLOperationExecutor<T, ID> implements OperationExecutor<Connection
     @Override
     @NotNull
     public <R> TransactionResult<R> executeRead(
-            @NotNull Operation<R, Connection> operation,
-            @NotNull OperationContext<Connection> context) {
+            @NotNull Operation<T, ID, R, Connection> operation,
+            @NotNull OperationContext<T, ID, Connection> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeWrite(
-            @NotNull Operation<R, Connection> operation,
-            @NotNull OperationContext<Connection> context) {
+            @NotNull Operation<T, ID, R, Connection> operation,
+            @NotNull OperationContext<T, ID, Connection> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeUpdate(
-            @NotNull Operation<R, Connection> operation,
-            @NotNull OperationContext<Connection> context) {
+            @NotNull Operation<T, ID, R, Connection> operation,
+            @NotNull OperationContext<T, ID, Connection> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeDelete(
-            @NotNull Operation<R, Connection> operation,
-            @NotNull OperationContext<Connection> context) {
+            @NotNull Operation<T, ID, R, Connection> operation,
+            @NotNull OperationContext<T, ID, Connection> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeSchema(
-            @NotNull Operation<R, Connection> operation,
-            @NotNull OperationContext<Connection> context) {
+            @NotNull Operation<T, ID, R, Connection> operation,
+            @NotNull OperationContext<T, ID, Connection> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeCustom(
-            @NotNull Operation<R, Connection> operation,
-            @NotNull OperationContext<Connection> context) {
+            @NotNull Operation<T, ID, R, Connection> operation,
+            @NotNull OperationContext<T, ID, Connection> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeRemote(
-            @NotNull Operation<R, Connection> operation,
-            @NotNull OperationContext<Connection> context) {
+            @NotNull Operation<T, ID, R, Connection> operation,
+            @NotNull OperationContext<T, ID, Connection> context) {
         throw new UnsupportedOperationException("Remote operations not supported for SQL repositories");
     }
 }
