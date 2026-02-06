@@ -51,7 +51,11 @@ public class PartitionedCache<K, V> implements SessionCache<K, V> {
 
     @Override
     public Map<K, V> getInternalCache() {
-        return Arrays.stream(partitions).flatMap((map) -> map.entrySet().stream()).collect(()-> new ConcurrentHashMap<>(), (map, entry) -> map.put(entry.getKey(), entry.getValue()), ConcurrentHashMap::putAll);
+        ConcurrentHashMap<K, V> result = new ConcurrentHashMap<>();
+        for (Map<K, V> map : this.partitions) {
+            result.putAll(map);
+        }
+        return result;
     }
 
     /**

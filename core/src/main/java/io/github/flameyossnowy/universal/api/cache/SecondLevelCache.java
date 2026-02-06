@@ -5,9 +5,9 @@ import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFRUCache;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLFUCache;
 import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLRUCache;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * Second-level cache (L2) that stores entities with TTL support.
@@ -34,10 +34,14 @@ public class SecondLevelCache<ID, T> implements SessionCache<ID, T> {
 
     @Override
     public Map<ID, T> getInternalCache() {
-        return this.cache.entrySet()
-                .stream()
-                .map((entry) -> Map.entry(entry.getKey(), entry.getValue().entity))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<ID, T> map = new HashMap<>();
+        for (Map.Entry<ID, CachedEntity<T>> entry : this.cache.entrySet()) {
+            Map.Entry<ID, T> mapEntry = Map.entry(entry.getKey(), entry.getValue().entity);
+            if (map.put(mapEntry.getKey(), mapEntry.getValue()) != null) {
+                throw new IllegalStateException("Duplicate key");
+            }
+        }
+        return map;
     }
 
     /**
