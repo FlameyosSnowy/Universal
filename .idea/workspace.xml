@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Add newer features, fix minor bugs and full rewrite towards codegen&#10;&#10;- Added features such as lazy everything (Maps, sets and queues and existing stuff, not just lists and proxies)&#10;- Added SqlTokenizer for faster and more featureful decoding of statements&#10;- Added ifError checks to TransactionResults that regular users cannot see&#10;- Fully rewrote the reflection system into codegen (all on the hot-path, and only a few in start-up and cold-path)">
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Add kotlin extension">
       <change afterPath="$PROJECT_DIR$/.github/workflows/qodana_code_quality.yml" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/8.12/checksums/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/8.12/checksums/md5-checksums.bin" afterDir="false" />
@@ -29,85 +29,10 @@
       <change afterPath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules/mongodb/Universal.mongodb.test.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules/sqlite/Universal.sqlite.test.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core-ktx/build.gradle.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core-ktx/src/main/kotlin/io/github/flameyossnowy/universal/api/kotlin/adapter_kts.kt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/annotations/JsonField.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/annotations/JsonIgnoreNulls.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/annotations/JsonIndex.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/annotations/JsonVersioned.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/graph/DefaultGraphCoordinator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/graph/GraphCoordinator.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/json/JacksonJsonLocation.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/json/JsonLocation.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/json/JsonProcessException.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/jit/SmartWritebackDefer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/json/DefaultJsonCodec.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/json/JsonCodec.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/json/JsonPatch.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/FieldModelImpl.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/JsonIndexModel.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/JsonStorageKind.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/FilterOption.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/JsonSelectOption.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/write/AsyncWriteBackQueue.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/write/ThreadMode.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/MicroservicesJsonCodecBridge.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/TypeResolverJacksonModule.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microservices/src/test/java/CustomPayloadCodec.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/microservices/src/test/java/JsonTestEntity.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/codec/DelegatingMongoCodecProvider.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/codec/MongoJsonCodecBridge.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/mongodb/src/test/java/MongoJsonCodecBridgeTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/mongodb/src/test/java/MongoJsonEntity.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/mongodb/src/test/java/MongoPayloadCodec.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/Something.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/qodana.yaml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/DeleteSqlBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/IndexSqlBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/InsertSqlBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/QueryStringCache.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/RepositoryDdlBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/SelectSqlBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/SqlConditionBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/SqlSortBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/UpdateSqlBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlCacheManager.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlIteratorBuilder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlParameterBinder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlQueryExecutor.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlReadExecutor.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DatabaseSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DatabaseSession.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PartitionedCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PartitionedCache.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/SecondLevelCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/SecondLevelCache.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/TransactionResult.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/TransactionResult.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/DeleteQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/DeleteQuery.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/SelectOption.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/SelectOption.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/SelectQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/SelectQuery.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/UpdateQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/UpdateQuery.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TypeResolverRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TypeResolverRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/test/java/FileRepositoryAdapterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/test/java/FileRepositoryAdapterTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/test/java/NetworkRepositoryAdapterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/test/java/NetworkRepositoryAdapterTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mongodb/src/test/java/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/test/java/Main.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mongodb/src/test/java/MongoRepositoryAdapterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/test/java/MongoRepositoryAdapterTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mysql/src/test/java/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/mysql/src/test/java/Main.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/Faction.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/Faction.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/FactionRecord.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/FactionRecord.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/NormalTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/NormalTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/Warp.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/Warp.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/AbstractRelationalRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/AbstractRelationalRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/QueryParseEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/QueryParseEngine.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sqlite/src/test/java/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/sqlite/src/test/java/Main.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -638,119 +563,7 @@
       <workItem from="1770185730279" duration="3418000" />
       <workItem from="1770190403404" duration="15626000" />
       <workItem from="1770272165032" duration="12000" />
-      <workItem from="1770286108739" duration="20387000" />
-    </task>
-    <task id="LOCAL-00080" summary="Better readability">
-      <option name="closed" value="true" />
-      <created>1766926945262</created>
-      <option name="number" value="00080" />
-      <option name="presentableId" value="LOCAL-00080" />
-      <option name="project" value="LOCAL" />
-      <updated>1766926945262</updated>
-    </task>
-    <task id="LOCAL-00081" summary="Readd compile-time-checker">
-      <option name="closed" value="true" />
-      <created>1766926953251</created>
-      <option name="number" value="00081" />
-      <option name="presentableId" value="LOCAL-00081" />
-      <option name="project" value="LOCAL" />
-      <updated>1766926953252</updated>
-    </task>
-    <task id="LOCAL-00082" summary="Add mongodb tests">
-      <option name="closed" value="true" />
-      <created>1766926961216</created>
-      <option name="number" value="00082" />
-      <option name="presentableId" value="LOCAL-00082" />
-      <option name="project" value="LOCAL" />
-      <updated>1766926961216</updated>
-    </task>
-    <task id="LOCAL-00083" summary="Update gradle to fix compile-time-checker">
-      <option name="closed" value="true" />
-      <created>1766937191583</created>
-      <option name="number" value="00083" />
-      <option name="presentableId" value="LOCAL-00083" />
-      <option name="project" value="LOCAL" />
-      <updated>1766937191583</updated>
-    </task>
-    <task id="LOCAL-00084" summary="Fix Instant not working, change VARCHAR usages to TEXT except for UUID at VARCHAR(36)">
-      <option name="closed" value="true" />
-      <created>1766939561416</created>
-      <option name="number" value="00084" />
-      <option name="presentableId" value="LOCAL-00084" />
-      <option name="project" value="LOCAL" />
-      <updated>1766939561416</updated>
-    </task>
-    <task id="LOCAL-00085" summary="Fix Binary working for types instead of fields.">
-      <option name="closed" value="true" />
-      <created>1766939647527</created>
-      <option name="number" value="00085" />
-      <option name="presentableId" value="LOCAL-00085" />
-      <option name="project" value="LOCAL" />
-      <updated>1766939647527</updated>
-    </task>
-    <task id="LOCAL-00086" summary="Rewrites and fixes&#10;- Rewrite ObjectFactory system and improved collection/map/multi-map system&#10;- Made insert queries auto-increment to fix a crucial bug&#10;- add new functions to FieldData to improve the performance of generic fetching, ResolveWith fetching, and improved externalRepository handling">
-      <option name="closed" value="true" />
-      <created>1767011608039</created>
-      <option name="number" value="00086" />
-      <option name="presentableId" value="LOCAL-00086" />
-      <option name="project" value="LOCAL" />
-      <updated>1767011608039</updated>
-    </task>
-    <task id="LOCAL-00087" summary="Slightly update tests.">
-      <option name="closed" value="true" />
-      <created>1767011625631</created>
-      <option name="number" value="00087" />
-      <option name="presentableId" value="LOCAL-00087" />
-      <option name="project" value="LOCAL" />
-      <updated>1767011625632</updated>
-    </task>
-    <task id="LOCAL-00088" summary="Bump version">
-      <option name="closed" value="true" />
-      <created>1767011691271</created>
-      <option name="number" value="00088" />
-      <option name="presentableId" value="LOCAL-00088" />
-      <option name="project" value="LOCAL" />
-      <updated>1767011691271</updated>
-    </task>
-    <task id="LOCAL-00089" summary="Push main repository creation and child table to the QueryParseEngine side.">
-      <option name="closed" value="true" />
-      <created>1767012397605</created>
-      <option name="number" value="00089" />
-      <option name="presentableId" value="LOCAL-00089" />
-      <option name="project" value="LOCAL" />
-      <updated>1767012397606</updated>
-    </task>
-    <task id="LOCAL-00090" summary="Add CheckReturnValue's and also deprecate createRepository(Async)">
-      <option name="closed" value="true" />
-      <created>1767012623773</created>
-      <option name="number" value="00090" />
-      <option name="presentableId" value="LOCAL-00090" />
-      <option name="project" value="LOCAL" />
-      <updated>1767012623773</updated>
-    </task>
-    <task id="LOCAL-00091" summary="Add relationship cache invalidation (including reverse-edge invalidation)">
-      <option name="closed" value="true" />
-      <created>1767088889628</created>
-      <option name="number" value="00091" />
-      <option name="presentableId" value="LOCAL-00091" />
-      <option name="project" value="LOCAL" />
-      <updated>1767088889628</updated>
-    </task>
-    <task id="LOCAL-00092" summary="Call engine.parseRepository &amp; invalidate relationship cache on modify">
-      <option name="closed" value="true" />
-      <created>1767088947977</created>
-      <option name="number" value="00092" />
-      <option name="presentableId" value="LOCAL-00092" />
-      <option name="project" value="LOCAL" />
-      <updated>1767088947977</updated>
-    </task>
-    <task id="LOCAL-00093" summary="Improve anti-N+1 by prefetching and only invalidating caches at modification.">
-      <option name="closed" value="true" />
-      <created>1767088974377</created>
-      <option name="number" value="00093" />
-      <option name="presentableId" value="LOCAL-00093" />
-      <option name="project" value="LOCAL" />
-      <updated>1767088974377</updated>
+      <workItem from="1770286108739" duration="21429000" />
     </task>
     <task id="LOCAL-00094" summary="Optimizations">
       <option name="closed" value="true" />
@@ -1032,25 +845,125 @@
       <option name="project" value="LOCAL" />
       <updated>1770391383299</updated>
     </task>
-    <option name="localTasksCounter" value="129" />
+    <task id="LOCAL-00129" summary="Codegen system, new Query API, new JSON system and split into many files">
+      <option name="closed" value="true" />
+      <created>1770391576861</created>
+      <option name="number" value="00129" />
+      <option name="presentableId" value="LOCAL-00129" />
+      <option name="project" value="LOCAL" />
+      <updated>1770391576861</updated>
+    </task>
+    <task id="LOCAL-00130" summary="Codegen system, new Query API, fixes and other misc changes/optimizations">
+      <option name="closed" value="true" />
+      <created>1770391615436</created>
+      <option name="number" value="00130" />
+      <option name="presentableId" value="LOCAL-00130" />
+      <option name="project" value="LOCAL" />
+      <updated>1770391615436</updated>
+    </task>
+    <task id="LOCAL-00131" summary="Use raw for loop">
+      <option name="closed" value="true" />
+      <created>1770391665670</created>
+      <option name="number" value="00131" />
+      <option name="presentableId" value="LOCAL-00131" />
+      <option name="project" value="LOCAL" />
+      <updated>1770391665670</updated>
+    </task>
+    <task id="LOCAL-00132" summary="new JSON API">
+      <option name="closed" value="true" />
+      <created>1770391728736</created>
+      <option name="number" value="00132" />
+      <option name="presentableId" value="LOCAL-00132" />
+      <option name="project" value="LOCAL" />
+      <updated>1770391728737</updated>
+    </task>
+    <task id="LOCAL-00133" summary="Fix microservices TypeResolvers not being registered properly">
+      <option name="closed" value="true" />
+      <created>1770391897163</created>
+      <option name="number" value="00133" />
+      <option name="presentableId" value="LOCAL-00133" />
+      <option name="project" value="LOCAL" />
+      <updated>1770391897163</updated>
+    </task>
+    <task id="LOCAL-00134" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1770391966259</created>
+      <option name="number" value="00134" />
+      <option name="presentableId" value="LOCAL-00134" />
+      <option name="project" value="LOCAL" />
+      <updated>1770391966259</updated>
+    </task>
+    <task id="LOCAL-00135" summary="Add kotlin extension for better support&#10;&#10;- Add suspend functions to RepositoryAdapter&#10;- Add runSuspend to DatabaseSession&#10;- Add kotlin-only extensions to TransactionResult">
+      <option name="closed" value="true" />
+      <created>1770392038756</created>
+      <option name="number" value="00135" />
+      <option name="presentableId" value="LOCAL-00135" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392038756</updated>
+    </task>
+    <task id="LOCAL-00136" summary="Add runVoid, runAsync and run for automatic atomic changes to a session">
+      <option name="closed" value="true" />
+      <created>1770392096137</created>
+      <option name="number" value="00136" />
+      <option name="presentableId" value="LOCAL-00136" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392096138</updated>
+    </task>
+    <task id="LOCAL-00137" summary="Add peek, peekErr, recover, recoverWith, filter, fold and toFuture">
+      <option name="closed" value="true" />
+      <created>1770392127845</created>
+      <option name="number" value="00137" />
+      <option name="presentableId" value="LOCAL-00137" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392127846</updated>
+    </task>
+    <task id="LOCAL-00138" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1770392144764</created>
+      <option name="number" value="00138" />
+      <option name="presentableId" value="LOCAL-00138" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392144764</updated>
+    </task>
+    <task id="LOCAL-00139" summary="Codegen, fixes, new Query API, new JSON API&#10;&#10;- Fix createFilterDocument using default codec registry (new function, createFilterBson)&#10;- Added several null checks for safety&#10;- Fixed caches being initialized and used even when not prompted with Cacheable/GlobalCacheable&#10;- Update tests">
+      <option name="closed" value="true" />
+      <created>1770392482226</created>
+      <option name="number" value="00139" />
+      <option name="presentableId" value="LOCAL-00139" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392482226</updated>
+    </task>
+    <task id="LOCAL-00140" summary=".idea updates">
+      <option name="closed" value="true" />
+      <created>1770392514644</created>
+      <option name="number" value="00140" />
+      <option name="presentableId" value="LOCAL-00140" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392514644</updated>
+    </task>
+    <task id="LOCAL-00141" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1770392527779</created>
+      <option name="number" value="00141" />
+      <option name="presentableId" value="LOCAL-00141" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392527779</updated>
+    </task>
+    <task id="LOCAL-00142" summary="Add kotlin extension">
+      <option name="closed" value="true" />
+      <created>1770392548491</created>
+      <option name="number" value="00142" />
+      <option name="presentableId" value="LOCAL-00142" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392548491</updated>
+    </task>
+    <option name="localTasksCounter" value="143" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="New functions meant for internal usage." />
-    <MESSAGE value="Improve readability." />
-    <MESSAGE value="Micro-optimizations and fix one-to-one and many-to-one not working properly" />
-    <MESSAGE value="Readability" />
-    <MESSAGE value="Improve tests" />
-    <MESSAGE value="Fix MongoDB syntax errors." />
-    <MESSAGE value="Fix FileRepositoryAdapter syntax errors." />
-    <MESSAGE value="Fix inheritance and general proxies not working well." />
-    <MESSAGE value="Heavily optimize parseWhere" />
-    <MESSAGE value="Optimized getOneToOneField lookup" />
-    <MESSAGE value="Make TypeResolverRegistry more resilient to unknown types (i.e. enums)" />
-    <MESSAGE value="Tested enums" />
     <MESSAGE value="Fix enums not working and optimize them" />
     <MESSAGE value="Remove cassandra" />
     <MESSAGE value="Add more and useful java.time class APIs" />
@@ -1064,7 +977,19 @@
     <MESSAGE value="Add postgresql stresstest." />
     <MESSAGE value="Bump version" />
     <MESSAGE value="Add newer features, fix minor bugs and full rewrite towards codegen&#10;&#10;- Added features such as lazy everything (Maps, sets and queues and existing stuff, not just lists and proxies)&#10;- Added SqlTokenizer for faster and more featureful decoding of statements&#10;- Added ifError checks to TransactionResults that regular users cannot see&#10;- Fully rewrote the reflection system into codegen (all on the hot-path, and only a few in start-up and cold-path)" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add newer features, fix minor bugs and full rewrite towards codegen&#10;&#10;- Added features such as lazy everything (Maps, sets and queues and existing stuff, not just lists and proxies)&#10;- Added SqlTokenizer for faster and more featureful decoding of statements&#10;- Added ifError checks to TransactionResults that regular users cannot see&#10;- Fully rewrote the reflection system into codegen (all on the hot-path, and only a few in start-up and cold-path)" />
+    <MESSAGE value="Codegen system, new Query API, new JSON system and split into many files" />
+    <MESSAGE value="Codegen system, new Query API, fixes and other misc changes/optimizations" />
+    <MESSAGE value="Use raw for loop" />
+    <MESSAGE value="new JSON API" />
+    <MESSAGE value="Fix microservices TypeResolvers not being registered properly" />
+    <MESSAGE value="Add kotlin extension for better support&#10;&#10;- Add suspend functions to RepositoryAdapter&#10;- Add runSuspend to DatabaseSession&#10;- Add kotlin-only extensions to TransactionResult" />
+    <MESSAGE value="Add runVoid, runAsync and run for automatic atomic changes to a session" />
+    <MESSAGE value="Add peek, peekErr, recover, recoverWith, filter, fold and toFuture" />
+    <MESSAGE value="Codegen, fixes, new Query API, new JSON API&#10;&#10;- Fix createFilterDocument using default codec registry (new function, createFilterBson)&#10;- Added several null checks for safety&#10;- Fixed caches being initialized and used even when not prompted with Cacheable/GlobalCacheable&#10;- Update tests" />
+    <MESSAGE value=".idea updates" />
+    <MESSAGE value="Update tests" />
+    <MESSAGE value="Add kotlin extension" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add kotlin extension" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
