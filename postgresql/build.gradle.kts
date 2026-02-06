@@ -26,11 +26,12 @@ dependencies {
     testImplementation("org.postgresql:postgresql:42.7.2")
     testImplementation(project(":core"))
     testImplementation(project(":sql-common"))
+    testAnnotationProcessor(project(":compile-time-checker"))
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
 }
 
-tasks.test {
+tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 }

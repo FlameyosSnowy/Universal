@@ -25,6 +25,7 @@ dependencies {
 
     testImplementation project(':core')
     testImplementation project(':sql-common')
+    testAnnotationProcessor project(':compile-time-checker')
 
     testImplementation 'org.xerial:sqlite-jdbc:3.48.0.0'
 
@@ -42,4 +43,8 @@ sourceSets {
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
     }
+}
+
+test {
+    useJUnitPlatform()
 }

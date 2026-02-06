@@ -51,7 +51,7 @@ sourceSets {
     }
 }
 
-test {
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
 

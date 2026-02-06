@@ -24,8 +24,9 @@ dependencies {
 
     api "com.github.FlameyosSnowy:Velocis:1.1.2"
 
-    implementation "me.sunlan:fast-reflection:1.0.3"
-    implementation "net.bytebuddy:byte-buddy:1.14.9"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.16.1"
+    implementation "com.fasterxml.jackson.core:jackson-annotations:2.16.1"
+    implementation "com.fasterxml.jackson.core:jackson-core:2.16.1"
 
     // error prone
     compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"

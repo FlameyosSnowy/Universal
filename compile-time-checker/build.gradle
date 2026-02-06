@@ -17,5 +17,6 @@ repositories {
 }
 
 dependencies {
-    compileOnly project(":core")
+    implementation project(":core")
+    implementation "com.squareup:javapoet:1.13.0"
 }
