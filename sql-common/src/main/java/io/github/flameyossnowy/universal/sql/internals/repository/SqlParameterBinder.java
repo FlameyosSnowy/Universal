@@ -1,0 +1,248 @@
+package io.github.flameyossnowy.universal.sql.internals.repository;
+
+import io.github.flameyossnowy.universal.api.meta.FieldModel;
+import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
+import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.json.JsonCodec;
+import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.options.FilterOption;
+import io.github.flameyossnowy.universal.api.options.JsonSelectOption;
+import io.github.flameyossnowy.universal.api.options.SelectOption;
+import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.api.utils.Logging;
+import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
+import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.GenericArrayType;
+import java.util.Collection;
+import java.util.List;
+
+public final class SqlParameterBinder<T, ID> {
+    public void addFilterToPreparedStatement(
+        List<FilterOption> filters,
+        SQLDatabaseParameters parameters,
+        TypeResolverRegistry resolverRegistry,
+        RepositoryModel<T, ID> repositoryModel,
+        QueryParseEngine.SQLType sqlType
+    ) {
+        for (FilterOption value : filters) {
+            switch (value) {
+                case null -> {}
+                case SelectOption s -> bindSelectOption(s, parameters, resolverRegistry);
+                case JsonSelectOption j -> bindJsonSelectOption(j, parameters, resolverRegistry, repositoryModel, sqlType);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void bindSelectOption(SelectOption value, SQLDatabaseParameters parameters, TypeResolverRegistry resolverRegistry) {
+        if ("IN".equalsIgnoreCase(value.operator()) && value.value() instanceof Collection<?> list) {
+            for (Object item : list) {
+                TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(item.getClass());
+                resolver.insert(parameters, value.option(), item);
+            }
+            return;
+        }
+
+        TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(value.value().getClass());
+        resolver.insert(parameters, value.option(), value.value());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void bindJsonSelectOption(
+        JsonSelectOption value,
+        SQLDatabaseParameters parameters,
+        TypeResolverRegistry resolverRegistry,
+        RepositoryModel<T, ID> repositoryModel,
+        QueryParseEngine.SQLType sqlType
+    ) {
+        String indexKey = buildJsonIndexKey(value, repositoryModel, sqlType);
+
+        FieldModel<T> jsonField = repositoryModel.fieldByName(value.field());
+        if (jsonField == null) {
+            throw new IllegalArgumentException("Unknown field in JSON filter: " + value.field());
+        }
+
+        if (value.value() == null) {
+            parameters.setNull(indexKey, Object.class);
+            return;
+        }
+
+        // If the user is filtering by an entire JSON object (not a JSON-path scalar),
+        // serialize using the field's JsonCodec.
+        Object rawValue = value.value();
+        boolean isWholeJsonValue = jsonField.isJson() && jsonField.type().isInstance(rawValue);
+        Object bindValue = rawValue;
+
+        JsonCodec<Object> codec = resolverRegistry.getJsonCodec(jsonField.jsonCodec());
+        if (isWholeJsonValue) {
+            bindValue = codec.serialize(rawValue, (Class<Object>) jsonField.type());
+        }
+
+        if ("IN".equalsIgnoreCase(value.operator()) && rawValue instanceof Collection<?> list) {
+            for (Object item : list) {
+                Object itemBind = item;
+                if (item != null && jsonField.isJson() && jsonField.type().isInstance(item)) {
+                    itemBind = codec.serialize(item, (Class<Object>) jsonField.type());
+                }
+
+                TypeResolver<Object> resolver = resolverRegistry.resolve(toClass(itemBind != null ? itemBind.getClass() : Object.class));
+                resolver.insert(parameters, indexKey, itemBind);
+            }
+            return;
+        }
+
+        TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(bindValue.getClass());
+        resolver.insert(parameters, indexKey, bindValue);
+    }
+
+    @Contract("null -> null")
+    @SuppressWarnings("unchecked")
+    private static <E> Class<E> toClass(Object o) {
+        if (o instanceof GenericArrayType ty)
+            return (Class<E>) Array.newInstance(toClass(ty.getGenericComponentType()), 0)
+                .getClass();
+        return (Class<E>) o;
+    }
+
+    private String buildJsonIndexKey(
+        JsonSelectOption filter,
+        RepositoryModel<T, ID> repositoryModel,
+        QueryParseEngine.SQLType sqlType
+    ) {
+        FieldModel<T> field = repositoryModel.fieldByName(filter.field());
+        if (field == null) {
+            throw new IllegalArgumentException("Unknown field in JSON filter: " + filter.field());
+        }
+
+        // Must match QueryParseEngine's generated SQL LHS exactly, because SQLDatabaseParameters
+        // parses the WHERE clause and uses the raw LHS string as the parameter name.
+        return switch (sqlType) {
+            case POSTGRESQL -> field.name()
+                + " #>> '{"
+                + filter.jsonPath().replace("$.", "").replace(".", ",")
+                + "}'";
+            case MYSQL -> "JSON_UNQUOTE(JSON_EXTRACT("
+                + field.name()
+                + ", '"
+                + filter.jsonPath()
+                + "'))";
+            case SQLITE -> throw new UnsupportedOperationException(
+                "SQLite does not support JSON filtering in Universal"
+            );
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    public void setUpdateParameters(SQLDatabaseParameters statement, @NotNull T entity, RepositoryModel<T, ID> repositoryModel, TypeResolverRegistry resolverRegistry) {
+        for (FieldModel<T> fieldData : repositoryModel.fields()) {
+            if (fieldData.autoIncrement() || fieldData.relationshipKind() == RelationshipKind.ONE_TO_MANY) {
+                continue;
+            }
+
+            T value = (T) fieldData.getValue(entity);
+            Logging.deepInfo("Processing field for update: " + fieldData.name() + " with value: " + value);
+
+            if ((fieldData.relationshipKind() == RelationshipKind.ONE_TO_ONE || fieldData.relationshipKind() == RelationshipKind.MANY_TO_ONE)) {
+                if (value == null) {
+                    Logging.deepInfo("  -> Relationship field is null, setting to NULL");
+                } else {
+                    RepositoryModel<T, ID> relatedInfo = (RepositoryModel<T, ID>) GeneratedMetadata.getByEntityClass(fieldData.type());
+                    if (relatedInfo != null) {
+                        FieldModel<T> pkField = relatedInfo.getPrimaryKey();
+                        if (pkField == null) {
+                            throw new IllegalArgumentException("Cannot extract primary key from " + repositoryModel.tableName() + " because there's no id.");
+                        }
+
+                        value = (T) pkField.getValue(value);
+                        Logging.deepInfo("  -> Relationship field, using ID for update: " + value);
+                    }
+                }
+            }
+
+            TypeResolver<Object> resolver;
+            if ((fieldData.relationshipKind() == RelationshipKind.ONE_TO_ONE || fieldData.relationshipKind() == RelationshipKind.MANY_TO_ONE) && value != null) {
+                RepositoryModel<T, ID> relatedInfo = (RepositoryModel<T, ID>) GeneratedMetadata.getByEntityClass(fieldData.type());
+                if (relatedInfo != null) {
+                    FieldModel<T> pkField = relatedInfo.getPrimaryKey();
+                    if (pkField == null) {
+                        throw new IllegalArgumentException("Cannot extract primary key from " + repositoryModel.tableName() + " because there's no id.");
+                    }
+
+                    resolver = (TypeResolver<Object>) resolverRegistry.resolve(pkField.type());
+                } else {
+                    resolver = (TypeResolver<Object>) resolverRegistry.resolve(fieldData.type());
+                }
+            } else {
+                resolver = (TypeResolver<Object>) resolverRegistry.resolve(fieldData.type());
+            }
+
+            if (resolver == null) {
+                Logging.deepInfo("No resolver for " + fieldData.type() + ", assuming it's a relationship handled elsewhere.");
+                continue;
+            }
+
+            Logging.deepInfo("Binding parameter " + fieldData.name() + ": " + value + " (type: " + (value != null ? value.getClass().getSimpleName() : "null") + ")");
+            resolver.insert(statement, fieldData.name(), value);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void setUpdateParameters(
+        @NotNull UpdateQuery query,
+        SQLDatabaseParameters parameters,
+        TypeResolverRegistry resolverRegistry,
+        RepositoryModel<T, ID> repositoryModel,
+        QueryParseEngine.SQLType sqlType
+    ) {
+        for (var value : query.updates().entrySet()) {
+            TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(value.getValue().getClass());
+            resolver.insert(parameters, value.getKey(), value.getValue());
+        }
+
+        List<FilterOption> conditions = query.filters();
+        if (conditions.isEmpty()) return;
+        for (FilterOption value : conditions) {
+            if (value instanceof SelectOption s) {
+                bindSelectOption(s, parameters, resolverRegistry);
+                continue;
+            }
+
+            if (value instanceof JsonSelectOption j) {
+                bindJsonSelectOption(j, parameters, resolverRegistry, repositoryModel, sqlType);
+                continue;
+            }
+
+            throw new IllegalStateException("Unknown filter type: " + value);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void setUpdateParameters(
+        @NotNull DeleteQuery query,
+        SQLDatabaseParameters parameters,
+        TypeResolverRegistry resolverRegistry,
+        RepositoryModel<T, ID> repositoryModel,
+        QueryParseEngine.SQLType sqlType
+    ) {
+        for (FilterOption value : query.filters()) {
+            if (value instanceof SelectOption s) {
+                bindSelectOption(s, parameters, resolverRegistry);
+                continue;
+            }
+
+            if (value instanceof JsonSelectOption j) {
+                bindJsonSelectOption(j, parameters, resolverRegistry, repositoryModel, sqlType);
+                continue;
+            }
+
+            throw new IllegalStateException("Unknown filter type: " + value);
+        }
+    }
+}

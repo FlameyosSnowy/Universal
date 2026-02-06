@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.Map;
 
 @SuppressWarnings("unused")
-public record UpdateQuery(Map<String, Object> updates, List<SelectOption> filters) implements Query {
+public record UpdateQuery(Map<String, Object> updates, List<FilterOption> filters) implements Query {
     public static class UpdateQueryBuilder {
         private final Map<String, Object> updates = new HashMap<>(3);
-        private final List<SelectOption> conditions = new ArrayList<>(3);
+        private final List<FilterOption> conditions = new ArrayList<>(3);
 
         public UpdateQueryBuilder set(String field, Object value) {
             updates.put(field, value);
@@ -52,6 +52,16 @@ public record UpdateQuery(Map<String, Object> updates, List<SelectOption> filter
          */
         public UpdateQueryBuilder whereIn(String key, Collection<?> values) {
             conditions.add(new SelectOption(key, "IN", values));
+            return this;
+        }
+
+        public UpdateQueryBuilder whereJson(
+            String field,
+            String jsonPath,
+            String operator,
+            Object value
+        ) {
+            conditions.add(new JsonSelectOption(field, jsonPath, operator, value));
             return this;
         }
 

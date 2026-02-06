@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.microservices.network;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.flameyossnowy.universal.api.CloseableIterator;
 import io.github.flameyossnowy.universal.api.IndexOptions;
+import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.RepositoryRegistry;
 import io.github.flameyossnowy.universal.api.annotations.NetworkRepository;
@@ -14,19 +15,22 @@ import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.options.FilterOption;
+import io.github.flameyossnowy.universal.api.options.JsonSelectOption;
 import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.SortOption;
 import io.github.flameyossnowy.universal.api.options.SortOrder;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.microservices.MicroservicesJsonCodecBridge;
 import io.github.flameyossnowy.universal.microservices.relationship.MicroserviceRelationshipHandler;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
 import org.jetbrains.annotations.NotNull;
@@ -56,19 +60,23 @@ import java.util.stream.StreamSupport;
  * @param <T> The entity type
  * @param <ID> The ID type
  */
+@SuppressWarnings("unused")
 public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, HttpClient> {
+    static {
+        ModelsBootstrap.init();
+    }
+
     private static final int DEFAULT_PAGE_SIZE = 100;
 
     private final Class<T> entityType;
     private final Class<ID> idType;
-    private final RepositoryInformation repositoryInformation;
+    private final RepositoryModel<T, ID> repositoryInformation;
     private final TypeResolverRegistry resolverRegistry;
-    private final OperationExecutor<HttpClient> operationExecutor;
-    private final OperationContext<HttpClient> operationContext;
+    private final OperationExecutor<T, ID, HttpClient> operationExecutor;
+    private final OperationContext<T, ID, HttpClient> operationContext;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String baseUrl;
-    private final NetworkProtocol protocol;
     private final AuthType authType;
     private final Supplier<String> credentialsProvider;
     private final Map<String, String> customHeaders;
@@ -98,7 +106,6 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         this.entityType = entityType;
         this.idType = idType;
         this.baseUrl = baseUrl.endsWith(FileSystems.getDefault().getSeparator()) ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        this.protocol = protocol;
         this.authType = authType;
         this.credentialsProvider = credentialsProvider;
         this.customHeaders = customHeaders;
@@ -106,12 +113,15 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         this.cacheEnabled = cacheEnabled;
         this.cacheTtlMillis = cacheTtl * 1000L;
 
-        this.repositoryInformation = RepositoryMetadata.getMetadata(entityType);
+        this.repositoryInformation = GeneratedMetadata.getByEntityClass(entityType);
         if (repositoryInformation == null)
             throw new IllegalArgumentException("Could not find repository information for class: " + entityType.getSimpleName());
         this.resolverRegistry = new TypeResolverRegistry();
         
         this.objectMapper = objectMapper;
+
+        // Enable DefaultJsonCodec usage in microservices/network layer
+        this.resolverRegistry.setObjectMapperSupplier(() -> this.objectMapper);
 
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeout))
@@ -127,7 +137,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         this.responseCache = cacheEnabled ? new ConcurrentHashMap<>(3) : null;
 
         this.relationshipResolver = new RelationshipResolver<>(new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry));
-        RepositoryRegistry.register(this.repositoryInformation.getRepositoryName(), this);
+        RepositoryRegistry.register(this.repositoryInformation.tableName(), this);
     }
 
     public static <T, ID> NetworkRepositoryAdapter<T, ID> from(
@@ -200,33 +210,33 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     @Override
     @NotNull
-    public <R> TransactionResult<R> execute(@NotNull Operation<R, HttpClient> operation) {
+    public <R> TransactionResult<R> execute(@NotNull Operation<T, ID, R, HttpClient> operation) {
         return executeOperation(operation);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> execute(
-            @NotNull Operation<R, HttpClient> operation,
+            @NotNull Operation<T, ID, R, HttpClient> operation,
             @NotNull TransactionContext<HttpClient> transactionContext) {
         return operation.executeWithTransaction(operationContext, transactionContext);
     }
 
     @Override
     @NotNull
-    public OperationContext<HttpClient> getOperationContext() {
+    public OperationContext<T, ID, HttpClient> getOperationContext() {
         return operationContext;
     }
 
     @Override
     @NotNull
-    public OperationExecutor<HttpClient> getOperationExecutor() {
+    public OperationExecutor<T, ID, HttpClient> getOperationExecutor() {
         return operationExecutor;
     }
 
     @Override
     @NotNull
-    public RepositoryInformation getRepositoryInformation() {
+    public RepositoryModel<T, ID> getRepositoryModel() {
         return repositoryInformation;
     }
 
@@ -270,7 +280,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             responseCache.clear();
         }
         httpClient.close();
-        RepositoryRegistry.unregister(repositoryInformation.getRepositoryName());
+        RepositoryRegistry.unregister(repositoryInformation.tableName());
     }
 
     public HttpRequest.Builder createRequestBuilder(String endpoint) {
@@ -295,6 +305,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         return builder;
     }
 
+    @SuppressWarnings("unchecked")
     public <R> R sendRequest(HttpRequest request, Class<R> responseType) throws IOException, InterruptedException {
         if (cacheEnabled && request.method().equals("GET")) {
             String cacheKey = request.uri().toString();
@@ -313,7 +324,21 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 try {
                     HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        R result = objectMapper.readValue(response.body(), responseType);
+                        R result;
+                        if (responseType == entityType) {
+                            var storedNode = objectMapper.readTree(response.body());
+                            @SuppressWarnings("unchecked")
+                            R entity = (R) MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                                objectMapper,
+                                resolverRegistry,
+                                repositoryInformation,
+                                entityType,
+                                storedNode
+                            );
+                            result = entity;
+                        } else {
+                            result = objectMapper.readValue(response.body(), responseType);
+                        }
                         return new CachedResponse(result, System.currentTimeMillis() + cacheTtlMillis);
                     } else {
                         throw new RuntimeException(new IOException("HTTP error " + response.statusCode() + ": " + response.body()));
@@ -329,6 +354,19 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             // For non-GET requests or when cache is disabled, execute directly
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                if (responseType == entityType) {
+                    var storedNode = objectMapper.readTree(response.body());
+                    @SuppressWarnings("unchecked")
+                    R entity = (R) MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                        objectMapper,
+                        resolverRegistry,
+                        repositoryInformation,
+                        entityType,
+                        storedNode
+                    );
+                    return entity;
+                }
+
                 return objectMapper.readValue(response.body(), responseType);
             } else {
                 throw new IOException("HTTP error " + response.statusCode() + ": " + response.body());
@@ -353,7 +391,20 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
-            List<T> entities = objectMapper.readValue(response.body(), objectMapper.getTypeFactory().constructCollectionType(List.class, entityType));
+            var root = objectMapper.readTree(response.body());
+            if (!root.isArray()) {
+                throw new IOException("Expected JSON array response for getAll");
+            }
+            List<T> entities = new ArrayList<>(root.size());
+            for (var node : root) {
+                entities.add(MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                    objectMapper,
+                    resolverRegistry,
+                    repositoryInformation,
+                    entityType,
+                    node
+                ));
+            }
             entities.forEach(entity -> relationshipResolver.resolve(entity, repositoryInformation));
             return entities;
         } else {
@@ -361,8 +412,10 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         }
     }
 
-    public T create(T entity) throws IOException, InterruptedException {
-        String json = objectMapper.writeValueAsString(entity);
+    public void create(T entity) throws IOException, InterruptedException {
+        String json = objectMapper.writeValueAsString(
+            MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryInformation, entity)
+        );
         HttpRequest request = createRequestBuilder(endpointConfig.create())
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build();
@@ -373,12 +426,13 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         
         T newEntity = sendRequest(request, entityType);
         relationshipResolver.resolve(newEntity, repositoryInformation);
-        return newEntity;
     }
 
-    public T update(ID id, T entity) throws IOException, InterruptedException {
+    public void update(ID id, T entity) throws IOException, InterruptedException {
         String endpoint = endpointConfig.update().replace("{id}", id.toString());
-        String json = objectMapper.writeValueAsString(entity);
+        String json = objectMapper.writeValueAsString(
+            MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryInformation, entity)
+        );
         
         HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(json);
         HttpRequest request = switch (endpointConfig.updateMethod()) {
@@ -394,7 +448,6 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         
         T updatedEntity = sendRequest(request, entityType);
         relationshipResolver.resolve(updatedEntity, repositoryInformation);
-        return updatedEntity;
     }
 
     public void deleteInternal(ID id) throws IOException, InterruptedException {
@@ -483,15 +536,27 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private static String buildQueryString(SelectQuery query) {
         StringBuilder sb = new StringBuilder();
         if (query.filters() != null && !query.filters().isEmpty()) {
-            for (SelectOption filter : query.filters()) {
+            for (FilterOption filter : query.filters()) {
                 if (!sb.isEmpty()) {
                     sb.append('&');
                 } else {
                     sb.append('?');
                 }
-                sb.append(URLEncoder.encode(filter.option(), StandardCharsets.UTF_8));
-                sb.append('=');
-                sb.append(URLEncoder.encode(filter.value().toString(), StandardCharsets.UTF_8));
+
+                switch (filter) {
+                    case SelectOption(var option, var ignored, var value) -> {
+                        sb.append(URLEncoder.encode(option, StandardCharsets.UTF_8));
+                        sb.append('=');
+                        sb.append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8));
+                    }
+
+                    case JsonSelectOption(var field, var jsonPath, var operator, var value) -> {
+                        String key = field + ":" + jsonPath + ":" + operator;
+                        sb.append(URLEncoder.encode(key, StandardCharsets.UTF_8));
+                        sb.append('=');
+                        sb.append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8));
+                    }
+                }
             }
         }
 
@@ -712,10 +777,10 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
             for (T entity : targets) {
                 // Apply field mutations
-                for (var assignment : query.filters()) {
-                    var field = repositoryInformation.getField(assignment.option());
+                for (var entry : query.updates().entrySet()) {
+                    var field = repositoryInformation.fieldByName(entry.getKey());
                     if (field == null) continue;
-                    field.setValue(entity, assignment.value());
+                    field.setValue(entity, entry.getValue());
                 }
 
                 ID id = extractId(entity);
@@ -793,8 +858,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     public ID extractId(T entity) {
         try {
-            var idField = repositoryInformation.getPrimaryKey();
-            return idField.getValue(entity);
+            return repositoryInformation.getPrimaryKeyValue(entity);
         } catch (Exception e) {
             throw new RuntimeException("Failed to extract ID from entity", e);
         }
