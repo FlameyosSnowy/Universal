@@ -37,10 +37,8 @@ public class Main {
                 .build();*/
 
         //users.executeRawQuery("DROP TABLE IF EXISTS factionUsers;");
-        warps.executeRawQuery("DROP TABLE IF EXISTS warps;");
-        factions.executeRawQuery("DROP TABLE IF EXISTS factions;");
-        factions.createRepository(true);
-        warps.createRepository(true);
+        warps.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS warps;");
+        factions.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS factions;");
         //users.createRepository(true);
 
         FactionAdapter adapter = factions.createDynamicProxy(FactionAdapter.class);

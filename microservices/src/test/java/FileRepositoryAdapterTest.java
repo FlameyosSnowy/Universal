@@ -1,5 +1,6 @@
 import io.github.flameyossnowy.universal.api.annotations.enums.CompressionType;
 import io.github.flameyossnowy.universal.api.annotations.enums.FileFormat;
+import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.microservices.file.FileRepositoryAdapter;
 import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategies;
 import org.junit.jupiter.api.*;
@@ -83,5 +84,39 @@ class FileRepositoryAdapterTest {
         adapter.clear();
 
         assertTrue(adapter.find().isEmpty());
+    }
+
+    @Test
+    void jsonField_roundTrip_and_jsonSelectOption_filtering() {
+        FileRepositoryAdapter<JsonTestEntity, String> jsonAdapter = new FileRepositoryAdapter<>(
+            JsonTestEntity.class,
+            String.class,
+            tempDir,
+            FileFormat.JSON,
+            false,
+            CompressionType.GZIP,
+            false,
+            0,
+            IndexPathStrategies.underBase()
+        );
+        jsonAdapter.createRepository(true);
+
+        JsonTestEntity entity = new JsonTestEntity(
+            "1",
+            new JsonTestEntity.Payload("Alice", 21)
+        );
+        jsonAdapter.insert(entity);
+
+        JsonTestEntity loaded = jsonAdapter.findById("1");
+        assertNotNull(loaded);
+        assertNotNull(loaded.getPayload());
+        assertEquals("Alice", loaded.getPayload().getName());
+        assertEquals(21, loaded.getPayload().getAge());
+
+        List<JsonTestEntity> filtered = jsonAdapter.find(Query.select()
+            .whereJson("payload", "$.name").eq("Alice")
+            .build());
+        assertEquals(1, filtered.size());
+        assertEquals("1", filtered.getFirst().getId());
     }
 }

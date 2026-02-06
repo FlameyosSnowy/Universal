@@ -28,7 +28,7 @@ public class NormalTest {
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
 
-        adapter.executeRawQuery("DROP TABLE IF EXISTS Factions;");
+        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS Factions;");
 
         adapter.createRepository(true)
                 .expect("Should have been able to create repository.");
@@ -57,11 +57,13 @@ public class NormalTest {
                 .withCredentials(credentials)
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
+        PostgreSQLRepositoryAdapter<Something, Long> somethingAdapter = PostgreSQLRepositoryAdapter.builder(Something.class, Long.class)
+                .withCredentials(credentials)
+                .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
+                .build();
 
-        adapter.executeRawQuery("DROP TABLE IF EXISTS Factions;");
-
-        adapter.createRepository(true)
-                .expect("Should have been able to create repository.");
+        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS Factions;");
+        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS Something;");
 
         Faction faction = new Faction();
         faction.setName("Test");
@@ -77,7 +79,38 @@ public class NormalTest {
 
         Faction faction5 = new Faction();
         faction5.setName("Test5");
-        adapter.insertAll(List.of(faction, faction2, faction3, faction4, faction5));
+
+        Something something = new Something();
+        something.setName("Test");
+
+        Something something2 = new Something();
+        something2.setName("Test2");
+
+        Something something3 = new Something();
+        something3.setName("Test3");
+
+        Something something4 = new Something();
+        something4.setName("Test4");
+
+        Something something5 = new Something();
+        something5.setName("Test5");
+        faction.setSomething(something);
+        faction2.setSomething(something2);
+        faction3.setSomething(something3);
+        faction4.setSomething(something4);
+        faction5.setSomething(something5);
+        something.setFaction(List.of(faction, faction2));
+        something2.setFaction(List.of(faction2, faction3));
+        something3.setFaction(List.of(faction3, faction4));
+        something4.setFaction(List.of(faction4, faction5));
+        something5.setFaction(List.of(faction5, faction));
+
+        try {
+            adapter.insertAll(List.of(faction, faction2, faction3, faction4, faction5)).get();
+            somethingAdapter.insertAll(List.of(something, something2, something3, something4, something5)).get();
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
 
         List<Faction> factions = adapter.find();
 
@@ -101,7 +134,7 @@ public class NormalTest {
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
 
-        adapter.executeRawQuery("DROP TABLE IF EXISTS FactionsRecord;");
+        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS FactionsRecord;");
 
         adapter.createRepository(true)
                 .expect("Should have been able to create repository.");
@@ -129,7 +162,7 @@ public class NormalTest {
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
 
-        adapter.executeRawQuery("DROP TABLE IF EXISTS FactionsWArrays CASCADE;");
+        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS FactionsWArrays CASCADE;");
 
         adapter.createRepository(true)
                .expect("Should have been able to create repository.");
@@ -175,7 +208,7 @@ public class NormalTest {
             executor.submit(() -> {
                 try {
                     for (int i = 0; i < iterationsPerThread; i++) {
-                        adapter.executeRawQuery(
+                        adapter.getQueryExecutor().executeRawQuery(
                             "CREATE TABLE IF NOT EXISTS \"factions_tmp_" + UUID.randomUUID() + "\"" +
                                 " (id BIGSERIAL PRIMARY KEY, name TEXT)"
                         );
