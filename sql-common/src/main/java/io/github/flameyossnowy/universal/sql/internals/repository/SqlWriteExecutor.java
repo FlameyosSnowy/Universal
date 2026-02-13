@@ -22,6 +22,7 @@ import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -95,7 +96,7 @@ public final class SqlWriteExecutor<T, ID> {
 
     public TransactionResult<Boolean> executeBatch(TransactionContext<Connection> transactionContext, String sql, Collection<T> collection) {
         try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
-             PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
+             PreparedStatement statement = prepareStatementWithGeneratedKeys(connection, sql)) {
 
             if (transactionContext == null) connection.setAutoCommit(false);
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryModel, collectionHandler, supportsArrays);
@@ -117,14 +118,38 @@ public final class SqlWriteExecutor<T, ID> {
                     statement.executeBatch();
                 }
 
-                connection.commit();
-
                 FieldModel<T> primaryKey = repositoryModel.getPrimaryKey();
                 if (primaryKey != null) {
-                    for (T entity : collection) {
-                        objectModel.insertCollectionEntities(entity, objectModel.getId(entity), parameters);
+                    if (isAutoIncrement) {
+                        try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+                            SQLDatabaseResult result = new SQLDatabaseResult(generatedKeys, resolverRegistry, collectionHandler, supportsArrays, repositoryModel);
+                            TypeResolver<ID> resolver = resolverRegistry.resolve(idClass);
+
+                            for (T entity : collection) {
+                                if (generatedKeys.next()) {
+                                    ID generatedId = resolver.resolve(result, primaryKey.name());
+                                    primaryKey.setValue(entity, generatedId);
+
+                                    if (globalCache != null) globalCache.put(generatedId, entity);
+                                    objectModel.insertCollectionEntities(entity, generatedId, parameters);
+                                    if (entityLifecycleListener != null) entityLifecycleListener.onPostInsert(entity);
+                                    if (auditLogger != null) auditLogger.onInsert(entity);
+                                }
+                            }
+                        }
+                    } else {
+                        // Non-auto-increment: IDs are already set on entities before insert
+                        for (T entity : collection) {
+                            ID entityId = objectModel.getId(entity);
+                            if (globalCache != null) globalCache.put(entityId, entity);
+                            objectModel.insertCollectionEntities(entity, entityId, parameters);
+                            if (entityLifecycleListener != null) entityLifecycleListener.onPostInsert(entity);
+                            if (auditLogger != null) auditLogger.onInsert(entity);
+                        }
                     }
                 }
+
+                connection.commit();
 
                 if (cache != null) cache.clear();
 
@@ -290,8 +315,8 @@ public final class SqlWriteExecutor<T, ID> {
         return connection.prepareStatement(sql);
     }
 
+    @SuppressWarnings("unchecked")
     private void invalidateExistingCaches(T value, @NotNull FieldModel<T> parentField) {
-        @SuppressWarnings("unchecked")
         T parentValue = (T) parentField.getValue(value);
         if (parentValue != null) {
             RepositoryModel<T, ID> parentRepositoryModel = (RepositoryModel<T, ID>) GeneratedMetadata.getByEntityClass(parentField.type());
@@ -308,7 +333,7 @@ public final class SqlWriteExecutor<T, ID> {
 
         try {
             relationshipHandler.invalidateRelationshipsForId(id);
-            Logging.deepInfo("Invalidated relationship cache for ID: " + id);
+            Logging.deepInfo(() -> "Invalidated relationship cache for ID: " + id);
         } catch (Exception e) {
             Logging.error("Failed to invalidate relationship cache for ID " + id + ": " + e.getMessage());
         }
