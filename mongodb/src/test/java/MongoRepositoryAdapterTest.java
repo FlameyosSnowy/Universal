@@ -11,6 +11,8 @@ import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter;
 import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.BsonString;
 import org.bson.Document;
 import org.bson.UuidRepresentation;
 import org.junit.jupiter.api.*;
@@ -123,7 +125,7 @@ class MongoRepositoryAdapterTest {
             .ifError(Throwable::printStackTrace);
 
         Document found = userCollection
-            .find(new Document("_id", user.getId().toString()))
+            .find(new Document("_id", user.getId()))
             .first();
 
         assertNotNull(found);
@@ -134,7 +136,7 @@ class MongoRepositoryAdapterTest {
         UUID id = UUID.randomUUID();
 
         userCollection.insertOne(
-            new Document("_id", id.toString())
+            new Document("_id", id)
         );
 
         Main.User user = new Main.User(
@@ -147,7 +149,7 @@ class MongoRepositoryAdapterTest {
         adapter.insert(user);
 
         long count = userCollection.countDocuments(
-            new Document("_id", id.toString())
+            new Document("_id", id)
         );
 
         assertEquals(1, count);
@@ -158,13 +160,13 @@ class MongoRepositoryAdapterTest {
         UUID id = UUID.randomUUID();
 
         userCollection.insertOne(
-            new Document("_id", id.toString())
+            new Document("_id", id)
         );
 
         adapter.deleteById(id);
 
         Document found = userCollection
-            .find(new Document("_id", id.toString()))
+            .find(new Document("_id", id))
             .first();
 
         assertNull(found);
@@ -177,7 +179,7 @@ class MongoRepositoryAdapterTest {
         adapter.deleteById(id);
 
         long count = userCollection.countDocuments(
-            new Document("_id", id.toString())
+            new Document("_id", id)
         );
 
         assertEquals(0, count);
@@ -188,7 +190,7 @@ class MongoRepositoryAdapterTest {
         UUID id = UUID.randomUUID();
 
         userCollection.insertOne(
-            new Document("_id", id.toString())
+            new Document("_id", id)
                 .append("username", "Flow")
                 .append("age", 20)
                 .append("password", Instant.now().toString())
@@ -207,7 +209,7 @@ class MongoRepositoryAdapterTest {
         );
 
         BsonDocument filter = adapter.createFilterBson(options);
-        assertEquals("Flow", filter.get("payload.profile.name"));
+        assertEquals(new BsonString("Flow"), filter.get("payload.profile.name"));
     }
 
     @Test
@@ -234,12 +236,13 @@ class MongoRepositoryAdapterTest {
 
         BsonDocument filter = jsonAdapter.createFilterBson(options);
 
-        Object value = filter.get("payload.profile");
-        assertInstanceOf(Document.class, value);
+        org.bson.BsonValue value = filter.get("payload.profile");
+        assertNotNull(value);
+        assertTrue(value.isDocument());
 
-        Document doc = (Document) value;
-        assertEquals("Flow", doc.get("n"));
-        assertEquals(21, doc.get("a"));
+        BsonDocument doc = value.asDocument();
+        assertEquals(new BsonString("Flow"), doc.get("n"));
+        assertEquals(new BsonInt32(21), doc.get("a"));
     }
 
     @Test

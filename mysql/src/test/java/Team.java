@@ -81,4 +81,16 @@ public class Team {
         result = 31 * result + Objects.hashCode(players);
         return result;
     }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setPlayers(List<Player> players) {
+        this.players = players;
+    }
 }
