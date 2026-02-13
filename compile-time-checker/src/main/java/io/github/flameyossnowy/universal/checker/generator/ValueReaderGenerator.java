@@ -42,12 +42,24 @@ public class ValueReaderGenerator {
 
     public void generateValueReader(RepositoryModel repo, List<String> qualifiedNames) {
         String className = repo.entitySimpleName() + "_ValueReader";
+
+        // Check if entity has a primary key
+        boolean hasId = repo.fields().stream().anyMatch(FieldModel::id);
+
         ParameterizedTypeName readerInterface = ParameterizedTypeName.get(
             ClassName.get("io.github.flameyossnowy.universal.api.factory", "ValueReader"),
             TypeVariableName.get("ID")
         );
         ClassName dbResult = ClassName.get("io.github.flameyossnowy.universal.api.result", "DatabaseResult");
         ClassName typeResolverRegistry = ClassName.get("io.github.flameyossnowy.universal.api.resolver", "TypeResolverRegistry");
+
+        // Handle null ID type - use Void as placeholder for entities without IDs
+        TypeName idTypeName;
+        if (repo.idType() != null) {
+            idTypeName = TypeName.get(repo.idType()).box();
+        } else {
+            idTypeName = ClassName.get(Void.class);
+        }
 
         TypeSpec.Builder builder = TypeSpec.classBuilder(className)
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
@@ -59,7 +71,7 @@ public class ValueReaderGenerator {
             .addStaticBlock(CodeBlock.builder()
                 .addStatement(
                     "io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders.<$T>register($S, (result, registry, id) -> new $L(result, registry, id))",
-                    TypeName.get(repo.idType()).box(),
+                    idTypeName,
                     repo.tableName(),
                     repo.entitySimpleName() + "_ValueReader"
                 )
@@ -135,17 +147,38 @@ public class ValueReaderGenerator {
             TypeMirror fieldType = field.type();
 
             boolean needsSpecialHandling = !field.relationship() && needsSpecialLoader(fieldType);
-            boolean hitId = false;
 
             if (needsSpecialHandling) {
                 readMethod.addStatement("case $L: return (T) read$L($S)", index, helperMethodIndex, columnName);
                 helperMethodIndex++;
             } else {
                 TypeMirror rawType = getRawType(fieldType);
-                if (field.id() && !hitId) {
-                    readMethod.addStatement("case $L: return (T) id", index);
-                    hitId = true;
+
+                // Handle ID field
+                if (field.id()) {
+                    // If we have an ID, use the provided ID parameter
+                    // If ID is null (entity without ID), read from database result
+                    if (hasId) {
+                        readMethod.beginControlFlow("case $L:", index);
+                        readMethod.addStatement("if (id != null) return (T) id");
+
+                        // Fallback: try to read from result
+                        TypeName typeName = ClassName.get(rawType);
+                        readMethod.addCode(CodeBlock.builder()
+                            .beginControlFlow("try")
+                            .addStatement("return (T) registry.resolve($T.class).resolve(result, $S)", typeName, columnName)
+                            .nextControlFlow("catch ($T e)", Exception.class)
+                            .addStatement("return null")
+                            .endControlFlow()
+                            .build());
+                        readMethod.endControlFlow();
+                    } else {
+                        // No ID field in model, but this shouldn't happen if field.id() is true
+                        TypeName typeName = ClassName.get(rawType);
+                        readMethod.addStatement("case $L: return (T) registry.resolve($T.class).resolve(result, $S)", index, typeName, columnName);
+                    }
                 } else {
+                    // Regular field
                     TypeName typeName = ClassName.get(rawType);
                     readMethod.addStatement("case $L: return (T) registry.resolve($T.class).resolve(result, $S)", index, typeName, columnName);
                 }
@@ -207,12 +240,23 @@ public class ValueReaderGenerator {
             .addParameter(String.class, "columnName")
             .beginControlFlow("try");
 
-        CodeBlock.Builder callBuilder = CodeBlock.builder()
-            .add("return result.getCollectionHandler().");
+        CodeBlock.Builder callBuilder = CodeBlock.builder();
+
+        // Check if ID is null and handle gracefully for collections
+        boolean needsId = TypeMirrorUtils.isArray(rawType)
+            || TypeMirrorUtils.isMap(types, elements, rawType)
+            || TypeMirrorUtils.isCollection(types, elements, rawType);
+
+        if (needsId) {
+            methodBuilder.beginControlFlow("if (id == null)");
+            methodBuilder.addStatement("return null");
+            methodBuilder.endControlFlow();
+        }
+
+        callBuilder.add("return result.getCollectionHandler().");
 
         if (TypeMirrorUtils.isArray(rawType)) {
-            TypeMirror mirror = field.type(); // or whatever source you have
-
+            TypeMirror mirror = field.type();
             TypeName typeName = TypeName.get(mirror);
 
             if (typeName instanceof ArrayTypeName arrayType) {

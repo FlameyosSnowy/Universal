@@ -870,7 +870,11 @@ public final class UnifiedFactoryGenerator {
 
     private void generateObjectModel(RepositoryModel repo) {
         ClassName entityType = ClassName.bestGuess(repo.entityQualifiedName());
-        TypeName idType = TypeName.get(repo.primaryKeys().getFirst().type()).box();
+
+        List<FieldModel> fieldModels = repo.primaryKeys();
+        TypeName idType = fieldModels.isEmpty()
+            ? TypeName.get(Object.class)
+            : TypeName.get(fieldModels.getFirst().type()).box();
 
         for (RelationshipModel rel : repo.relationships()) {
             if (!rel.lazy()) continue;
@@ -930,7 +934,12 @@ public final class UnifiedFactoryGenerator {
             .returns(idType)
             .addParameter(entityType, "entity");
 
-        FieldModel pkField = repo.primaryKeys().getFirst();
+        List<FieldModel> fieldModels = repo.primaryKeys();
+        if (fieldModels.isEmpty()) {
+            m.addStatement("return null");
+            return m.build();
+        }
+        FieldModel pkField = fieldModels.getFirst();
         m.addStatement("return entity.$L()", pkField.getterName());
 
         return m.build();
@@ -973,7 +982,12 @@ public final class UnifiedFactoryGenerator {
 
     private void generateRelationshipLoader(RepositoryModel repo) {
         TypeName entityType = ClassName.get(repo.entityType());
-        TypeName idType = TypeName.get(repo.primaryKeys().getFirst().type());
+
+        List<FieldModel> fieldModels = repo.primaryKeys();
+        if (fieldModels.isEmpty()) {
+            return;
+        }
+        TypeName idType = TypeName.get(fieldModels.getFirst().type());
 
         String className = repo.entitySimpleName() + "_RelationshipLoader";
         TypeSpec.Builder builder = TypeSpec.classBuilder(className)
@@ -1775,7 +1789,7 @@ public final class UnifiedFactoryGenerator {
             String call = generateCallSyntax(rel, repo);
 
             Object[] args = rel.relationshipKind() == RelationshipKind.ONE_TO_MANY
-                ? new Object[] { rel.setterName(), rel.fieldType(), rel.targetTypeName() }
+                ? (rel.lazy() ? new Object[] { rel.setterName(), rel.fieldType() } : new Object[] { rel.setterName(), rel.fieldType(), rel.targetTypeName() })
                 : new Object[] {
                     rel.setterName(),
                     rel.targetTypeName(),
