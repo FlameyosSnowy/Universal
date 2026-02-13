@@ -9,7 +9,6 @@ import java.util.function.Function;
 
 public final class GeneratedObjectFactories {
     private static final Map<String, ModelEntry<?, ?>> MODELS = new HashMap<>(16);
-    private static final Map<String, RelationshipHandler<?, ?>> RELATIONSHIP_HANDLERS = new HashMap<>(16);
 
     public static final class ModelEntry<T, ID> {
         public final Class<T> elementType;
@@ -50,11 +49,6 @@ public final class GeneratedObjectFactories {
 
         ModelEntry<E, K> entry = (ModelEntry<E, K>) raw;
         return entry.factory.apply((RepositoryModel<E, K>) repositoryModel);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <E, K> RelationshipHandler<E, K> getRelationshipHandler(String entityQualifiedName) {
-        return (RelationshipHandler<E, K>) RELATIONSHIP_HANDLERS.get(entityQualifiedName);
     }
 
     private GeneratedObjectFactories() {}

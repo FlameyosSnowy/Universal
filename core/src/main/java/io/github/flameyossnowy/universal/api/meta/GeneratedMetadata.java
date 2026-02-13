@@ -4,6 +4,7 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -40,7 +41,6 @@ public final class GeneratedMetadata {
         
         BY_TABLE_NAME.put(tableName, model);
         BY_ENTITY_CLASS.put(model.getEntityClass().getName(), model);
-        System.out.println(tableName);
     }
     
     /**
@@ -49,10 +49,8 @@ public final class GeneratedMetadata {
      * @param tableName The table name
      * @return The repository model, or null if not found
      */
-    @Nullable
     public static RepositoryModel get(String tableName) {
-        System.out.println(tableName);
-        return BY_TABLE_NAME.get(tableName);
+        return Objects.requireNonNull(BY_TABLE_NAME.get(tableName));
     }
     
     /**
@@ -63,7 +61,7 @@ public final class GeneratedMetadata {
      */
     @Nullable
     public static RepositoryModel getByEntityClass(String entityClassName) {
-        return BY_ENTITY_CLASS.get(entityClassName);
+        return Objects.requireNonNull(BY_ENTITY_CLASS.get(entityClassName));
     }
     
     /**
@@ -75,9 +73,7 @@ public final class GeneratedMetadata {
     @Nullable
     @SuppressWarnings("unchecked")
     public static <T, ID> RepositoryModel<T, ID> getByEntityClass(Class<T> entityClass) {
-        System.out.println(BY_ENTITY_CLASS);
-        System.out.println(entityClass.getName());
-        return (RepositoryModel<T, ID>) BY_ENTITY_CLASS.get(entityClass.getName());
+        return (RepositoryModel<T, ID>) Objects.requireNonNull(BY_ENTITY_CLASS.get(entityClass.getName()));
     }
     
     /**
