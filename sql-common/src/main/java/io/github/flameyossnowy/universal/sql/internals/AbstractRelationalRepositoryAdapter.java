@@ -119,12 +119,11 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
         ExceptionHandler<T, ID, Connection> exceptionHandler = (ExceptionHandler<T, ID, Connection>) repositoryModel.getExceptionHandler();
         this.exceptionHandler = exceptionHandler == null ? new DefaultExceptionHandler<>() : exceptionHandler;
-        String qualifiedName = repositoryModel.entityQualifiedName();
 
-        Logging.info("Initializing repository: " + repository.getSimpleName());
+        Logging.info(() -> "Initializing repository: " + repository.getSimpleName());
 
         RepositoryRegistry.register(this.repositoryModel.tableName(), this);
-        Logging.deepInfo("Repository information: " + repositoryModel);
+        Logging.deepInfo(() -> "Repository information: " + repositoryModel);
 
         this.resolverRegistry = new TypeResolverRegistry();
         for (Class<? extends TypeResolver<?>> resolverClass : repositoryModel.getRequiredResolvers()) {
@@ -135,9 +134,9 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             }
         }
 
-        Logging.info("Creating QueryParseEngine for query generation for table " + repositoryModel.tableName() + " with sqlType: " + sqlType.name() + '.');
+        Logging.info(() -> "Creating QueryParseEngine for query generation for table " + repositoryModel.tableName() + " with sqlType: " + sqlType.name() + '.');
         this.engine = new QueryParseEngine<>(sqlType, repositoryModel, resolverRegistry, dataSource);
-        Logging.info("Successfully created QueryParseEngine for table: " + repositoryModel.tableName());
+        Logging.info(() -> "Successfully created QueryParseEngine for table: " + repositoryModel.tableName());
 
         this.entityLifecycleListener = repositoryModel.getEntityLifecycleListener();
         this.auditLogger = repositoryModel.getAuditLogger();
@@ -159,9 +158,15 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         this.queryValidator = new SQLQueryValidator<>(repositoryModel, sqlType.getDialect());
         if (cacheWarmer != null) cacheWarmer.warmCache(this);
 
-        RelationshipHandler<T, ID> relationshipHandler = GeneratedObjectFactories.getRelationshipHandler(qualifiedName);
+        RelationshipHandler<T, ID> relationshipHandler = new SQLRelationshipHandler<>(repositoryModel, idClass, resolverRegistry);
         this.collectionHandler = new SQLCollectionHandler(dataSource, this.resolverRegistry, supportsArrays);
-        RelationshipLoader<T, ID> relationshipLoader = GeneratedRelationshipLoaders.get(repositoryModel.tableName(), relationshipHandler, collectionHandler, repositoryModel);
+        RelationshipLoader<T, ID> relationshipLoader = GeneratedRelationshipLoaders.get(
+            repositoryModel.tableName(),
+            relationshipHandler,
+            collectionHandler,
+            repositoryModel
+        );
+
         this.objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
         this.parameterBinder = new SqlParameterBinder<>();
         this.resultMapper = new SqlResultMapper<>(
@@ -227,7 +232,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
         T cached = l2Cache.get(key);
         if (cached != null) {
-            Logging.deepInfo("L2 cache hit for ID: " + key);
+            Logging.deepInfo(() -> "L2 cache hit for ID: " + key);
             return cached;
         }
         
@@ -312,7 +317,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             entity, id, this::findById
         );
         
-        cacheManager.invalidateEntity(result, entity, id);
+        cacheManager.invalidateEntity(result, id);
         return result;
     }
 
