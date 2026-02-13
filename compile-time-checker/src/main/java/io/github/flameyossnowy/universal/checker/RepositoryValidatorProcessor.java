@@ -32,7 +32,6 @@ import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
 import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
 import io.github.flameyossnowy.universal.api.cache.CacheConfig;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
-import io.github.flameyossnowy.universal.api.meta.IndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
 import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
@@ -96,7 +95,6 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     private final List<String> qualifiedNames = new ArrayList<>(16);
 
     private final Set<String> repositoryNames = new HashSet<>(16);
-    private final Map<String, String> repositoryModelByEntity = new LinkedHashMap<>(16);
 
     private TypeMirror map;
     private TypeMirror list;
@@ -161,7 +159,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 if (e.getKind() == ElementKind.FIELD) {
                     if (AnnotationUtils.hasAnnotation(e, Id.class.getCanonicalName())) hasId = true;
                     if (AnnotationUtils.hasAnnotation(e, OneToOne.class.getCanonicalName())
-                        || AnnotationUtils.hasAnnotation(e, OneToMany.class.getCanonicalName())) {
+                        || AnnotationUtils.hasAnnotation(e, OneToMany.class.getCanonicalName()) ||
+                        AnnotationUtils.hasAnnotation(e, ManyToOne.class.getCanonicalName())) {
                         hasRelationship = true;
                     }
 
@@ -233,11 +232,6 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         UnifiedFactoryGenerator gen = new UnifiedFactoryGenerator(processingEnv, processingEnv.getFiler());
         gen.generate(model);
         qualifiedNames.addAll(gen.getQualifiedNames());
-
-        repositoryModelByEntity.put(
-            model.entityQualifiedName(),
-            model.packageName() + "." + model.entitySimpleName() + "_RepositoryModel"
-        );
     }
 
     public void writeResource() {
@@ -651,7 +645,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             packageName,
             entity.getSimpleName().toString(),
             entity.getQualifiedName().toString(),
-            repo.name(),
+            Objects.requireNonNull(repo).name(),
             entity.getKind() == ElementKind.RECORD,
             entity.asType(),
             idType,
@@ -872,8 +866,6 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             error("@OneToMany field must be a generic collection", field);
             return null;
         }
-
-        TypeMirror childType = dt.getTypeArguments().getFirst();
 
         // mappedBy
         TypeMirror mappedByMirror = AnnotationUtils.getClassValue(otm, "mappedBy");

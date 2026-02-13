@@ -299,11 +299,11 @@ public class TypeResolverRegistry {
     }
 
     public <T> void register(
-            Class<T> type,
-            Class<?> databaseType,
-            int sqlType,
-            DatabaseReader<T> reader,
-            DatabaseWriter<T> writer
+        Class<T> type,
+        Class<?> databaseType,
+        int sqlType,
+        DatabaseReader<T> reader,
+        DatabaseWriter<T> writer
     ) {
         register(DataHandler.of(type, databaseType, sqlType, reader, writer));
     }
@@ -332,9 +332,7 @@ public class TypeResolverRegistry {
         if (cached == NULL_MARKER) return null;
         if (cached != null) return (TypeResolver<T>) cached;
 
-        // 3. Enum handling (prioritized and safe)
         if (type.isEnum()) {
-            System.out.println("enum " + type);
             TypeResolver<T> enumResolver =
                 (TypeResolver<T>) TypeResolver.forEnum((Class<? extends Enum>) type);
 
@@ -342,13 +340,11 @@ public class TypeResolverRegistry {
             return enumResolver;
         }
 
-        // 4. Assignable fallback
         for (var entry : resolvers.entrySet()) {
             ResolverKey registered = entry.getKey();
 
             if (registered.encoding != encoding) continue;
 
-            // Prevent Enum.class from swallowing concrete enums
             if (registered.type == Enum.class) continue;
 
             if (registered.type.isAssignableFrom(type)) {
@@ -387,31 +383,31 @@ public class TypeResolverRegistry {
         registerPrimitive(char.class);
 
         register(java.util.Date.class, Types.TIMESTAMP,
-                (r, c) -> r.get(c, java.util.Date.class),
-                (p, i, v) -> p.set(i, v, java.util.Date.class));
+            (r, c) -> r.get(c, java.util.Date.class),
+            (p, i, v) -> p.set(i, v, java.util.Date.class));
 
         register(Date.class, Types.DATE,
-                (r, c) -> r.get(c, Date.class),
-                (p, i, v) -> p.set(i, v, Date.class));
+            (r, c) -> r.get(c, Date.class),
+            (p, i, v) -> p.set(i, v, Date.class));
 
         register(Time.class, Types.TIME,
-                (r, c) -> r.get(c, Time.class),
-                (p, i, v) -> p.set(i, v, Time.class));
+            (r, c) -> r.get(c, Time.class),
+            (p, i, v) -> p.set(i, v, Time.class));
 
         register(Timestamp.class, Types.TIMESTAMP,
-                (r, c) -> r.get(c, Timestamp.class),
-                (p, i, v) -> p.set(i, v, Timestamp.class));
+            (r, c) -> r.get(c, Timestamp.class),
+            (p, i, v) -> p.set(i, v, Timestamp.class));
 
         register(BigDecimal.class, Types.DECIMAL,
-                (r, c) -> r.get(c, BigDecimal.class),
-                (p, i, v) -> p.set(i, v, BigDecimal.class));
+            (r, c) -> r.get(c, BigDecimal.class),
+            (p, i, v) -> p.set(i, v, BigDecimal.class));
 
         register(UUID.class, Types.VARCHAR,
-                (r, c) -> {
-                    String value = r.get(c, String.class);
-                    return value != null ? UUID.fromString(value) : null;
-                },
-                (p, i, v) -> p.set(i, v != null ? v.toString() : null, String.class));
+            (r, c) -> {
+                String value = r.get(c, String.class);
+                return value != null ? UUID.fromString(value) : null;
+            },
+            (p, i, v) -> p.set(i, v != null ? v.toString() : null, String.class));
     }
 
     private void registerString() {
@@ -443,10 +439,10 @@ public class TypeResolverRegistry {
     }
 
     private <T> void register(
-            Class<T> type,
-            int sqlType,
-            DatabaseReader<T> reader,
-            DatabaseWriter<T> writer
+        Class<T> type,
+        int sqlType,
+        DatabaseReader<T> reader,
+        DatabaseWriter<T> writer
     ) {
         register(type, type, sqlType, reader, writer);
     }
@@ -658,8 +654,22 @@ public class TypeResolverRegistry {
 
         @Override
         public @Nullable BigInteger resolve(DatabaseResult result, String columnName) {
-            String value = result.get(columnName, String.class);
-            return value != null ? new BigInteger(value) : null;
+            Object raw = result.get(columnName, Object.class);
+            if (raw == null) return null;
+
+            if (raw instanceof BigInteger bi) {
+                return bi;
+            }
+            if (raw instanceof String s) {
+                return new BigInteger(s);
+            }
+            if (raw instanceof Number n) {
+                return BigInteger.valueOf(n.longValue());
+            }
+
+            throw new IllegalArgumentException(
+                "Unsupported BigInteger type for column '" + columnName + "': " + raw.getClass().getName()
+            );
         }
 
         @Override
@@ -673,8 +683,18 @@ public class TypeResolverRegistry {
         @Override public Class<BigDecimal> getDatabaseType() { return BigDecimal.class; }
 
         @Override
-        public BigDecimal resolve(DatabaseResult result, String columnName) {
-            return result.get(columnName, BigDecimal.class);
+        public @Nullable BigDecimal resolve(DatabaseResult result, String columnName) {
+            Object raw = result.get(columnName, Object.class);
+            return switch (raw) {
+                case null -> null;
+                case BigDecimal bd -> bd;
+                case String s -> new BigDecimal(s);
+                case Number n -> BigDecimal.valueOf(n.doubleValue());
+                default -> throw new IllegalArgumentException(
+                    "Unsupported BigDecimal type for column '" + columnName + "': " + raw.getClass().getName()
+                );
+            };
+
         }
 
         @Override
@@ -737,8 +757,19 @@ public class TypeResolverRegistry {
 
         @Override
         public @Nullable Duration resolve(DatabaseResult result, String columnName) {
-            String durationString = result.get(columnName, String.class);
-            return durationString != null ? Duration.parse(durationString) : null;
+            Object raw = result.get(columnName, Object.class);
+            return switch (raw) {
+                case null -> null;
+                case Duration d -> d;
+                case String s -> Duration.parse(s);
+                case Number n ->
+                    // Assume milliseconds
+                    Duration.ofMillis(n.longValue());
+                default -> throw new IllegalArgumentException(
+                    "Unsupported Duration type for column '" + columnName + "': " + raw.getClass().getName()
+                );
+            };
+
         }
 
         @Override
@@ -817,8 +848,25 @@ public class TypeResolverRegistry {
 
         @Override
         public @Nullable LocalDate resolve(DatabaseResult result, String columnName) {
-            Date date = result.get(columnName, Date.class);
-            return date != null ? date.toLocalDate() : null;
+            Object raw = result.get(columnName, Object.class);
+            if (raw == null) return null;
+
+            if (raw instanceof LocalDate ld) {
+                return ld;
+            }
+            if (raw instanceof Date d) {
+                return d.toLocalDate();
+            }
+            if (raw instanceof java.util.Date d) {
+                return new Date(d.getTime()).toLocalDate();
+            }
+            if (raw instanceof String s) {
+                return LocalDate.parse(s);
+            }
+
+            throw new IllegalArgumentException(
+                "Unsupported LocalDate type for column '" + columnName + "': " + raw.getClass().getName()
+            );
         }
 
         @Override
@@ -833,8 +881,17 @@ public class TypeResolverRegistry {
 
         @Override
         public @Nullable LocalTime resolve(DatabaseResult result, String columnName) {
-            Time time = result.get(columnName, Time.class);
-            return time != null ? time.toLocalTime() : null;
+            Object raw = result.get(columnName, Object.class);
+            return switch (raw) {
+                case null -> null;
+                case LocalTime lt -> lt;
+                case Time t -> t.toLocalTime();
+                case String s -> LocalTime.parse(s);
+                default -> throw new IllegalArgumentException(
+                    "Unsupported LocalTime type for column '" + columnName + "': " + raw.getClass().getName()
+                );
+            };
+
         }
 
         @Override
@@ -849,8 +906,18 @@ public class TypeResolverRegistry {
 
         @Override
         public @Nullable LocalDateTime resolve(DatabaseResult result, String columnName) {
-            Timestamp ts = result.get(columnName, Timestamp.class);
-            return ts != null ? ts.toLocalDateTime() : null;
+            Object raw = result.get(columnName, Object.class);
+            return switch (raw) {
+                case null -> null;
+                case LocalDateTime ldt -> ldt;
+                case Timestamp ts -> ts.toLocalDateTime();
+                case java.util.Date d -> new Timestamp(d.getTime()).toLocalDateTime();
+                case String s -> LocalDateTime.parse(s);
+                default -> throw new IllegalArgumentException(
+                    "Unsupported LocalDateTime type for column '" + columnName + "': " + raw.getClass().getName()
+                );
+            };
+
         }
 
         @Override
@@ -913,13 +980,169 @@ public class TypeResolverRegistry {
 
         @Override
         public @Nullable Instant resolve(DatabaseResult result, String columnName) {
-            Long value = result.get(columnName, Long.class);
-            return value != null ? Instant.ofEpochMilli(value) : null;
+            Object raw = result.get(columnName, Object.class);
+            switch (raw) {
+                case null -> {
+                    return null;
+                }
+                case Long l -> {
+                    return Instant.ofEpochMilli(l);
+                }
+                case Number n -> {
+                    return Instant.ofEpochMilli(n.longValue());
+                }
+                case String s -> {
+                    try {
+                        return Instant.ofEpochMilli(Long.parseLong(s));
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Cannot parse epoch millis from string: " + s, e);
+                    }
+                }
+                default -> {
+                }
+            }
+
+            throw new IllegalArgumentException(
+                "Unsupported epoch instant type for column '" + columnName + "': " + raw.getClass().getName()
+            );
         }
 
         @Override
         public void insert(DatabaseParameters parameters, String index, Instant value) {
             parameters.set(index, value != null ? value.toEpochMilli() : null, Long.class);
+        }
+
+        @Override
+        public SqlEncoding getEncoding() {
+            return SqlEncoding.BINARY;
+        }
+    }
+
+    public static final class YearTypeResolver implements TypeResolver<Year> {
+        @Override public Class<Year> getType() { return Year.class; }
+        @Override public Class<Integer> getDatabaseType() { return Integer.class; }
+
+        @Override
+        public @Nullable Year resolve(DatabaseResult result, String columnName) {
+            Object raw = result.get(columnName, Object.class);
+            return switch (raw) {
+                case null -> null;
+                case Year y -> y;
+                case Number n -> Year.of(n.intValue());
+                case String s -> Year.parse(s);
+                default -> throw new IllegalArgumentException(
+                    "Unsupported Year type for column '" + columnName + "': " + raw.getClass().getName()
+                );
+            };
+
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, Year value) {
+            parameters.set(index, value != null ? value.getValue() : null, Integer.class);
+        }
+    }
+
+    public static final class MonthTypeResolver implements TypeResolver<Month> {
+        @Override public Class<Month> getType() { return Month.class; }
+        @Override public Class<Integer> getDatabaseType() { return Integer.class; }
+
+        @Override
+        public @Nullable Month resolve(DatabaseResult result, String columnName) {
+            Object raw = result.get(columnName, Object.class);
+            switch (raw) {
+                case null -> {
+                    return null;
+                }
+                case Month m -> {
+                    return m;
+                }
+                case Number n -> {
+                    return Month.of(n.intValue());
+                }
+                case String s -> {
+                    try {
+                        return Month.of(Integer.parseInt(s));
+                    } catch (NumberFormatException e) {
+                        return Month.valueOf(s.toUpperCase());
+                    }
+                }
+                default -> {
+                }
+            }
+
+            throw new IllegalArgumentException(
+                "Unsupported Month type for column '" + columnName + "': " + raw.getClass().getName()
+            );
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, Month value) {
+            parameters.set(index, value != null ? value.getValue() : null, Integer.class);
+        }
+    }
+
+    public static final class YearMonthTypeResolver implements TypeResolver<YearMonth> {
+        @Override public Class<YearMonth> getType() { return YearMonth.class; }
+        @Override public Class<String> getDatabaseType() { return String.class; }
+
+        @Override
+        public @Nullable YearMonth resolve(DatabaseResult result, String columnName) {
+            String value = result.get(columnName, String.class);
+            return value != null ? YearMonth.parse(value) : null;
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, YearMonth value) {
+            parameters.set(index, value != null ? value.toString() : null, String.class);
+        }
+    }
+
+    public static final class ZoneIdTypeResolver implements TypeResolver<ZoneId> {
+        @Override public Class<ZoneId> getType() { return ZoneId.class; }
+        @Override public Class<String> getDatabaseType() { return String.class; }
+
+        @Override
+        public @Nullable ZoneId resolve(DatabaseResult result, String columnName) {
+            String value = result.get(columnName, String.class);
+            return value != null ? ZoneId.of(value) : null;
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, ZoneId value) {
+            parameters.set(index, value != null ? value.getId() : null, String.class);
+        }
+    }
+
+    public static final class TimeZoneTypeResolver implements TypeResolver<TimeZone> {
+        @Override public Class<TimeZone> getType() { return TimeZone.class; }
+        @Override public Class<String> getDatabaseType() { return String.class; }
+
+        @Override
+        public @Nullable TimeZone resolve(DatabaseResult result, String columnName) {
+            String value = result.get(columnName, String.class);
+            return value != null ? TimeZone.getTimeZone(value) : null;
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, TimeZone value) {
+            parameters.set(index, value != null ? value.getID() : null, String.class);
+        }
+    }
+
+    public static final class OffsetTimeTypeResolver implements TypeResolver<OffsetTime> {
+        @Override public Class<OffsetTime> getType() { return OffsetTime.class; }
+        @Override public Class<String> getDatabaseType() { return String.class; }
+
+        @Override
+        public @Nullable OffsetTime resolve(DatabaseResult result, String columnName) {
+            String value = result.get(columnName, String.class);
+            return value != null ? OffsetTime.parse(value) : null;
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, OffsetTime value) {
+            parameters.set(index, value != null ? value.toString() : null, String.class);
         }
     }
 
@@ -997,8 +1220,44 @@ public class TypeResolverRegistry {
 
         @Override
         public @Nullable UUID resolve(@NotNull DatabaseResult result, String columnName) {
-            String value = result.get(columnName, String.class);
-            return value != null ? UUID.fromString(value) : null;
+            Object raw = result.get(columnName, Object.class);
+            if (raw == null) return null;
+
+            if (raw instanceof UUID uuid) {
+                return uuid;
+            }
+            if (raw instanceof String s) {
+                return UUID.fromString(s);
+            }
+            if (raw instanceof byte[] bytes) {
+                if (bytes.length != 16) {
+                    throw new IllegalArgumentException(
+                        "Invalid UUID byte[] length for column '" + columnName + "': " + bytes.length
+                    );
+                }
+                ByteBuffer buf = ByteBuffer.wrap(bytes);
+                return new UUID(buf.getLong(), buf.getLong());
+            }
+
+            if ("org.bson.types.Binary".equals(raw.getClass().getName())) {
+                try {
+                    byte[] bytes = (byte[]) raw.getClass().getMethod("getData").invoke(raw);
+                    if (bytes == null) return null;
+                    if (bytes.length != 16) {
+                        throw new IllegalArgumentException(
+                            "Invalid BSON Binary UUID length for column '" + columnName + "': " + bytes.length
+                        );
+                    }
+                    ByteBuffer buf = ByteBuffer.wrap(bytes);
+                    return new UUID(buf.getLong(), buf.getLong());
+                } catch (ReflectiveOperationException e) {
+                    throw new RuntimeException("Failed to read BSON Binary UUID for column '" + columnName + "'", e);
+                }
+            }
+
+            throw new IllegalArgumentException(
+                "Unsupported UUID database value type for column '" + columnName + "': " + raw.getClass().getName()
+            );
         }
 
         @Override

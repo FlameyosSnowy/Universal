@@ -27,7 +27,6 @@ public final class ModelsBootstrap {
             try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = r.readLine()) != null) {
-                    System.out.println(line);
                     Class.forName(line, true, cl);
                 }
             }

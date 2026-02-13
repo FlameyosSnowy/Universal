@@ -161,7 +161,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
         this.objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
 
-        MicroserviceRelationshipHandler<T, ID, FileContext> handler = new MicroserviceRelationshipHandler<>(repositoryModel, idType, resolverRegistry);
+        MicroserviceRelationshipHandler<T, ID> handler = new MicroserviceRelationshipHandler<>(repositoryModel, idType, resolverRegistry);
         this.relationshipLoader = GeneratedRelationshipLoaders.get(repositoryModel.entityQualifiedName(), handler, null, repositoryModel);
         this.relationshipResolver = new RelationshipResolver<>(handler);
 

@@ -78,7 +78,7 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
         CacheConfig cacheConfig = information.getCacheConfig();
         boolean globalCacheable = information.isGlobalCacheable();
 
-        boolean cacheEnabled = cacheConfig != null;
+        boolean cacheEnabled = cacheConfig.isEnabled();
         int maxSize = 0;
 
         DefaultResultCache<String, T, ID> resultCache = null;

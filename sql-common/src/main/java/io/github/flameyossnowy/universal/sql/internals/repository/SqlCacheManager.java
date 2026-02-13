@@ -43,7 +43,7 @@ public class SqlCacheManager<T, ID> {
         }
     }
 
-    public void invalidateEntity(TransactionResult<Boolean> result, T entity, ID id) {
+    public void invalidateEntity(TransactionResult<Boolean> result, ID id) {
         if (result.isSuccess()) {
             // Invalidate L2 cache for this entity
             try {
@@ -53,7 +53,7 @@ public class SqlCacheManager<T, ID> {
                     //noinspection DataFlowIssue
                     readThroughCache.invalidate(id);
                 }
-                Logging.deepInfo("Invalidated caches for entity ID: " + id);
+                Logging.deepInfo(() -> "Invalidated caches for entity ID: " + id);
             } catch (Exception e) {
                 Logging.error("Failed to invalidate cache: " + e.getMessage());
             }

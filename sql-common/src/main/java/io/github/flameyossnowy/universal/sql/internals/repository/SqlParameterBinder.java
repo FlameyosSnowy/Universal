@@ -147,11 +147,12 @@ public final class SqlParameterBinder<T, ID> {
             }
 
             T value = (T) fieldData.getValue(entity);
-            Logging.deepInfo("Processing field for update: " + fieldData.name() + " with value: " + value);
+            T finalValue1 = value;
+            Logging.deepInfo(() -> "Processing field for update: " + fieldData.name() + " with value: " + finalValue1);
 
             if ((fieldData.relationshipKind() == RelationshipKind.ONE_TO_ONE || fieldData.relationshipKind() == RelationshipKind.MANY_TO_ONE)) {
                 if (value == null) {
-                    Logging.deepInfo("  -> Relationship field is null, setting to NULL");
+                    Logging.deepInfo(() -> "  -> Relationship field is null, setting to NULL");
                 } else {
                     RepositoryModel<T, ID> relatedInfo = (RepositoryModel<T, ID>) GeneratedMetadata.getByEntityClass(fieldData.type());
                     if (relatedInfo != null) {
@@ -161,7 +162,8 @@ public final class SqlParameterBinder<T, ID> {
                         }
 
                         value = (T) pkField.getValue(value);
-                        Logging.deepInfo("  -> Relationship field, using ID for update: " + value);
+                        T finalValue = value;
+                        Logging.deepInfo(() -> "  -> Relationship field, using ID for update: " + finalValue);
                     }
                 }
             }
@@ -184,11 +186,12 @@ public final class SqlParameterBinder<T, ID> {
             }
 
             if (resolver == null) {
-                Logging.deepInfo("No resolver for " + fieldData.type() + ", assuming it's a relationship handled elsewhere.");
+                Logging.deepInfo(() -> "No resolver for " + fieldData.type() + ", assuming it's a relationship handled elsewhere.");
                 continue;
             }
 
-            Logging.deepInfo("Binding parameter " + fieldData.name() + ": " + value + " (type: " + (value != null ? value.getClass().getSimpleName() : "null") + ")");
+            T finalValue2 = value;
+            Logging.deepInfo(() -> "Binding parameter " + fieldData.name() + ": " + finalValue2 + " (type: " + (finalValue2 != null ? finalValue2.getClass().getSimpleName() : "null") + ")");
             resolver.insert(statement, fieldData.name(), value);
         }
     }

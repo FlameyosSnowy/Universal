@@ -178,6 +178,6 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
     }
     
     private void log(String message) {
-        Logging.info("[DefaultSession " + id + "] " + message);
+        Logging.info(() -> "[DefaultSession " + id + "] " + message);
     }
 }

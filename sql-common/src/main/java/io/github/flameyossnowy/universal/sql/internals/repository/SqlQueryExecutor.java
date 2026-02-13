@@ -32,7 +32,7 @@ public class SqlQueryExecutor<T, ID> {
     }
 
     public TransactionResult<Boolean> executeRawQuery(final String query) {
-        Logging.info("Parsed query: " + query);
+        Logging.info(() -> "Parsed query: " + query);
         try (var connection = dataSource.getConnection();
              PreparedStatement statement = dataSource.prepareStatement(query, connection)) {
             return TransactionResult.success(statement.execute());

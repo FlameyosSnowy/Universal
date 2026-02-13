@@ -41,10 +41,10 @@ public final class RepositoryDdlBuilder<T, ID> {
         this.connectionProvider = connectionProvider;
     }
 
-    @SuppressWarnings("RedundantOperationOnEmptyContainer")
+    @SuppressWarnings({ "RedundantOperationOnEmptyContainer", "ConstantValue" })
     public @NotNull String parseRepository(boolean ifNotExists) {
-        Logging.deepInfo("Starting repository parse: " + repositoryInformation.tableName());
-        Logging.deepInfo("IF NOT EXISTS = " + ifNotExists);
+        Logging.deepInfo(() -> "Starting repository parse: " + repositoryInformation.tableName());
+        Logging.deepInfo(() -> "IF NOT EXISTS = " + ifNotExists);
 
         @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
         Set<FieldModel<T>> childTableQueue = new HashSet<>(4);
@@ -53,7 +53,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         String ddlPrefix = "CREATE TABLE " + (ifNotExists ? "IF NOT EXISTS " : "")
             + sqlType.quoteChar() + tableName + sqlType.quoteChar();
 
-        Logging.deepInfo("DDL prefix: " + ddlPrefix);
+        Logging.deepInfo(() -> "DDL prefix: " + ddlPrefix);
 
         StringJoiner joiner = new StringJoiner(", ", ddlPrefix + " (", ");");
 
@@ -61,21 +61,21 @@ public final class RepositoryDdlBuilder<T, ID> {
 
         String classConstraints = processClassLevelConstraints();
         if (!classConstraints.isEmpty()) {
-            Logging.deepInfo("Adding class-level constraints: " + classConstraints);
+            Logging.deepInfo(() -> "Adding class-level constraints: " + classConstraints);
             joiner.add(classConstraints);
         }
 
         String finalQuery = joiner.toString();
-        Logging.deepInfo("Final CREATE TABLE query:\n" + finalQuery);
+        Logging.deepInfo(() -> "Final CREATE TABLE query:\n" + finalQuery);
 
         String query = createTable(finalQuery, "Failed to create main repository table: ", tableName);
 
         if (!childTableQueue.isEmpty()) {
-            Logging.deepInfo("Creating " + childTableQueue.size() + " child tables");
+            Logging.deepInfo(() ->  "Creating " + childTableQueue.size() + " child tables");
         }
 
         for (FieldModel<T> data : childTableQueue) {
-            Logging.deepInfo("Creating child table for field: " + data.name());
+            Logging.deepInfo(() -> "Creating child table for field: " + data.name());
             createChildTable(data);
         }
 
@@ -96,15 +96,15 @@ public final class RepositoryDdlBuilder<T, ID> {
     private String processClassLevelConstraints() {
         List<ConstraintModel> constraints = repositoryInformation.constraints();
         if (constraints.isEmpty()) {
-            Logging.deepInfo("No class-level constraints found");
+            Logging.deepInfo(() -> "No class-level constraints found");
             return "";
         }
 
-        Logging.deepInfo("Processing " + constraints.size() + " class-level constraints");
+        Logging.deepInfo(() -> "Processing " + constraints.size() + " class-level constraints");
 
         StringJoiner joiner = new StringJoiner(", ");
         for (ConstraintModel constraint : constraints) {
-            Logging.deepInfo("Processing constraint: " + constraint.name());
+            Logging.deepInfo(() -> "Processing constraint: " + constraint.name());
 
             StringJoiner checkConditionsJoiner = new StringJoiner(" AND ");
             StringJoiner uniqueFieldsJoiner = new StringJoiner(", ");
@@ -112,7 +112,7 @@ public final class RepositoryDdlBuilder<T, ID> {
             for (String fieldName : constraint.fields()) {
                 FieldModel<T> fieldData = repositoryInformation.fieldByName(fieldName);
                 if (fieldData == null) {
-                    Logging.deepInfo("Constraint field not found: " + fieldName);
+                    Logging.deepInfo(() -> "Constraint field not found: " + fieldName);
                     continue;
                 }
 
@@ -126,13 +126,13 @@ public final class RepositoryDdlBuilder<T, ID> {
 
             if (checkConditionsJoiner.length() > 0) {
                 String check = "CONSTRAINT " + constraint.name() + " CHECK (" + checkConditionsJoiner + ")";
-                Logging.deepInfo("Generated CHECK constraint: " + check);
+                Logging.deepInfo(() -> "Generated CHECK constraint: " + check);
                 joiner.add(check);
             }
 
             if (uniqueFieldsJoiner.length() > 0) {
                 String unique = "CONSTRAINT " + constraint.name() + " UNIQUE (" + uniqueFieldsJoiner + ")";
-                Logging.deepInfo("Generated UNIQUE constraint: " + unique);
+                Logging.deepInfo(() -> "Generated UNIQUE constraint: " + unique);
                 joiner.add(unique);
             }
         }
@@ -142,14 +142,14 @@ public final class RepositoryDdlBuilder<T, ID> {
 
     @Contract(pure = true)
     private void generateColumns(final StringJoiner joiner, Set<FieldModel<T>> childTableQueue) {
-        Logging.deepInfo("Generating columns for repository: " + repositoryInformation.tableName());
+        Logging.deepInfo(() -> "Generating columns for repository: " + repositoryInformation.tableName());
 
         StringJoiner primaryKeysJoiner = new StringJoiner(", ");
         StringJoiner relationshipsJoiner = new StringJoiner(", ");
 
         for (FieldModel<T> data : repositoryInformation.fields()) {
-            Logging.deepInfo("----");
-            Logging.deepInfo("Processing field: " + data.name());
+            Logging.deepInfo(() -> "----");
+            Logging.deepInfo(() -> "Processing field: " + data.name());
 
             generateColumn(
                 joiner,
@@ -167,12 +167,12 @@ public final class RepositoryDdlBuilder<T, ID> {
 
         if (primaryKeysJoiner.length() > 0) {
             String pk = "PRIMARY KEY (" + primaryKeysJoiner + ")";
-            Logging.deepInfo("Primary key clause: " + pk);
+            Logging.deepInfo(() -> "Primary key clause: " + pk);
             joiner.add(pk);
         }
 
         if (relationshipsJoiner.length() > 0) {
-            Logging.deepInfo("Relationship clauses: " + relationshipsJoiner);
+            Logging.deepInfo(() -> "Relationship clauses: " + relationshipsJoiner);
             joiner.add(relationshipsJoiner.toString());
         }
     }
@@ -189,7 +189,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         StringJoiner relationshipsJoiner,
         Set<FieldModel<T>> childTableQueue
     ) {
-        if (data.relationship()) {
+        if (data.relationshipKind() == RelationshipKind.ONE_TO_MANY) {
             return;
         }
 
@@ -249,12 +249,12 @@ public final class RepositoryDdlBuilder<T, ID> {
         addColumnMetaData(data, fieldBuilder, unique);
 
         String columnSql = fieldBuilder.toString();
-        Logging.deepInfo("Generated column SQL: " + columnSql);
+        Logging.deepInfo(() -> "Generated column SQL: " + columnSql);
 
         joiner.add(columnSql);
 
         if (primaryKey) {
-            Logging.deepInfo("Marked as PRIMARY KEY: " + name);
+            Logging.deepInfo(() -> "Marked as PRIMARY KEY: " + name);
             primaryKeysJoiner.add(name);
         }
 
@@ -312,7 +312,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         String onUpdate = data.onUpdate() != null ? data.onUpdate().value().name() : "";
 
         StringBuilder fkBuilder = new StringBuilder(38 + name.length() + table.length() + primaryKeyName.length() + onDelete.length() + onUpdate.length());
-        fkBuilder.append("FOREIGN KEY (").append(name).append(") REFERENCES ").append(table).append('(').append(primaryKeyName).append(')');
+        fkBuilder.append("FOREIGN KEY (").append(name).append(") REFERENCES ").append(sqlType.quoteChar()).append(table).append(sqlType.quoteChar()).append('(').append(primaryKeyName).append(')');
         if (data.onDelete() != null) fkBuilder.append(" ON DELETE ").append(onDelete);
         if (data.onUpdate() != null) fkBuilder.append(" ON UPDATE ").append(onUpdate);
         relationshipsJoiner.add(fkBuilder);

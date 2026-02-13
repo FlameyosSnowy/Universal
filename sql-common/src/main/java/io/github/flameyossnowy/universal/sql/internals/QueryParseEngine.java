@@ -83,7 +83,7 @@ public class QueryParseEngine<T, ID> {
         String queryString = selectSqlBuilder.parseSelect(query, first);
 
         if (queryMap != null) queryMap.put(key, queryString);
-        Logging.info("Parsed query for selecting: " + queryString);
+        Logging.info(() -> "Parsed query for selecting: " + queryString);
         return queryString;
     }
 
@@ -117,11 +117,11 @@ public class QueryParseEngine<T, ID> {
     }
 
     public @NotNull String parseInsert() {
-        Logging.info("Parsed query for inserting: " + insert);
+        Logging.info(() -> "Parsed query for inserting: " + insert);
         return insert;
     }
 
-    public @NotNull String parseUpdate(UpdateQuery query) {
+    public @NotNull String parseUpdate(@NotNull UpdateQuery query) {
         String key = "UPDATE:" + query.hashCode();
         return queryMap.computeIfAbsent(key, k -> updateSqlBuilder.parseUpdate(query));
     }
