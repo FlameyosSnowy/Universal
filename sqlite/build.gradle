@@ -2,11 +2,11 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'me.champeau.jmh' version '0.7.2'
-    id("com.gradleup.shadow") version "9.0.0-beta12"
+    id("com.gradleup.shadow") version "9.3.1"
 }
 
 group = 'io.github.flameyossnowy.universal'
-version = '6.1.6'
+version = '7.0.0'
 
 repositories {
     mavenCentral()
@@ -33,6 +33,9 @@ dependencies {
 
     jmh 'org.openjdk.jmh:jmh-core:1.35' // Use the latest version
     jmhAnnotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.35'
+
+    testImplementation(platform("org.junit:junit-bom:5.10.0"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
 }
 
 sourceSets {

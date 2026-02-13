@@ -1,11 +1,11 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id("com.gradleup.shadow") version "9.0.0-beta12"
+    id("com.gradleup.shadow") version "9.3.1"
 }
 
 group = 'io.github.flameyossnowy.universal'
-version = '6.1.6'
+version = '7.0.0'
 
 repositories {
     mavenCentral()
@@ -28,7 +28,6 @@ subprojects {
     apply plugin: 'java'
     apply plugin: 'maven-publish'
     apply plugin: 'signing'
-    apply plugin: 'com.github.johnrengelman.shadow'
 
     java {
         withSourcesJar()
@@ -47,5 +46,5 @@ subprojects {
         }
     }
 
-    java.toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+    java.toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 }
