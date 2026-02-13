@@ -4,8 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Add kotlin extension">
-      <change afterPath="$PROJECT_DIR$/.github/workflows/qodana_code_quality.yml" afterDir="false" />
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Handle no ID case">
       <change afterPath="$PROJECT_DIR$/.gradle/8.12/checksums/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/8.12/checksums/md5-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/8.12/checksums/sha1-checksums.bin" afterDir="false" />
@@ -22,17 +21,21 @@
       <change afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/vcs-1/gc.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/kotlinc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules/mysql/Universal.mysql.test.iml" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/jit/SmartWritebackDefer.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/write/AsyncWriteBackQueue.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/write/ThreadMode.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/qodana.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRelationshipHandler.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/SQLRelationshipHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/kotlinc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/kotlinc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedMetadata.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedMetadata.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedObjectFactories.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedObjectFactories.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -215,13 +218,13 @@
     &quot;assignee&quot;: &quot;FlameyosSnowy&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/MeveraStudios/Universal.git",
-    "accountId": "91ccccb7-93dc-4f09-a43c-c51391e8f982"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/MeveraStudios/Universal.git&quot;,
+    &quot;accountId&quot;: &quot;91ccccb7-93dc-4f09-a43c-c51391e8f982&quot;
   }
-}]]></component>
-  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="$USER_HOME$/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv/gradle-8.12" javaHome="$USER_HOME$/.jdks/corretto-21.0.10" gradleVersion="8.12" />
+}</component>
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="$USER_HOME$/.gradle/wrapper/dists/gradle-9.3.1-bin/23ovyewtku6u96viwx3xl3oks/gradle-9.3.1" javaHome="$USER_HOME$/.jdks/corretto-21.0.10" gradleVersion="9.3.1" />
   <component name="HighlightingSettingsPerFile">
     <setting file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.15.2/32d4d520f3e46e7b2c2d4d863d8f2f381af4fa6/jackson-databind-2.15.2-sources.jar!/com/fasterxml/jackson/databind/deser/Deserializers.java" root0="SKIP_INSPECTION" />
     <setting file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.15.2/32d4d520f3e46e7b2c2d4d863d8f2f381af4fa6/jackson-databind-2.15.2-sources.jar!/com/fasterxml/jackson/databind/module/SimpleDeserializers.java" root0="SKIP_INSPECTION" />
@@ -255,10 +258,12 @@
     "Gradle.FileRepositoryAdapterTest.jsonField_roundTrip_and_jsonSelectOption_filtering.executor": "Run",
     "Gradle.MongoRepositoryAdapterTest.delete_user_is_called_on_collection.executor": "Run",
     "Gradle.MongoRepositoryAdapterTest.executor": "Run",
+    "Gradle.MongoRepositoryAdapterTest.find_by_id_queries_collection.executor": "Run",
     "Gradle.MongoRepositoryAdapterTest.insert_existing_user_does_not_insert.executor": "Run",
     "Gradle.MongoRepositoryAdapterTest.insert_new_user_inserts_document.executor": "Run",
     "Gradle.MongoRepositoryAdapterTest.insert_user_is_written_to_collection.executor": "Run",
     "Gradle.MongoRepositoryAdapterTest.mixed_filters_build_and_clause.executor": "Run",
+    "Gradle.MySqlJsonFilterTest.executor": "Run",
     "Gradle.NetworkRepositoryAdapterTest.executor": "Run",
     "Gradle.NetworkRepositoryAdapterTest.insertClearsCache.executor": "Run",
     "Gradle.NormalTest.executor": "Run",
@@ -267,10 +272,12 @@
     "Gradle.NormalTest.postgresql_cache_test.executor": "Run",
     "Gradle.NormalTest.postgresql_test.executor": "Run",
     "Gradle.NormalTest.postgresql_test_record.executor": "Run",
+    "Gradle.PostgresJsonFilterTest.executor": "Run",
     "Gradle.RelationshipTest.executor": "Run",
     "Gradle.RelationshipTest.testManyToManyRelationship.executor": "Run",
     "Gradle.RelationshipTest.testOneToManyRelationship.executor": "Run",
     "Gradle.RelationshipTest.testOneToOneRelationship.executor": "Run",
+    "Gradle.SqliteJsonFilterTest.executor": "Run",
     "Gradle.Universal [:cassandra:shadowJar].executor": "Run",
     "Gradle.Universal [:compile-time-checker:shadowJar].executor": "Run",
     "Gradle.Universal [:core:shadowJar].executor": "Run",
@@ -296,6 +303,7 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "dart.analysis.tool.window.visible": "false",
     "extract.method.default.visibility": "private",
@@ -310,7 +318,7 @@
     "nodejs_package_manager_path": "npm",
     "onboarding.tips.debug.path": "/home/flameyosflow/IdeaProjects/Universal/core-ktx/src/main/java/me/flame/universal/api/kotlin/Main.java",
     "org.rust.first.attach.projects": "true",
-    "project.structure.last.edited": "Project",
+    "project.structure.last.edited": "Modules",
     "project.structure.proportion": "0.0",
     "project.structure.side.proportion": "0.2",
     "run.code.analysis.last.selected.profile": "pProject Default",
@@ -336,22 +344,8 @@
       <recent name="io.github.flameyossnow.universal" />
     </key>
   </component>
-  <component name="RunManager" selected="Application.Main (1)">
-    <configuration name="Main (1)" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="Main" />
-      <module name="Universal.sqlite.test" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="Main" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="Main" />
-      <module name="Universal.mongodb.test" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="MongoRepositoryAdapterTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+  <component name="RunManager" selected="Gradle.NormalTest.postgresql_cache_test">
+    <configuration name="MySqlJsonFilterTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
@@ -362,36 +356,9 @@
         </option>
         <option name="taskNames">
           <list>
-            <option value=":mongodb:test" />
+            <option value=":mysql:test" />
             <option value="--tests" />
-            <option value="&quot;MongoRepositoryAdapterTest&quot;" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
-      <GradleProfilingDisabled>false</GradleProfilingDisabled>
-      <GradleCoverageDisabled>false</GradleCoverageDisabled>
-      <method v="2" />
-    </configuration>
-    <configuration name="MongoRepositoryAdapterTest.insert_new_user_inserts_document" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value=":mongodb:test" />
-            <option value="--tests" />
-            <option value="&quot;MongoRepositoryAdapterTest.insert_new_user_inserts_document&quot;" />
+            <option value="&quot;MySqlJsonFilterTest&quot;" />
           </list>
         </option>
         <option name="vmOptions" />
@@ -432,20 +399,101 @@
       <GradleCoverageDisabled>false</GradleCoverageDisabled>
       <method v="2" />
     </configuration>
+    <configuration name="NormalTest.postgresql_cache_test" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" value="" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value=":postgresql:test" />
+            <option value="--tests" />
+            <option value="&quot;NormalTest.postgresql_cache_test&quot;" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>true</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
+    <configuration name="PostgresJsonFilterTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" value="" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value=":postgresql:test" />
+            <option value="--tests" />
+            <option value="&quot;PostgresJsonFilterTest&quot;" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>true</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
+    <configuration name="RelationshipTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" value="" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value=":mysql:test" />
+            <option value="--tests" />
+            <option value="&quot;RelationshipTest&quot;" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>true</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
     <list>
-      <item itemvalue="Application.Main (1)" />
-      <item itemvalue="Application.Main" />
-      <item itemvalue="Gradle.MongoRepositoryAdapterTest.insert_new_user_inserts_document" />
-      <item itemvalue="Gradle.MongoRepositoryAdapterTest" />
       <item itemvalue="Gradle.NormalTest" />
+      <item itemvalue="Gradle.NormalTest.postgresql_cache_test" />
+      <item itemvalue="Gradle.PostgresJsonFilterTest" />
+      <item itemvalue="Gradle.MySqlJsonFilterTest" />
+      <item itemvalue="Gradle.RelationshipTest" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Application.Main (1)" />
-        <item itemvalue="Gradle.MongoRepositoryAdapterTest.insert_new_user_inserts_document" />
-        <item itemvalue="Gradle.MongoRepositoryAdapterTest" />
+        <item itemvalue="Gradle.NormalTest.postgresql_cache_test" />
         <item itemvalue="Gradle.NormalTest" />
-        <item itemvalue="Application.Main" />
+        <item itemvalue="Gradle.PostgresJsonFilterTest" />
+        <item itemvalue="Gradle.RelationshipTest" />
+        <item itemvalue="Gradle.MySqlJsonFilterTest" />
       </list>
     </recent_temporary>
   </component>
@@ -563,71 +611,15 @@
       <workItem from="1770185730279" duration="3418000" />
       <workItem from="1770190403404" duration="15626000" />
       <workItem from="1770272165032" duration="12000" />
-      <workItem from="1770286108739" duration="21429000" />
-    </task>
-    <task id="LOCAL-00094" summary="Optimizations">
-      <option name="closed" value="true" />
-      <created>1767088996234</created>
-      <option name="number" value="00094" />
-      <option name="presentableId" value="LOCAL-00094" />
-      <option name="project" value="LOCAL" />
-      <updated>1767088996234</updated>
-    </task>
-    <task id="LOCAL-00095" summary="Add &lt;T, ID&gt; instead of &lt;ID&gt;, and invalidate RelationalRepositoryAdapter">
-      <option name="closed" value="true" />
-      <created>1767089064915</created>
-      <option name="number" value="00095" />
-      <option name="presentableId" value="LOCAL-00095" />
-      <option name="project" value="LOCAL" />
-      <updated>1767089064915</updated>
-    </task>
-    <task id="LOCAL-00096" summary="Proper presize">
-      <option name="closed" value="true" />
-      <created>1767089099550</created>
-      <option name="number" value="00096" />
-      <option name="presentableId" value="LOCAL-00096" />
-      <option name="project" value="LOCAL" />
-      <updated>1767089099550</updated>
-    </task>
-    <task id="LOCAL-00097" summary="Add prefetch feature">
-      <option name="closed" value="true" />
-      <created>1767089136890</created>
-      <option name="number" value="00097" />
-      <option name="presentableId" value="LOCAL-00097" />
-      <option name="project" value="LOCAL" />
-      <updated>1767089136890</updated>
-    </task>
-    <task id="LOCAL-00098" summary="Add &lt;T, ID&gt; instead of &lt;ID&gt;">
-      <option name="closed" value="true" />
-      <created>1767089146459</created>
-      <option name="number" value="00098" />
-      <option name="presentableId" value="LOCAL-00098" />
-      <option name="project" value="LOCAL" />
-      <updated>1767089146459</updated>
-    </task>
-    <task id="LOCAL-00099" summary="New functions meant for internal usage.">
-      <option name="closed" value="true" />
-      <created>1767089159538</created>
-      <option name="number" value="00099" />
-      <option name="presentableId" value="LOCAL-00099" />
-      <option name="project" value="LOCAL" />
-      <updated>1767089159538</updated>
-    </task>
-    <task id="LOCAL-00100" summary="Improve readability.">
-      <option name="closed" value="true" />
-      <created>1767089168164</created>
-      <option name="number" value="00100" />
-      <option name="presentableId" value="LOCAL-00100" />
-      <option name="project" value="LOCAL" />
-      <updated>1767089168164</updated>
-    </task>
-    <task id="LOCAL-00101" summary="Micro-optimizations and fix one-to-one and many-to-one not working properly">
-      <option name="closed" value="true" />
-      <created>1767089210219</created>
-      <option name="number" value="00101" />
-      <option name="presentableId" value="LOCAL-00101" />
-      <option name="project" value="LOCAL" />
-      <updated>1767089210219</updated>
+      <workItem from="1770286108739" duration="23481000" />
+      <workItem from="1770397398831" duration="1806000" />
+      <workItem from="1770444179183" duration="50000" />
+      <workItem from="1770444343958" duration="1485000" />
+      <workItem from="1770478582283" duration="4562000" />
+      <workItem from="1770825864159" duration="2010000" />
+      <workItem from="1770875656232" duration="54000" />
+      <workItem from="1770957548802" duration="8346000" />
+      <workItem from="1770973536039" duration="7432000" />
     </task>
     <task id="LOCAL-00102" summary="Readability">
       <option name="closed" value="true" />
@@ -957,19 +949,77 @@
       <option name="project" value="LOCAL" />
       <updated>1770392548491</updated>
     </task>
-    <option name="localTasksCounter" value="143" />
+    <task id="LOCAL-00143" summary=".idea updates and workflow updates">
+      <option name="closed" value="true" />
+      <created>1770392587340</created>
+      <option name="number" value="00143" />
+      <option name="presentableId" value="LOCAL-00143" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392587340</updated>
+    </task>
+    <task id="LOCAL-00144" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1770392610683</created>
+      <option name="number" value="00144" />
+      <option name="presentableId" value="LOCAL-00144" />
+      <option name="project" value="LOCAL" />
+      <updated>1770392610683</updated>
+    </task>
+    <task id="LOCAL-00145" summary="Bump versions and switch to gradle 9, and others">
+      <option name="closed" value="true" />
+      <created>1770991817795</created>
+      <option name="number" value="00145" />
+      <option name="presentableId" value="LOCAL-00145" />
+      <option name="project" value="LOCAL" />
+      <updated>1770991817795</updated>
+    </task>
+    <task id="LOCAL-00146" summary="Use SQLRelationshipHandler and micro optimize with lambdas">
+      <option name="closed" value="true" />
+      <created>1770991874634</created>
+      <option name="number" value="00146" />
+      <option name="presentableId" value="LOCAL-00146" />
+      <option name="project" value="LOCAL" />
+      <updated>1770991874634</updated>
+    </task>
+    <task id="LOCAL-00147" summary="Micro optimize with lambdas and few fixes">
+      <option name="closed" value="true" />
+      <created>1770992171638</created>
+      <option name="number" value="00147" />
+      <option name="presentableId" value="LOCAL-00147" />
+      <option name="project" value="LOCAL" />
+      <updated>1770992171638</updated>
+    </task>
+    <task id="LOCAL-00148" summary="Micro-optimizations that really add up">
+      <option name="closed" value="true" />
+      <created>1770992468705</created>
+      <option name="number" value="00148" />
+      <option name="presentableId" value="LOCAL-00148" />
+      <option name="project" value="LOCAL" />
+      <updated>1770992468705</updated>
+    </task>
+    <task id="LOCAL-00149" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1770992502592</created>
+      <option name="number" value="00149" />
+      <option name="presentableId" value="LOCAL-00149" />
+      <option name="project" value="LOCAL" />
+      <updated>1770992502593</updated>
+    </task>
+    <task id="LOCAL-00150" summary="Handle no ID case">
+      <option name="closed" value="true" />
+      <created>1770992534135</created>
+      <option name="number" value="00150" />
+      <option name="presentableId" value="LOCAL-00150" />
+      <option name="project" value="LOCAL" />
+      <updated>1770992534135</updated>
+    </task>
+    <option name="localTasksCounter" value="151" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fix enums not working and optimize them" />
-    <MESSAGE value="Remove cassandra" />
-    <MESSAGE value="Add more and useful java.time class APIs" />
-    <MESSAGE value="Update to support Queues and Deques, with it also working on multi-maps with Sets." />
-    <MESSAGE value="Remove resolvers (We don't want to support interfaces like these by default)" />
-    <MESSAGE value="Add new types to sqlTypeMappings" />
     <MESSAGE value="Improve deepInfo debugging" />
     <MESSAGE value="Fix postgresql arrays not working." />
     <MESSAGE value="Add findIterator and findStream functions and fix memory/resource leaks" />
@@ -987,9 +1037,15 @@
     <MESSAGE value="Add peek, peekErr, recover, recoverWith, filter, fold and toFuture" />
     <MESSAGE value="Codegen, fixes, new Query API, new JSON API&#10;&#10;- Fix createFilterDocument using default codec registry (new function, createFilterBson)&#10;- Added several null checks for safety&#10;- Fixed caches being initialized and used even when not prompted with Cacheable/GlobalCacheable&#10;- Update tests" />
     <MESSAGE value=".idea updates" />
-    <MESSAGE value="Update tests" />
     <MESSAGE value="Add kotlin extension" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add kotlin extension" />
+    <MESSAGE value=".idea updates and workflow updates" />
+    <MESSAGE value="Bump versions and switch to gradle 9, and others" />
+    <MESSAGE value="Use SQLRelationshipHandler and micro optimize with lambdas" />
+    <MESSAGE value="Micro optimize with lambdas and few fixes" />
+    <MESSAGE value="Micro-optimizations that really add up" />
+    <MESSAGE value="Update tests" />
+    <MESSAGE value="Handle no ID case" />
+    <option name="LAST_COMMIT_MESSAGE" value="Handle no ID case" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

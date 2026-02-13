@@ -16,8 +16,8 @@
       <profile name="Gradle Imported" enabled="true">
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
-          <entry name="$PROJECT_DIR$/compile-time-checker/build/libs/compile-time-checker-6.1.6.jar" />
-          <entry name="$PROJECT_DIR$/core/build/libs/core-6.1.6.jar" />
+          <entry name="$PROJECT_DIR$/compile-time-checker/build/libs/compile-time-checker-7.0.0.jar" />
+          <entry name="$PROJECT_DIR$/core/build/libs/core-7.0.0.jar" />
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.squareup/javapoet/1.13.0/d6562d385049f35eb50403fa86bb11cce76b866a/javapoet-1.13.0.jar" />
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.1.0-alpha1/4e2525fc4327cc553c52e3937427c7cf2114735f/slf4j-api-2.1.0-alpha1.jar" />
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.FlameyosSnowy/Velocis/1.1.2/3cc646ae860b6873bc0c7fbdaadd5e6871a9be68/Velocis-1.1.2.jar" />
@@ -27,6 +27,7 @@
         </processorPath>
         <module name="Universal.postgresql.test" />
         <module name="Universal.mongodb.test" />
+        <module name="Universal.mysql.test" />
         <module name="Universal.sqlite.test" />
       </profile>
     </annotationProcessing>
