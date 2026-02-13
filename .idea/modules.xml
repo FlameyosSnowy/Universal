@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mongodb/Universal.mongodb.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mongodb/Universal.mongodb.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mysql/Universal.mysql.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mysql/Universal.mysql.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" filepath="$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/sqlite/Universal.sqlite.test.iml" filepath="$PROJECT_DIR$/.idea/modules/sqlite/Universal.sqlite.test.iml" />
     </modules>
