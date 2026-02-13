@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Concrete classes only need to implement collection handling methods.
  */
 @SuppressWarnings("unchecked")
-public abstract class AbstractRelationshipHandler<T, ID, R> implements RelationshipHandler<T, ID> {
+public abstract class AbstractRelationshipHandler<T, ID> implements RelationshipHandler<T, ID> {
     protected final RepositoryModel<T, ID> repositoryModel;
     protected final Class<ID> idClass;
     protected final TypeResolverRegistry resolverRegistry;
@@ -34,6 +34,8 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
 
     private static final Object NULL_MARKER = new Object();
 
+    private final String entityPrefix;
+
     protected AbstractRelationshipHandler(
         RepositoryModel<T, ID> repositoryModel,
         Class<ID> idClass,
@@ -42,6 +44,7 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
         this.repositoryModel = repositoryModel;
         this.idClass = idClass;
         this.resolverRegistry = resolverRegistry;
+        this.entityPrefix = repositoryModel.entitySimpleName() + ":";
     }
 
     @Override
@@ -201,8 +204,7 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
         @NotNull RepositoryModel<?, ?> targetInfo,
         @NotNull Class<?> parentType
     ) {
-        // Use cache key composed of repo + parent type to avoid collisions
-        String cacheKey = targetInfo.tableName() + "#" + parentType.getName();
+        String cacheKey = (targetInfo.tableName() + "#" + parentType.getName()).intern();
 
         return nameCache.computeIfAbsent(cacheKey, k -> {
             for (FieldModel<?> field : targetInfo.getManyToOneCache().values()) {
@@ -212,7 +214,7 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
             }
 
             // If not found, log and return null
-            Logging.deepInfo(
+            Logging.deepInfo(() ->
                 "ManyToOne field for parent type " + parentType.getName() +
                     " not found in " + targetInfo.tableName()
             );
@@ -241,7 +243,7 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
                 return null;
             }
 
-            Logging.deepInfo("Using external adapter '" + adapterName + "' for field " + field.name());
+            Logging.deepInfo(() -> "Using external adapter '" + adapterName + "' for field " + field.name());
             return externalAdapter;
         }
 
@@ -321,7 +323,7 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
                 .build()
         );
 
-        Map<ID, List<Object>> grouped = new HashMap<>(32);
+        Map<ID, List<Object>> grouped = new HashMap<>(parentIds.size());
         FieldModel<Object> backRefField = (FieldModel<Object>) related.fieldByName(relationName);
 
         for (Object child : results) {
@@ -339,8 +341,8 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
 
     @Override
     public void prefetch(Iterable<?> parents, Set<String> fields) {
-        Map<FieldModel<T>, List<ID>> oneToMany = new HashMap<>(32);
-        Map<FieldModel<T>, List<ID>> oneToOne = new HashMap<>(32);
+        Map<FieldModel<T>, List<ID>> oneToMany = new HashMap<>(fields.size());
+        Map<FieldModel<T>, List<ID>> oneToOne = new HashMap<>(fields.size());
 
         for (Object parent : parents) {
             ID id = repositoryModel.getPrimaryKeyValue((T) parent);
@@ -374,12 +376,12 @@ public abstract class AbstractRelationshipHandler<T, ID, R> implements Relations
      */
     @NotNull
     private String buildCacheKey(@NotNull String fieldName, Object id) {
-        return repositoryModel.entitySimpleName() + ":" + id + ":" + fieldName;
+        return entityPrefix + id + ":" + fieldName;
     }
 
     @Override
     public void invalidateRelationshipsForId(@NotNull ID id) {
-        String prefix = repositoryModel.entitySimpleName() + ":" + id + ":";
+        String prefix = entityPrefix + id + ":";
         relationshipCache.keySet().removeIf(key -> key.startsWith(prefix));
     }
 
