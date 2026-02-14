@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public record DeleteQuery(List<SelectOption> filters, boolean cache) implements Query {
+public record DeleteQuery(List<FilterOption> filters, boolean cache) implements Query {
     public static class DeleteQueryBuilder {
-        private final List<SelectOption> filters = new ArrayList<>(3);
+        private final List<FilterOption> filters = new ArrayList<>(3);
         private boolean cache = true;
 
         /**
@@ -49,6 +49,16 @@ public record DeleteQuery(List<SelectOption> filters, boolean cache) implements 
          */
         public DeleteQueryBuilder whereIn(String key, Collection<?> values) {
             filters.add(new SelectOption(key, "IN", values));
+            return this;
+        }
+
+        public DeleteQueryBuilder whereJson(
+            String field,
+            String jsonPath,
+            String operator,
+            Object value
+        ) {
+            filters.add(new JsonSelectOption(field, jsonPath, operator, value));
             return this;
         }
 

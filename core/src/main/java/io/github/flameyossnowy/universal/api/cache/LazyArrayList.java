@@ -60,6 +60,7 @@ public class LazyArrayList<T> extends AbstractList<T> implements List<T> {
 
     @Override
     public boolean containsAll(@NotNull Collection<?> c) {
+        //noinspection SlowListContainsAll
         return load().containsAll(c);
     }
 
@@ -150,6 +151,9 @@ public class LazyArrayList<T> extends AbstractList<T> implements List<T> {
             return load().equals(o);
         }
         if (this == that) return true;
+        if (that.list == null || this.list == null) {
+            return this.list == null && that.list == null;
+        }
         return Objects.equals(load(), that.load());
     }
 }

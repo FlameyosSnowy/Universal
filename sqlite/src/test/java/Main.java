@@ -18,7 +18,7 @@ public class Main {
                 .withCredentials(new SQLiteCredentials("/home/flameyosflow/newdb.db"))
                 .build();
 
-        adapter.executeRawQuery("DROP TABLE IF EXISTS users;");
+        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS users;");
         adapter.createRepository(true);
         adapter.clear();
 
@@ -55,6 +55,46 @@ public class Main {
         }
 
         public User() {}
+
+        public UUID getId() {
+            return id;
+        }
+
+        public void setId(UUID id) {
+            this.id = id;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public int getAge() {
+            return age;
+        }
+
+        public void setAge(int age) {
+            this.age = age;
+        }
+
+        public List<String> getHobbies() {
+            return hobbies;
+        }
+
+        public void setHobbies(List<String> hobbies) {
+            this.hobbies = hobbies;
+        }
+
+        public Password getPassword() {
+            return password;
+        }
+
+        public void setPassword(Password password) {
+            this.password = password;
+        }
 
         public String toString() {
             return "User{" +

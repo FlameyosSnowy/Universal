@@ -13,10 +13,32 @@ public class Faction {
 
     private Level level = Level.FINE;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    @ManyToOne
+    private Something something;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Level getLevel() {
+        return level;
+    }
+
+    public void setLevel(Level level) {
+        this.level = level;
+    }
 
     @Override
     public String toString() {
@@ -39,5 +61,13 @@ public class Faction {
         int result = Objects.hashCode(id);
         result = 31 * result + Objects.hashCode(name);
         return result;
+    }
+
+    public Something getSomething() {
+        return something;
+    }
+
+    public void setSomething(Something something) {
+        this.something = something;
     }
 }

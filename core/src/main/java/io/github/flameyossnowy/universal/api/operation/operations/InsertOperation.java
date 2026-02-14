@@ -14,12 +14,12 @@ import org.jetbrains.annotations.Nullable;
  * @param <T> The entity type
  * @param <C> The connection type
  */
-public class InsertOperation<T, C> implements Operation<Boolean, C> {
+public class InsertOperation<T, ID, C> implements Operation<T, ID, Boolean, C> {
     private final T entity;
-    private final InsertExecutor<T, C> executor;
+    private final InsertExecutor<T, ID, C> executor;
     private final OperationMetadata metadata;
 
-    public InsertOperation(T entity, InsertExecutor<T, C> executor) {
+    public InsertOperation(T entity, InsertExecutor<T, ID, C> executor) {
         this.entity = entity;
         this.executor = executor;
         this.metadata = OperationMetadata.builder()
@@ -37,7 +37,7 @@ public class InsertOperation<T, C> implements Operation<Boolean, C> {
 
     @Override
     @NotNull
-    public TransactionResult<Boolean> execute(@NotNull OperationContext<C> context) {
+    public TransactionResult<Boolean> execute(@NotNull OperationContext<T, ID, C> context) {
         try {
             boolean success = executor.insert(entity, context);
             return TransactionResult.success(success);
@@ -53,7 +53,7 @@ public class InsertOperation<T, C> implements Operation<Boolean, C> {
     }
 
     @FunctionalInterface
-    public interface InsertExecutor<T, C> {
-        boolean insert(T entity, OperationContext<C> context) throws Exception;
+    public interface InsertExecutor<T, ID, C> {
+        boolean insert(T entity, OperationContext<T, ID, C> context) throws Exception;
     }
 }

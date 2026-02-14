@@ -14,7 +14,7 @@ import java.lang.annotation.Target;
  * associated with the insertion, update, or deletion of entities.
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface RepositoryEventLifecycleListener {
     Class<? extends EntityLifecycleListener<?>> value();

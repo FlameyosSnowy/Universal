@@ -1,11 +1,20 @@
 package io.github.flameyossnowy.universal.api.result;
 
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+
 /**
  * Represents a database-agnostic result set that can be used to retrieve values
  * from a query result without depending on any specific database implementation.
  */
 @SuppressWarnings("unused")
 public interface DatabaseResult {
+    CollectionHandler getCollectionHandler();
+
+    boolean supportsArraysNatively();
+
+    RepositoryModel<?, ?> repositoryModel();
+
     /**
      * Gets a value from the result by column name.
      * 

@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * The annotation used to mark a field as a named field, which is a field that has a custom name in the database.
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface Named {
     String value();

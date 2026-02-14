@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
  * @see AuditLogger
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface RepositoryAuditLogger {
     Class<? extends AuditLogger<?>> value();

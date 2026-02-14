@@ -1,11 +1,11 @@
 plugins {
     id "java-library"
     id "maven-publish"
-    id("com.gradleup.shadow") version "9.0.0-beta12"
+    id("com.gradleup.shadow") version "9.3.1"
 }
 
 group = "io.github.flameyossnowy.universal"
-version = '6.1.6'
+version = '7.0.0'
 
 repositories {
     mavenCentral()
@@ -18,8 +18,11 @@ repositories {
 dependencies {
     compileOnly "org.mongodb:mongodb-driver-sync:5.3.0"
     compileOnly "org.jetbrains:annotations:24.0.1"
+    compileOnly "com.fasterxml.jackson.core:jackson-databind:2.16.1"
+    compileOnly "com.fasterxml.jackson.core:jackson-annotations:2.16.1"
+    compileOnly "com.fasterxml.jackson.core:jackson-core:2.16.1"
 
-    implementation project(":core")
+    compileOnly project(":core")
 
     testImplementation platform("org.junit:junit-bom:5.10.2")
     testImplementation "org.junit.jupiter:junit-jupiter"
@@ -31,8 +34,10 @@ dependencies {
     testImplementation "org.mongodb:mongodb-driver-sync:4.11.1"
 
     testImplementation project(":core")
+    testImplementation project(":mongodb")
+    testAnnotationProcessor project(":compile-time-checker")
 }
 
-test {
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }

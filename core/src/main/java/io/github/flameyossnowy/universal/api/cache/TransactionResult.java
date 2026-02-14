@@ -1,10 +1,13 @@
 package io.github.flameyossnowy.universal.api.cache;
 
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import com.google.errorprone.annotations.CheckReturnValue;
 import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -173,6 +176,7 @@ public record TransactionResult<T>(T result, Throwable error) {
      * @return the result of the transaction if successful
      * @throws Throwable if the transaction resulted in an error
      */
+    @CanIgnoreReturnValue
     public T get() throws Throwable {
         if (isSuccess()) return result;
         throw error;
@@ -228,5 +232,52 @@ public record TransactionResult<T>(T result, Throwable error) {
     public T expect(String message) {
         if (isSuccess()) return result;
         throw new RepositoryException(message, error);
+    }
+
+    public TransactionResult<T> peek(Consumer<T> consumer) {
+        if (isSuccess()) consumer.accept(result);
+        return this;
+    }
+
+    public TransactionResult<T> peekErr(Consumer<Throwable> consumer) {
+        if (isError()) consumer.accept(error);
+        return this;
+    }
+
+    public TransactionResult<T> recover(Function<Throwable, T> recovery) {
+        if (isError()) return TransactionResult.success(recovery.apply(error));
+        return this;
+    }
+
+    public TransactionResult<T> recoverWith(
+        Function<Throwable, TransactionResult<T>> recovery
+    ) {
+        if (isError()) return recovery.apply(error);
+        return this;
+    }
+
+    public TransactionResult<T> filter(
+        Function<T, Boolean> predicate,
+        Function<T, Throwable> errorSupplier
+    ) {
+        if (isError()) return this;
+        if (predicate.apply(result)) return this;
+        return TransactionResult.failure(errorSupplier.apply(result));
+    }
+
+    public <R> R fold(
+        Function<T, R> onSuccess,
+        Function<Throwable, R> onError
+    ) {
+        return isSuccess()
+            ? onSuccess.apply(result)
+            : onError.apply(error);
+    }
+
+    public CompletableFuture<T> toFuture() {
+        if (isSuccess()) return CompletableFuture.completedFuture(result);
+        CompletableFuture<T> f = new CompletableFuture<>();
+        f.completeExceptionally(error);
+        return f;
     }
 }

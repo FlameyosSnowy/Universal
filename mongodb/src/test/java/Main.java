@@ -2,10 +2,14 @@ import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import io.github.flameyossnowy.universal.api.annotations.Condition;
 import io.github.flameyossnowy.universal.api.annotations.Id;
+import io.github.flameyossnowy.universal.api.annotations.ManyToOne;
+import io.github.flameyossnowy.universal.api.annotations.OneToMany;
+import io.github.flameyossnowy.universal.api.annotations.OneToOne;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.mongodb.MongoRepositoryAdapter;
+import org.bson.UuidRepresentation;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
@@ -17,8 +21,9 @@ public class Main {
     public static void main(String[] args) throws InterruptedException {
         MongoClientSettings settings = MongoClientSettings.builder()
                 .applyConnectionString(new ConnectionString(
-                        "mongodb+srv://...:...@testingjava.vmol6.mongodb.net/?retryWrites=true&w=majority&appName=TestingJava"
+                        "mongodb+srv://flameyosflow:87654321@testingjava.vmol6.mongodb.net/?retryWrites=true&w=majority&appName=TestingJava"
                 ))
+                .uuidRepresentation(UuidRepresentation.STANDARD)
                 .build();
         MongoRepositoryAdapter<User, UUID> adapter = MongoRepositoryAdapter
                 .builder(User.class, UUID.class)
@@ -57,7 +62,7 @@ public class Main {
         });
 
         adapter.find(Query.select()
-                        .where("password", ">", five)
+                        .where("password").gt(five)
                         .build())
                 .forEach(System.out::println);
     }
@@ -84,6 +89,38 @@ public class Main {
 
         public User() {}
 
+        public UUID getId() {
+            return id;
+        }
+
+        public void setId(UUID id) {
+            this.id = id;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public int getAge() {
+            return age;
+        }
+
+        public void setAge(int age) {
+            this.age = age;
+        }
+
+        public Instant getPassword() {
+            return password;
+        }
+
+        public void setPassword(Instant password) {
+            this.password = password;
+        }
+
         public String toString() {
             return "User{" +
                     "id=" + id +
@@ -91,6 +128,180 @@ public class Main {
                     ", age=" + age +
                     ", password=" + password +
                     '}';
+        }
+    }
+
+    @SuppressWarnings("unused")
+    @Repository(name = "teams_rel")
+    public static class TeamRel {
+        @Id
+        private UUID id;
+
+        private String name;
+
+        @OneToMany(mappedBy = PlayerRel.class)
+        private List<PlayerRel> players;
+
+        public TeamRel() {}
+
+        public TeamRel(UUID id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        public UUID getId() {
+            return id;
+        }
+
+        public void setId(UUID id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public List<PlayerRel> getPlayers() {
+            return players;
+        }
+
+        public void setPlayers(List<PlayerRel> players) {
+            this.players = players;
+        }
+    }
+
+    @SuppressWarnings("unused")
+    @Repository(name = "players_rel")
+    public static class PlayerRel {
+        @Id
+        private UUID id;
+
+        private String name;
+
+        @ManyToOne
+        private TeamRel team;
+
+        public PlayerRel() {}
+
+        public PlayerRel(UUID id, String name, TeamRel team) {
+            this.id = id;
+            this.name = name;
+            this.team = team;
+        }
+
+        public UUID getId() {
+            return id;
+        }
+
+        public void setId(UUID id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public TeamRel getTeam() {
+            return team;
+        }
+
+        public void setTeam(TeamRel team) {
+            this.team = team;
+        }
+    }
+
+    @SuppressWarnings("unused")
+    @Repository(name = "factions_rel")
+    public static class FactionRel {
+        @Id
+        private UUID id;
+
+        private String name;
+
+        @OneToOne
+        private WarpRel warp;
+
+        public FactionRel() {}
+
+        public FactionRel(UUID id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        public UUID getId() {
+            return id;
+        }
+
+        public void setId(UUID id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public WarpRel getWarp() {
+            return warp;
+        }
+
+        public void setWarp(WarpRel warp) {
+            this.warp = warp;
+        }
+    }
+
+    @SuppressWarnings("unused")
+    @Repository(name = "warps_rel")
+    public static class WarpRel {
+        @Id
+        private UUID id;
+
+        private String name;
+
+        @OneToOne
+        private FactionRel faction;
+
+        public WarpRel() {}
+
+        public WarpRel(UUID id, String name, FactionRel faction) {
+            this.id = id;
+            this.name = name;
+            this.faction = faction;
+        }
+
+        public UUID getId() {
+            return id;
+        }
+
+        public void setId(UUID id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public FactionRel getFaction() {
+            return faction;
+        }
+
+        public void setFaction(FactionRel faction) {
+            this.faction = faction;
         }
     }
 }

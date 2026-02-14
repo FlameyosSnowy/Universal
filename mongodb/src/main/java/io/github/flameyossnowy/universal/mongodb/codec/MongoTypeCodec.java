@@ -1,7 +1,8 @@
 package io.github.flameyossnowy.universal.mongodb.codec;
 
-import io.github.flameyossnowy.universal.api.reflect.FieldData;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
+import io.github.flameyossnowy.universal.api.meta.FieldModel;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.mongodb.params.MongoDatabaseParameters;
 import io.github.flameyossnowy.universal.mongodb.result.MongoDatabaseResult;
@@ -25,8 +26,8 @@ import org.bson.codecs.EncoderContext;
  * @param typeResolverRegistry the type resolver registry
  * @param information the repository information containing field metadata
  */
-public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolverRegistry,
-                                RepositoryInformation information) implements Codec<T> {
+public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolverRegistry, CollectionHandler collectionHandler,
+                                RepositoryModel<?, ?> information) implements Codec<T> {
     
     /**
      * ThreadLocal to pass field context from ObjectFactory to the codec.
@@ -60,7 +61,7 @@ public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolver
     @Override
     public T decode(BsonReader reader, DecoderContext decoderContext) {
         Document document = Document.parse(reader.readString());
-        MongoDatabaseResult result = new MongoDatabaseResult(document);
+        MongoDatabaseResult result = new MongoDatabaseResult(document, collectionHandler, information);
         
         // Find the field name for this type from repository information
         String columnName = getColumnNameForType();
@@ -69,7 +70,7 @@ public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolver
 
     @Override
     public void encode(BsonWriter writer, T value, EncoderContext encoderContext) {
-        MongoDatabaseParameters parameters = new MongoDatabaseParameters();
+        MongoDatabaseParameters parameters = new MongoDatabaseParameters(collectionHandler);
         
         // Find the field name for this type from repository information
         String columnName = getColumnNameForType();
@@ -102,11 +103,11 @@ public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolver
         }
         
         // Second priority: find field by type (only if unambiguous)
-        FieldData<?> matchedField = null;
+        FieldModel<?> matchedField = null;
         int matchCount = 0;
         
-        for (FieldData<?> field : information.getFields()) {
-            if (field.type().equals(type)) {
+        for (FieldModel<?> field : information.fields()) {
+            if (field != null && field.type().equals(type)) {
                 matchedField = field;
                 matchCount++;
                 if (matchCount > 1) {
@@ -117,6 +118,7 @@ public record MongoTypeCodec<T>(Class<T> type, TypeResolverRegistry typeResolver
         }
         
         // If exactly one field matches, use its name
+        //noinspection ConstantValue
         if (matchCount == 1 && matchedField != null) {
             return matchedField.name();
         }

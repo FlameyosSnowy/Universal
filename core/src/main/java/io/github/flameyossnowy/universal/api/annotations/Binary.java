@@ -13,7 +13,7 @@ import java.lang.annotation.Target;
  * @author flameyosflow
  * @version 6.0.1
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface Binary {
 }

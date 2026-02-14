@@ -1,10 +1,10 @@
 plugins {
     id("java")
-    id("com.gradleup.shadow") version("9.0.0-beta12")
+    id("com.gradleup.shadow") version("9.3.1")
 }
 
 group = "io.github.flameyossnowy.universal"
-version = "6.1.6"
+version = "7.0.0"
 
 repositories {
     mavenCentral()
@@ -13,7 +13,7 @@ repositories {
 
 dependencies {
     // hikaricp
-    implementation("com.zaxxer:HikariCP:6.2.1")
+    compileOnly("com.zaxxer:HikariCP:6.2.1")
 
     compileOnly(project(":core"))
     compileOnly(project(":sql-common"))
@@ -26,11 +26,16 @@ dependencies {
     testImplementation("org.postgresql:postgresql:42.7.2")
     testImplementation(project(":core"))
     testImplementation(project(":sql-common"))
+    testAnnotationProcessor(project(":compile-time-checker"))
+
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.junit.platform:junit-platform-launcher")
 }
 
-tasks.test {
+tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 }

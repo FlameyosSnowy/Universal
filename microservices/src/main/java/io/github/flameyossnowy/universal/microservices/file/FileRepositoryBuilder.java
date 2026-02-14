@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.microservices.file;
 
+import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.annotations.FileRepository;
 import io.github.flameyossnowy.universal.api.annotations.enums.CompressionType;
 import io.github.flameyossnowy.universal.api.annotations.enums.FileFormat;
@@ -17,6 +18,10 @@ import java.nio.file.Paths;
  * @param <ID> The ID type
  */
 public class FileRepositoryBuilder<T, ID> {
+    static {
+        ModelsBootstrap.init();
+    }
+
     private final Class<T> entityType;
     private final Class<ID> idType;
     private Path basePath;

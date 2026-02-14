@@ -2,11 +2,11 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'me.champeau.jmh' version '0.7.2'
-    id("com.gradleup.shadow") version "9.0.0-beta12"
+    id("com.gradleup.shadow") version "9.3.1"
 }
 
 group = 'io.github.flameyossnowy.universal'
-version = '6.1.6'
+version = '7.0.0'
 
 repositories {
     mavenCentral()
@@ -26,13 +26,16 @@ dependencies {
     testImplementation project(':sql-common')
     testImplementation project(':core')
 
-    //testAnnotationProcessor project(":compile-time-checker")
+    testAnnotationProcessor project(":compile-time-checker")
 
     testImplementation 'com.zaxxer:HikariCP:6.2.1'
     testImplementation 'mysql:mysql-connector-java:8.0.28'
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.junit.platform:junit-platform-launcher")
+
+    testImplementation "org.mockito:mockito-core:5.11.0"
+    testImplementation "org.mockito:mockito-junit-jupiter:5.11.0"
 
     compileOnly 'mysql:mysql-connector-java:8.0.28'
     // 'com.github.FlameyosSnowy:Velocis:1.1.0'
@@ -51,7 +54,7 @@ sourceSets {
     }
 }
 
-test {
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
 

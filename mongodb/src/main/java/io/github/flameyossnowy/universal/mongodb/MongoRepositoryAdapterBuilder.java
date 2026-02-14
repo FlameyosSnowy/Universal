@@ -3,17 +3,22 @@ package io.github.flameyossnowy.universal.mongodb;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClient;
-import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
+
+import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
 import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
+import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
 import java.util.function.LongFunction;
 
 public class MongoRepositoryAdapterBuilder<T, ID> {
+    static {
+        ModelsBootstrap.init();
+    }
+
     private MongoClientSettings.Builder credentialsBuilder;
     private final Class<T> repository;
     private final Class<ID> idType;
@@ -112,47 +117,17 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
     }
 
     /**
-     * Builds the {@link MongoRepositoryAdapter} instance.
-     *
-     * <p>This method will check if the repository is annotated with {@link GlobalCacheable} annotation.
-     * If it is, it will create an instance of the {@link SessionCache} using the provided constructor
-     * and maximum cache size. If not, it will return a new instance of the
-     * {@link MongoRepositoryAdapter} with null caches.
+     * Builds the {@link MongoRepositoryAdapter} instance
      *
      * @return a new instance of the {@link MongoRepositoryAdapter}
      */
-    @SuppressWarnings("unchecked")
     public MongoRepositoryAdapter<T, ID> build() {
-        GlobalCacheable cacheable = Objects.requireNonNull(RepositoryMetadata.getMetadata(repository)).getGlobalCacheable();
-        if (cacheable == null)
-            return new MongoRepositoryAdapter<>(
-                    this.credentialsBuilder, database, repository,
-                    idType, null, sessionCacheSupplier, cacheWarmer,
-                client);
+        RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(repository));
 
-        Class<?> cacheableClass = cacheable.sessionCache();
-
-        if (cacheableClass == SessionCache.class) {
-            return new MongoRepositoryAdapter<>(
-                    this.credentialsBuilder, database, repository,
-                    idType, new DefaultSessionCache<>(), sessionCacheSupplier, cacheWarmer, client
-            );
-        }
-
-        if (!SessionCache.class.isAssignableFrom(cacheableClass)) {
-            throw new IllegalArgumentException("Session cache must implement SessionCache interface.");
-        }
-
-        try {
-            return new MongoRepositoryAdapter<>(
-                    this.credentialsBuilder, database, repository, idType,
-                    (SessionCache<ID, T>) cacheableClass.getDeclaredConstructor().newInstance(), sessionCacheSupplier, cacheWarmer, client
-            );
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalArgumentException("Session cache must have default no-arg constructor.", e);
-        }
+        return new MongoRepositoryAdapter<>(
+            this.credentialsBuilder, database, repository, idType,
+            information.createGlobalSessionCache(), sessionCacheSupplier, cacheWarmer, client
+        );
     }
 
     public MongoRepositoryAdapterBuilder<T, ID> setDatabase(final String database) {

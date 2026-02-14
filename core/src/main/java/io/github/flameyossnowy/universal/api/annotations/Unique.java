@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * The field must be unique, meaning there is no other field with the same value.
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface Unique {
 }

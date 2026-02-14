@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.api.params;
 
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -9,9 +10,15 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 public interface DatabaseParameters {
+    CollectionHandler getCollectionHandler();
+
+    String getAdapterType();
+
+    boolean supportsArraysNatively();
+
     /**
      * Sets a parameter value by name.
-     * 
+     *
      * @param name the name of the parameter
      * @param value the value to set
      * @param type the type of the value

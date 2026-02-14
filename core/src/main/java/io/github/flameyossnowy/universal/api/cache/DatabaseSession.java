@@ -4,6 +4,8 @@ import com.google.errorprone.annotations.CheckReturnValue;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 @SuppressWarnings("unused")
 public interface DatabaseSession<ID, T, C> extends TransactionContext<C>, AutoCloseable {
@@ -165,5 +167,35 @@ public interface DatabaseSession<ID, T, C> extends TransactionContext<C>, AutoCl
      */
     default CompletableFuture<TransactionResult<Boolean>> commitAsync() {
         return CompletableFuture.supplyAsync(this::commit);
+    }
+
+    @CheckReturnValue
+    default TransactionResult<Boolean> runVoid(Consumer<DatabaseSession<ID, T, C>> block) {
+        return run(session -> {
+            block.accept(session);
+            return true;
+        });
+    }
+
+    @CheckReturnValue
+    default <R> TransactionResult<R> run(Function<DatabaseSession<ID, T, C>, R> block) {
+        try {
+            R result = block.apply(this);
+            TransactionResult<Boolean> commitResult = commit();
+            if (commitResult.isError()) {
+                rollback();
+                return TransactionResult.failure(commitResult.error());
+            }
+            return TransactionResult.success(result);
+        } catch (Throwable t) {
+            rollback();
+            return TransactionResult.failure(t);
+        }
+    }
+
+    default <R> CompletableFuture<TransactionResult<R>> runAsync(
+        Function<DatabaseSession<ID, T, C>, R> block
+    ) {
+        return CompletableFuture.supplyAsync(() -> run(block));
     }
 }

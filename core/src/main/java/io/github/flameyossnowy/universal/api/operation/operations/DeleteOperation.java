@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  * @param <ID> The ID type
  * @param <C> The connection type
  */
-public class DeleteOperation<T, ID, C> implements Operation<Boolean, C> {
+public class DeleteOperation<T, ID, C> implements Operation<T, ID, Boolean, C> {
     private final T entity;
     private final ID id;
     private final DeleteQuery query;
@@ -62,7 +62,7 @@ public class DeleteOperation<T, ID, C> implements Operation<Boolean, C> {
 
     @Override
     @NotNull
-    public TransactionResult<Boolean> execute(@NotNull OperationContext<C> context) {
+    public TransactionResult<Boolean> execute(@NotNull OperationContext<T, ID, C> context) {
         try {
             boolean success;
             if (entity != null) {
@@ -85,8 +85,8 @@ public class DeleteOperation<T, ID, C> implements Operation<Boolean, C> {
     }
 
     public interface DeleteExecutor<T, ID, C> {
-        boolean deleteEntity(T entity, OperationContext<C> context) throws Exception;
-        boolean deleteById(ID id, OperationContext<C> context) throws Exception;
-        boolean deleteByQuery(DeleteQuery query, OperationContext<C> context) throws Exception;
+        boolean deleteEntity(T entity, OperationContext<T, ID, C> context) throws Exception;
+        boolean deleteById(ID id, OperationContext<T, ID, C> context) throws Exception;
+        boolean deleteByQuery(DeleteQuery query, OperationContext<T, ID, C> context) throws Exception;
     }
 }

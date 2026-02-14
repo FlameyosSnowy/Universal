@@ -8,7 +8,7 @@ import java.lang.annotation.*;
  * Many indexes annotation.
  * @author flameyosflow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface Indexes {
     Index[] value();

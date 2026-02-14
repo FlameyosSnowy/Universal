@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * @param <C> The connection/context type
  */
-public interface OperationExecutor<C> {
+public interface OperationExecutor<T, ID, C> {
     /**
      * Executes a read operation.
      *
@@ -22,8 +22,8 @@ public interface OperationExecutor<C> {
      */
     @NotNull
     <R> TransactionResult<R> executeRead(
-            @NotNull Operation<R, C> operation,
-            @NotNull OperationContext<C> context);
+            @NotNull Operation<T, ID, R, C> operation,
+            @NotNull OperationContext<T, ID, C> context);
 
     /**
      * Executes a write operation.
@@ -35,8 +35,8 @@ public interface OperationExecutor<C> {
      */
     @NotNull
     <R> TransactionResult<R> executeWrite(
-            @NotNull Operation<R, C> operation,
-            @NotNull OperationContext<C> context);
+            @NotNull Operation<T, ID, R, C> operation,
+            @NotNull OperationContext<T, ID, C> context);
 
     /**
      * Executes an update operation.
@@ -48,8 +48,8 @@ public interface OperationExecutor<C> {
      */
     @NotNull
     <R> TransactionResult<R> executeUpdate(
-            @NotNull Operation<R, C> operation,
-            @NotNull OperationContext<C> context);
+            @NotNull Operation<T, ID, R, C> operation,
+            @NotNull OperationContext<T, ID, C> context);
 
     /**
      * Executes a delete operation.
@@ -61,8 +61,8 @@ public interface OperationExecutor<C> {
      */
     @NotNull
     <R> TransactionResult<R> executeDelete(
-            @NotNull Operation<R, C> operation,
-            @NotNull OperationContext<C> context);
+            @NotNull Operation<T, ID, R, C> operation,
+            @NotNull OperationContext<T, ID, C> context);
 
     /**
      * Executes a schema operation.
@@ -74,8 +74,8 @@ public interface OperationExecutor<C> {
      */
     @NotNull
     <R> TransactionResult<R> executeSchema(
-            @NotNull Operation<R, C> operation,
-            @NotNull OperationContext<C> context);
+            @NotNull Operation<T, ID, R, C> operation,
+            @NotNull OperationContext<T, ID, C> context);
 
     /**
      * Executes a custom operation.
@@ -87,8 +87,8 @@ public interface OperationExecutor<C> {
      */
     @NotNull
     <R> TransactionResult<R> executeCustom(
-            @NotNull Operation<R, C> operation,
-            @NotNull OperationContext<C> context);
+            @NotNull Operation<T, ID, R, C> operation,
+            @NotNull OperationContext<T, ID, C> context);
 
     /**
      * Executes a remote operation (for microservices).
@@ -100,6 +100,6 @@ public interface OperationExecutor<C> {
      */
     @NotNull
     <R> TransactionResult<R> executeRemote(
-            @NotNull Operation<R, C> operation,
-            @NotNull OperationContext<C> context);
+            @NotNull Operation<T, ID, R, C> operation,
+            @NotNull OperationContext<T, ID, C> context);
 }

@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.microservices.network;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.annotations.NetworkRepository;
 import io.github.flameyossnowy.universal.api.annotations.RemoteEndpoint;
 import io.github.flameyossnowy.universal.api.annotations.builder.EndpointConfig;
@@ -22,6 +23,10 @@ import java.util.function.Supplier;
  * @param <ID> The ID type
  */
 public class NetworkRepositoryAdapterBuilder<T, ID> {
+    static {
+        ModelsBootstrap.init();
+    }
+
     private final Class<T> entityType;
     private final Class<ID> idType;
     private String baseUrl;

@@ -37,6 +37,7 @@ public class ImmutableList<T> implements List<T> {
         return array;
     }
 
+    @SuppressWarnings("SuspiciousSystemArraycopy")
     @Override
     public @NotNull <T1> T1 @NotNull [] toArray(@NotNull T1 @NotNull [] t1s) {
         System.arraycopy(array, 0, t1s, 0, array.length);

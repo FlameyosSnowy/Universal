@@ -369,7 +369,9 @@ public class NetworkSession<T, ID> implements DatabaseSession<ID, T, HttpClient>
             
             // Execute batch insert
             withRetry(() -> {
-                adapter.insertAll(batch, tx);
+                adapter.insertAll(batch, tx).ifError(e -> {
+                    throw new RuntimeException(e);
+                });
                 return (Void) null;
             }, maxRetries);
         } catch (Exception e) {
@@ -410,7 +412,9 @@ public class NetworkSession<T, ID> implements DatabaseSession<ID, T, HttpClient>
             // Execute batch update
             for (T entity : batch) {
                 withRetry(() -> {
-                    adapter.updateAll(entity, tx);
+                    adapter.updateAll(entity, tx).ifError(e -> {
+                        throw new RuntimeException(e);
+                    });
                     return (Void) null;
                 }, maxRetries);
             }
@@ -452,7 +456,9 @@ public class NetworkSession<T, ID> implements DatabaseSession<ID, T, HttpClient>
             // Execute batch delete
             for (ID id : batch) {
                 withRetry(() -> {
-                    adapter.deleteById(id, tx);
+                    adapter.deleteById(id, tx).ifError(e -> {
+                        throw new RuntimeException(e);
+                    });
                     return (Void) null;
                 }, maxRetries);
             }

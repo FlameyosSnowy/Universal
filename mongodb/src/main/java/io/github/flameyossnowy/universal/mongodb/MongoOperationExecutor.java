@@ -13,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * @param <T> The entity type
  * @param <ID> The ID type
  */
-public class MongoOperationExecutor<T, ID> implements OperationExecutor<ClientSession> {
+public class MongoOperationExecutor<T, ID> implements OperationExecutor<T, ID, ClientSession> {
     private final MongoRepositoryAdapter<T, ID> adapter;
 
     public MongoOperationExecutor(MongoRepositoryAdapter<T, ID> adapter) {
@@ -23,56 +23,56 @@ public class MongoOperationExecutor<T, ID> implements OperationExecutor<ClientSe
     @Override
     @NotNull
     public <R> TransactionResult<R> executeRead(
-            @NotNull Operation<R, ClientSession> operation,
-            @NotNull OperationContext<ClientSession> context) {
+            @NotNull Operation<T, ID, R, ClientSession> operation,
+            @NotNull OperationContext<T, ID, ClientSession> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeWrite(
-            @NotNull Operation<R, ClientSession> operation,
-            @NotNull OperationContext<ClientSession> context) {
+            @NotNull Operation<T, ID, R, ClientSession> operation,
+            @NotNull OperationContext<T, ID, ClientSession> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeUpdate(
-            @NotNull Operation<R, ClientSession> operation,
-            @NotNull OperationContext<ClientSession> context) {
+            @NotNull Operation<T, ID, R, ClientSession> operation,
+            @NotNull OperationContext<T, ID, ClientSession> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeDelete(
-            @NotNull Operation<R, ClientSession> operation,
-            @NotNull OperationContext<ClientSession> context) {
+            @NotNull Operation<T, ID, R, ClientSession> operation,
+            @NotNull OperationContext<T, ID, ClientSession> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeSchema(
-            @NotNull Operation<R, ClientSession> operation,
-            @NotNull OperationContext<ClientSession> context) {
+            @NotNull Operation<T, ID, R, ClientSession> operation,
+            @NotNull OperationContext<T, ID, ClientSession> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeCustom(
-            @NotNull Operation<R, ClientSession> operation,
-            @NotNull OperationContext<ClientSession> context) {
+            @NotNull Operation<T, ID, R, ClientSession> operation,
+            @NotNull OperationContext<T, ID, ClientSession> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeRemote(
-            @NotNull Operation<R, ClientSession> operation,
-            @NotNull OperationContext<ClientSession> context) {
+            @NotNull Operation<T, ID, R, ClientSession> operation,
+            @NotNull OperationContext<T, ID, ClientSession> context) {
         throw new UnsupportedOperationException("Remote operations not supported for MongoDB repositories");
     }
 }

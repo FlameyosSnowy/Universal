@@ -5,11 +5,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-final class DelegatingResultSet extends ResultSetWrapper {
+public final class DelegatingResultSet extends ResultSetWrapper {
     private final Statement statement;
     private final Connection connection;
 
-    DelegatingResultSet(ResultSet rs, Statement stmt, Connection conn) {
+    public DelegatingResultSet(ResultSet rs, Statement stmt, Connection conn) {
         super(rs);
         this.statement = stmt;
         this.connection = conn;

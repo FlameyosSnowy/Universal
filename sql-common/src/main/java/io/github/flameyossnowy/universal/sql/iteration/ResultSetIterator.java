@@ -1,11 +1,17 @@
 package io.github.flameyossnowy.universal.sql.iteration;
 
 import io.github.flameyossnowy.universal.api.CloseableIterator;
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
+import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.NoSuchElementException;
 import java.util.Spliterators;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -17,15 +23,22 @@ import java.util.stream.StreamSupport;
  */
 public class ResultSetIterator<T> implements CloseableIterator<T> {
     private final ResultSet resultSet;
-    private final Function<ResultSet, T> mapper;
+    private final BiFunction<ResultSet, SQLDatabaseResult, T> mapper;
+    private final SQLDatabaseResult sqlDatabaseParameters;
+    private final TypeResolverRegistry resolverRegistry;
+    private final CollectionHandler collectionHandler;
     private Boolean hasNext;
+    private final boolean supportArrays;
     private boolean closed = false;
 
     /**
      * Creates an iterator with default fetch size (as determined by ResultSet).
      */
-    public ResultSetIterator(ResultSet resultSet, Function<ResultSet, T> mapper) {
-        this(resultSet, mapper, null);
+    public ResultSetIterator(
+        ResultSet resultSet, BiFunction<ResultSet, SQLDatabaseResult, T> mapper, TypeResolverRegistry resolverRegistry,
+        CollectionHandler collectionHandler, boolean supportArrays, RepositoryModel<T, ?> information
+    ) {
+        this(resultSet, mapper, null, resolverRegistry, collectionHandler, supportArrays, information);
     }
 
     /**
@@ -33,10 +46,17 @@ public class ResultSetIterator<T> implements CloseableIterator<T> {
      * 
      * @param fetchSize the number of rows to fetch at a time, or null for default
      */
-    public ResultSetIterator(ResultSet resultSet, Function<ResultSet, T> mapper, Integer fetchSize) {
+    public ResultSetIterator(
+        ResultSet resultSet, BiFunction<ResultSet, SQLDatabaseResult, T> mapper, Integer fetchSize, TypeResolverRegistry resolverRegistry,
+        CollectionHandler collectionHandler, boolean supportsArrays, RepositoryModel<T, ?> information
+    ) {
         this.resultSet = resultSet;
         this.mapper = mapper;
-        
+        this.resolverRegistry = resolverRegistry;
+        this.collectionHandler = collectionHandler;
+        this.supportArrays = supportsArrays;
+        this.sqlDatabaseParameters = new SQLDatabaseResult(resultSet, resolverRegistry, collectionHandler, supportsArrays, information);
+
         if (fetchSize != null) {
             try {
                 resultSet.setFetchSize(fetchSize);
@@ -73,7 +93,7 @@ public class ResultSetIterator<T> implements CloseableIterator<T> {
         }
         
         try {
-            T result = mapper.apply(resultSet);
+            T result = mapper.apply(resultSet, sqlDatabaseParameters);
             hasNext = null; // Reset for next hasNext() call
             return result;
         } catch (Exception e) {
@@ -98,8 +118,11 @@ public class ResultSetIterator<T> implements CloseableIterator<T> {
     /**
      * Creates a Stream from a ResultSet with default fetch size.
      */
-    public static <T> Stream<T> stream(ResultSet resultSet, Function<ResultSet, T> mapper) {
-        return stream(resultSet, mapper, null);
+    public static <T> Stream<T> stream(
+        ResultSet resultSet, BiFunction<ResultSet, SQLDatabaseResult, T> mapper, TypeResolverRegistry resolverRegistry,
+        CollectionHandler collectionHandler, boolean supportArrays, RepositoryModel<T, ?> information
+    ) {
+        return stream(resultSet, mapper, null, resolverRegistry, collectionHandler, supportArrays, information);
     }
 
     /**
@@ -108,8 +131,11 @@ public class ResultSetIterator<T> implements CloseableIterator<T> {
      * 
      * @param fetchSize the number of rows to fetch at a time, or null for default
      */
-    public static <T> Stream<T> stream(ResultSet resultSet, Function<ResultSet, T> mapper, Integer fetchSize) {
-        ResultSetIterator<T> iterator = new ResultSetIterator<>(resultSet, mapper, fetchSize);
+    public static <T> Stream<T> stream(
+        ResultSet resultSet, BiFunction<ResultSet, SQLDatabaseResult, T> mapper, Integer fetchSize,
+        TypeResolverRegistry resolverRegistry, CollectionHandler collectionHandler, boolean supportArrays, RepositoryModel<T, ?> information
+    ) {
+        ResultSetIterator<T> iterator = new ResultSetIterator<>(resultSet, mapper, fetchSize, resolverRegistry, collectionHandler, supportArrays, information);
         
         return StreamSupport.stream(
             Spliterators.spliteratorUnknownSize(iterator, 0),

@@ -6,5 +6,5 @@ package io.github.flameyossnowy.universal.api.options;
  * @param operator The operator, usually defaults to "=".
  * @param value The value to compare with.
  */
-public record SelectOption(String option, String operator, Object value) {
+public record SelectOption(String option, String operator, Object value) implements FilterOption {
 }

@@ -26,13 +26,13 @@ public class DefaultCacheWarmer<T, ID> implements CacheWarmer<T, ID> {
     @Override
     public void warmCache(RepositoryAdapter<T, ID, ?> adapter) {
         try {
-            Logging.info("Warming cache for " + adapter.getElementType().getSimpleName() + 
+            Logging.info(() -> "Warming cache for " + adapter.getElementType().getSimpleName() +
                         " (loading " + warmupSize + " entities)");
             
             long start = System.currentTimeMillis();
             List<T> entities = adapter.find(Query.select().limit(warmupSize).build());
             long duration = System.currentTimeMillis() - start;
-            Logging.info("Cache warmed with " + entities.size() + " entities in " + duration + "ms");
+            Logging.info(() -> "Cache warmed with " + entities.size() + " entities in " + duration + "ms");
             
         } catch (Exception e) {
             Logging.error("Failed to warm cache: " + e.getMessage());

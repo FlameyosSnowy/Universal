@@ -15,61 +15,61 @@ import java.net.http.HttpClient;
  * @param <ID> The ID type
  */
 public record NetworkOperationExecutor<T, ID>(
-        NetworkRepositoryAdapter<T, ID> adapter) implements OperationExecutor<HttpClient> {
+        NetworkRepositoryAdapter<T, ID> adapter) implements OperationExecutor<T, ID, HttpClient> {
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeRead(
-            @NotNull Operation<R, HttpClient> operation,
-            @NotNull OperationContext<HttpClient> context) {
+            @NotNull Operation<T, ID, R, HttpClient> operation,
+            @NotNull OperationContext<T, ID, HttpClient> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeWrite(
-            @NotNull Operation<R, HttpClient> operation,
-            @NotNull OperationContext<HttpClient> context) {
+            @NotNull Operation<T, ID, R, HttpClient> operation,
+            @NotNull OperationContext<T, ID, HttpClient> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeUpdate(
-            @NotNull Operation<R, HttpClient> operation,
-            @NotNull OperationContext<HttpClient> context) {
+            @NotNull Operation<T, ID, R, HttpClient> operation,
+            @NotNull OperationContext<T, ID, HttpClient> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeDelete(
-            @NotNull Operation<R, HttpClient> operation,
-            @NotNull OperationContext<HttpClient> context) {
+            @NotNull Operation<T, ID, R, HttpClient> operation,
+            @NotNull OperationContext<T, ID, HttpClient> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeSchema(
-            @NotNull Operation<R, HttpClient> operation,
-            @NotNull OperationContext<HttpClient> context) {
+            @NotNull Operation<T, ID, R, HttpClient> operation,
+            @NotNull OperationContext<T, ID, HttpClient> context) {
         throw new UnsupportedOperationException("Schema operations not supported for network repositories");
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeCustom(
-            @NotNull Operation<R, HttpClient> operation,
-            @NotNull OperationContext<HttpClient> context) {
+            @NotNull Operation<T, ID, R, HttpClient> operation,
+            @NotNull OperationContext<T, ID, HttpClient> context) {
         return operation.execute(context);
     }
 
     @Override
     @NotNull
     public <R> TransactionResult<R> executeRemote(
-            @NotNull Operation<R, HttpClient> operation,
-            @NotNull OperationContext<HttpClient> context) {
+            @NotNull Operation<T, ID, R, HttpClient> operation,
+            @NotNull OperationContext<T, ID, HttpClient> context) {
         return operation.execute(context);
     }
 }

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -120,5 +121,51 @@ class NetworkRepositoryAdapterTest {
 
         assertTrue(result.isSuccess());
         assertEquals("DELETE", server.takeRequest().getMethod());
+    }
+
+    @Test
+    void jsonField_is_encoded_on_write_and_decoded_on_read() throws Exception {
+        NetworkRepositoryAdapter<JsonTestEntity, String> jsonAdapter = new NetworkRepositoryAdapter<>(
+            JsonTestEntity.class,
+            String.class,
+            server.url("/api").toString(),
+            NetworkProtocol.REST,
+            AuthType.NONE,
+            null,
+            1000,
+            1000,
+            1,
+            false,
+            0,
+            Map.of(),
+            EndpointConfig.defaults(),
+            new ObjectMapper()
+        );
+
+        server.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .setBody("""
+                {"id":"1","payload":{"n":"Alice","a":21}}
+            """));
+
+        server.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .setBody("""
+                {"id":"1","payload":{"n":"Alice","a":21}}
+            """));
+
+        jsonAdapter.insert(new JsonTestEntity("1", new JsonTestEntity.Payload("Alice", 21)));
+        var recorded = server.takeRequest(1, TimeUnit.SECONDS);
+        assertNotNull(recorded);
+        String body = recorded.getBody().readUtf8();
+        assertTrue(body.contains("\"payload\""));
+        assertTrue(body.contains("\"n\""));
+        assertTrue(body.contains("\"a\""));
+
+        JsonTestEntity loaded = jsonAdapter.findById("1");
+        assertNotNull(loaded);
+        assertNotNull(loaded.getPayload());
+        assertEquals("Alice", loaded.getPayload().getName());
+        assertEquals(21, loaded.getPayload().getAge());
     }
 }

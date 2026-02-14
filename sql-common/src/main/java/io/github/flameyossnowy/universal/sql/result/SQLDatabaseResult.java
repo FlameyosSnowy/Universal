@@ -1,6 +1,9 @@
 package io.github.flameyossnowy.universal.sql.result;
 
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
 import io.github.flameyossnowy.universal.api.handler.DataHandler;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import org.jetbrains.annotations.NotNull;
@@ -13,7 +16,12 @@ import java.sql.SQLException;
  * SQL implementation of DatabaseResult that wraps a JDBC ResultSet and uses DataHandlers
  * for type conversion.
  */
-public record SQLDatabaseResult(ResultSet resultSet, TypeResolverRegistry typeRegistry) implements DatabaseResult {
+public record SQLDatabaseResult(ResultSet resultSet, TypeResolverRegistry typeRegistry, CollectionHandler collectionHandler, boolean supportsArraysNatively, RepositoryModel<?, ?> repositoryModel) implements DatabaseResult {
+    @Override
+    public CollectionHandler getCollectionHandler() {
+        return collectionHandler;
+    }
+
     @Nullable
     @Override
     @SuppressWarnings("unchecked")
@@ -57,5 +65,9 @@ public record SQLDatabaseResult(ResultSet resultSet, TypeResolverRegistry typeRe
         } catch (SQLException e) {
             throw new RuntimeException("Error getting column name for index: " + columnIndex, e);
         }
+    }
+
+    public ResultSet getResultSet() {
+        return resultSet;
     }
 }

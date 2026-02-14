@@ -20,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
  * @param <R> The result type of the operation
  * @param <C> The connection/context type used by the underlying storage
  */
-public interface Operation<R, C> {
+public interface Operation<T, ID, R, C> {
     /**
      * Gets the type of this operation.
      *
@@ -36,7 +36,7 @@ public interface Operation<R, C> {
      * @return The result of the operation
      */
     @NotNull
-    TransactionResult<R> execute(@NotNull OperationContext<C> context);
+    TransactionResult<R> execute(@NotNull OperationContext<T, ID, C> context);
 
     /**
      * Executes this operation asynchronously.
@@ -45,7 +45,7 @@ public interface Operation<R, C> {
      * @return A CompletableFuture that will complete with the operation result
      */
     @NotNull
-    default CompletableFuture<TransactionResult<R>> executeAsync(@NotNull OperationContext<C> context) {
+    default CompletableFuture<TransactionResult<R>> executeAsync(@NotNull OperationContext<T, ID, C> context) {
         return CompletableFuture.supplyAsync(() -> execute(context));
     }
 
@@ -58,7 +58,7 @@ public interface Operation<R, C> {
      */
     @NotNull
     default TransactionResult<R> executeWithTransaction(
-            @NotNull OperationContext<C> context,
+            @NotNull OperationContext<T, ID, C> context,
             @NotNull TransactionContext<C> transactionContext) {
         return execute(context.withTransaction(transactionContext));
     }

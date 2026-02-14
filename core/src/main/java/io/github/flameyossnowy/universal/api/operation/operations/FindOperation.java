@@ -17,12 +17,12 @@ import java.util.List;
  * @param <T> The entity type
  * @param <C> The connection type
  */
-public class FindOperation<T, C> implements Operation<List<T>, C> {
+public class FindOperation<T, ID, C> implements Operation<T, ID, List<T>, C> {
     private final SelectQuery query;
-    private final FindExecutor<T, C> executor;
+    private final FindExecutor<T, ID, C> executor;
     private final OperationMetadata metadata;
 
-    public FindOperation(SelectQuery query, FindExecutor<T, C> executor) {
+    public FindOperation(SelectQuery query, FindExecutor<T, ID, C> executor) {
         this.query = query;
         this.executor = executor;
         this.metadata = OperationMetadata.builder()
@@ -40,7 +40,7 @@ public class FindOperation<T, C> implements Operation<List<T>, C> {
 
     @Override
     @NotNull
-    public TransactionResult<List<T>> execute(@NotNull OperationContext<C> context) {
+    public TransactionResult<List<T>> execute(@NotNull OperationContext<T, ID, C> context) {
         try {
             List<T> results = executor.find(query, context);
             return TransactionResult.success(results);
@@ -56,7 +56,7 @@ public class FindOperation<T, C> implements Operation<List<T>, C> {
     }
 
     @FunctionalInterface
-    public interface FindExecutor<T, C> {
-        List<T> find(SelectQuery query, OperationContext<C> context) throws Exception;
+    public interface FindExecutor<T, ID, C> {
+        List<T> find(SelectQuery query, OperationContext<T, ID, C> context) throws Exception;
     }
 }

@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.sql.resolvers;
 
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
@@ -23,19 +24,25 @@ public class MapTypeResolver<K, V, ID> {
     private final TypeResolver<ID> idResolver;
 
     private final SQLConnectionProvider connectionProvider;
-    private final RepositoryInformation information;
+    private final RepositoryModel<?, ID> information;
+    private final CollectionHandler collectionHandler;
+
+    private final boolean supportsArrays;
 
     @NotNull
     private final TypeResolverRegistry resolverRegistry;
 
     public MapTypeResolver(Class<ID> idType, Class<K> keyType, @NotNull Class<V> valueType,
                            final SQLConnectionProvider connectionProvider,
-                           final @NotNull RepositoryInformation information, TypeResolverRegistry resolverRegistry) {
+                           final @NotNull RepositoryModel<?, ID> information, TypeResolverRegistry resolverRegistry,
+                           CollectionHandler collectionHandler, boolean supportsArrays) {
         this.connectionProvider = connectionProvider;
         this.information = information;
         this.resolverRegistry = resolverRegistry;
+        this.collectionHandler = collectionHandler;
+        this.supportsArrays = supportsArrays;
 
-        this.tableName = information.getRepositoryName() + "_" + valueType.getSimpleName().toLowerCase() + "_map";
+        this.tableName = information.tableName() + "_" + valueType.getSimpleName().toLowerCase() + "s";
         this.keyResolver = resolverRegistry.resolve(keyType);
         this.valueResolver = resolverRegistry.resolve(valueType);
         this.idResolver = resolverRegistry.resolve(idType);
@@ -49,11 +56,11 @@ public class MapTypeResolver<K, V, ID> {
         String query = "SELECT * FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information, collectionHandler, supportsArrays);
             idResolver.insert(parameters, "id", id);
 
             try (ResultSet resultSet = stmt.executeQuery()) {
-                SQLDatabaseResult result = new SQLDatabaseResult(resultSet, resolverRegistry);
+                SQLDatabaseResult result = new SQLDatabaseResult(resultSet, resolverRegistry, collectionHandler, supportsArrays, information);
                 Map<K, V> map = new HashMap<>(Math.max(stmt.getFetchSize(), 32));
 
                 while (resultSet.next()) {
@@ -74,7 +81,7 @@ public class MapTypeResolver<K, V, ID> {
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
             for (Map.Entry<K, V> entry : map.entrySet()) {
-                SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information);
+                SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information, collectionHandler, supportsArrays);
                 addEntry(id, entry.getKey(), entry.getValue(), insertStmt, parameters);
                 insertStmt.addBatch();
             }
@@ -86,7 +93,7 @@ public class MapTypeResolver<K, V, ID> {
         String insertQuery = "INSERT INTO " + tableName + " (id, map_key, map_value) VALUES (?, ?, ?)";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement insertStmt = connectionProvider.prepareStatement(insertQuery, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(insertStmt, resolverRegistry, insertQuery, information, collectionHandler, supportsArrays);
             addEntry(id, key, value, insertStmt, parameters);
             insertStmt.executeUpdate();
         }
@@ -96,7 +103,7 @@ public class MapTypeResolver<K, V, ID> {
         String query = "DELETE FROM " + tableName + " WHERE id = ? AND map_key = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information, collectionHandler, supportsArrays);
             idResolver.insert(parameters, "id", id);
             keyResolver.insert(parameters, "map_key", key);
             stmt.executeUpdate();
@@ -107,13 +114,19 @@ public class MapTypeResolver<K, V, ID> {
         String query = "DELETE FROM " + tableName + " WHERE id = ?;";
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement stmt = connectionProvider.prepareStatement(query, connection)) {
-            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information);
+            SQLDatabaseParameters parameters = new SQLDatabaseParameters(stmt, resolverRegistry, query, information, collectionHandler, supportsArrays);
             idResolver.insert(parameters, "id", id);
             stmt.executeUpdate();
         }
     }
 
-    private void addEntry(final ID id, final K key, final V value, final PreparedStatement insertStmt, SQLDatabaseParameters parameters) throws Exception {
+    private void addEntry(
+        final ID id,
+        final K key,
+        final V value,
+        final PreparedStatement insertStmt,
+        SQLDatabaseParameters parameters
+    ) {
         idResolver.insert(parameters, "id", id);
         keyResolver.insert(parameters, "map_key", key);
         valueResolver.insert(parameters, "map_value", value);

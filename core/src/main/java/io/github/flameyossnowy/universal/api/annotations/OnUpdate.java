@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
  * Sets the behavior when an entity is updated.
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface OnUpdate {
     OnModify value();

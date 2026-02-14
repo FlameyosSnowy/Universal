@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.NOPLogger;
 
+import java.util.function.Supplier;
 import java.util.logging.Level;
 
 @ApiStatus.Internal
@@ -86,12 +87,33 @@ public final class Logging {
     }
 
     /**
+     * Logs an info message but does not require debugging to be enabled.
+     * @param string the message
+     */
+    public static void info(Supplier<String> string) {
+        if (ENABLED) {
+            if (LOGGER != null) LOGGER.info(string.get());
+            else FALLBACK.info(string);
+        }
+    }
+
+    /**
      * Logs an info message only if both {@link #ENABLED} and {@link #DEEP} are enabled.
      * @param string the message
      */
     public static void deepInfo(String string) {
         if (DEEP) {
             if (LOGGER != null) LOGGER.info(string);
+            else FALLBACK.info(string);
+        }
+    }
+    /**
+     * Logs an info message only if both {@link #ENABLED} and {@link #DEEP} are enabled.
+     * @param string the message
+     */
+    public static void deepInfo(Supplier<String> string) {
+        if (DEEP) {
+            if (LOGGER != null) LOGGER.info(string.get());
             else FALLBACK.info(string);
         }
     }

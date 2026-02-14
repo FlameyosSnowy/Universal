@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
  * The exception handler for the repository.
  * @author FlameyosFlow
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface RepositoryExceptionHandler {
     Class<? extends ExceptionHandler<?, ?, ?>> value();

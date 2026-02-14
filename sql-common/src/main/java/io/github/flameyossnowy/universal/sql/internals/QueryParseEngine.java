@@ -1,52 +1,63 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
 import io.github.flameyossnowy.universal.api.IndexOptions;
-import io.github.flameyossnowy.universal.api.annotations.*;
-import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
-import io.github.flameyossnowy.universal.api.reflect.FieldData;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.*;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
-import io.github.flameyossnowy.universal.api.reflect.RepositoryMetadata;
-import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
-import io.github.flameyossnowy.universal.api.resolver.SqlEncoding;
-import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.DatabaseImplementation;
-
 import io.github.flameyossnowy.universal.sql.query.SQLQueryValidator;
+import io.github.flameyossnowy.universal.sql.internals.query.DeleteSqlBuilder;
+import io.github.flameyossnowy.universal.sql.internals.query.IndexSqlBuilder;
+import io.github.flameyossnowy.universal.sql.internals.query.InsertSqlBuilder;
+import io.github.flameyossnowy.universal.sql.internals.query.QueryStringCache;
+import io.github.flameyossnowy.universal.sql.internals.query.RepositoryDdlBuilder;
+import io.github.flameyossnowy.universal.sql.internals.query.SelectSqlBuilder;
+import io.github.flameyossnowy.universal.sql.internals.query.SqlConditionBuilder;
+import io.github.flameyossnowy.universal.sql.internals.query.SqlSortBuilder;
+import io.github.flameyossnowy.universal.sql.internals.query.UpdateSqlBuilder;
+
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.lang.reflect.InvocationTargetException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringJoiner;
-import java.util.concurrent.ConcurrentHashMap;
 
-public class QueryParseEngine {
-    private final DatabaseImplementation sqlType;
-    private final RepositoryInformation repositoryInformation;
-    private final Map<String, String> queryMap;
-    private final TypeResolverRegistry resolverRegistry;
-    private final SQLConnectionProvider connectionProvider;
+public class QueryParseEngine<T, ID> {
+    private final SQLType sqlType;
+    private final RepositoryModel<T, ID> repositoryInformation;
+    private final QueryStringCache queryMap;
+    private final SqlConditionBuilder<T, ID> conditionBuilder;
+    private final SelectSqlBuilder<T, ID> selectSqlBuilder;
+    private final InsertSqlBuilder<T, ID> insertSqlBuilder;
+    private final UpdateSqlBuilder<T, ID> updateSqlBuilder;
+    private final DeleteSqlBuilder<T, ID> deleteSqlBuilder;
+    private final IndexSqlBuilder<T, ID> indexSqlBuilder;
+    private final RepositoryDdlBuilder<T, ID> repositoryDdlBuilder;
 
     private final String insert;
 
-    public QueryParseEngine(DatabaseImplementation sqlType, final RepositoryInformation repositoryInformation, TypeResolverRegistry resolverRegistry, SQLConnectionProvider connectionProvider) {
+    public QueryParseEngine(SQLType sqlType, final RepositoryModel<T, ID> repositoryInformation, TypeResolverRegistry resolverRegistry, SQLConnectionProvider connectionProvider) {
         this.sqlType = sqlType;
         this.repositoryInformation = repositoryInformation;
-        this.resolverRegistry = resolverRegistry;
-        this.connectionProvider = connectionProvider;
-        this.queryMap = new ConcurrentHashMap<>(5);
-        this.insert = parseInsert0();
+        Objects.requireNonNull(resolverRegistry);
+        Objects.requireNonNull(connectionProvider);
+
+        this.queryMap = new QueryStringCache(5);
+
+        this.conditionBuilder = new SqlConditionBuilder<>(sqlType, repositoryInformation);
+        this.selectSqlBuilder = new SelectSqlBuilder<>(
+            sqlType,
+            repositoryInformation,
+            conditionBuilder,
+            new SqlSortBuilder()
+        );
+        this.insertSqlBuilder = new InsertSqlBuilder<>(sqlType, repositoryInformation);
+        this.updateSqlBuilder = new UpdateSqlBuilder<>(sqlType, repositoryInformation, conditionBuilder);
+        this.deleteSqlBuilder = new DeleteSqlBuilder<>(repositoryInformation, conditionBuilder);
+        this.indexSqlBuilder = new IndexSqlBuilder<>(sqlType, repositoryInformation);
+        this.repositoryDdlBuilder = new RepositoryDdlBuilder<>(sqlType, repositoryInformation, resolverRegistry, connectionProvider);
+
+        this.insert = insertSqlBuilder.parseInsert();
     }
 
     private static @NotNull String getSelectKey(SelectQuery query, final boolean first) {
@@ -57,11 +68,10 @@ public class QueryParseEngine {
     }
 
     public String parseIndex(final @NotNull IndexOptions index) {
-        String type = index.type() == IndexType.NORMAL ? "" : index.type().name() + " ";
-        return "CREATE " + type + "INDEX " + sqlType.quoteChar() + index.indexName() + sqlType.quoteChar() + " ON " + sqlType.quoteChar() + repositoryInformation.getRepositoryName() + sqlType.quoteChar() + " (" + index.getJoinedFields() + ");";
+        return indexSqlBuilder.parseIndex(index);
     }
 
-    public @NotNull String parseSelect(SelectQuery query, boolean first, boolean ids) {
+    public @NotNull String parseSelect(SelectQuery query, boolean first) {
         String key = null;
 
         if (queryMap != null) {
@@ -70,85 +80,24 @@ public class QueryParseEngine {
             if (queryString != null) return queryString;
         }
 
-        String queryString = parseQuery(query, first);
+        String queryString = selectSqlBuilder.parseSelect(query, first);
 
         if (queryMap != null) queryMap.put(key, queryString);
-        Logging.info("Parsed query for selecting: " + queryString);
+        Logging.info(() -> "Parsed query for selecting: " + queryString);
         return queryString;
     }
 
-    public @NotNull String parseSelect(SelectQuery query, boolean first) {
-        return parseSelect(query, first, false);
-    }
-
-    private @NotNull String parseQuery(SelectQuery query, boolean first) {
-        String tableName = repositoryInformation.getRepositoryName();
-
-        if (query == null) {
-            return "SELECT * FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + (first ? " LIMIT 1" : "");
-        }
-        StringBuilder sql = new StringBuilder("SELECT * FROM " + sqlType.quoteChar())
-                .append(tableName)
-                .append(sqlType.quoteChar());
-
-        appendConditions(query, sql);
-        appendSortingAndLimit(query, sql, first);
-
-        return sql.toString();
-    }
-
     public @NotNull String parseQueryIds(SelectQuery query, boolean first) {
-        String tableName = repositoryInformation.getRepositoryName();
-
-        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
-        if (primaryKey == null) {
-            throw new IllegalArgumentException("Cannot find Id because it doesn't exist.");
-        }
-
-        String idName = primaryKey.name();
-
-        if (query == null) {
-            return "SELECT " + idName  + " FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + (first ? " LIMIT 1" : "");
-        }
-        StringBuilder sql = new StringBuilder("SELECT " + idName + " FROM " + sqlType.quoteChar())
-                .append(tableName)
-                .append(sqlType.quoteChar());
-
-        appendConditions(query, sql);
-        appendSortingAndLimit(query, sql, first);
-
-        return sql.toString();
-    }
-
-    private static void appendConditions(@NotNull SelectQuery query, StringBuilder sql) {
-        if (!query.filters().isEmpty()) {
-            sql.append(" WHERE ");
-            sql.append(buildConditions(query.filters()));
-        }
-    }
-
-    private static void appendSortingAndLimit(@NotNull SelectQuery query, StringBuilder sql, boolean first) {
-        if (!query.sortOptions().isEmpty()) {
-            sql.append(" ORDER BY ");
-            sql.append(buildSortOptions(query.sortOptions()));
-        }
-
-        if (query.limit() != -1) {
-            sql.append(" LIMIT ").append(query.limit());
-        } else if (first) {
-            sql.append(" LIMIT 1");
-        }
+        return selectSqlBuilder.parseQueryIds(query, first);
     }
 
     public @NotNull String parseDelete(DeleteQuery query) {
         if (query == null || query.filters().isEmpty()) {
-            return "DELETE FROM " + repositoryInformation.getRepositoryName();
+            return deleteSqlBuilder.parseDelete(query);
         }
-        
+
         String key = "DELETE:" + query.hashCode();
-        return queryMap.computeIfAbsent(key, k -> 
-            "DELETE FROM " + repositoryInformation.getRepositoryName() + " WHERE " + buildConditions(query.filters())
-        );
+        return queryMap.computeIfAbsent(key, k -> deleteSqlBuilder.parseDelete(query));
     }
 
     public @NotNull String parseDelete(Object value) {
@@ -156,103 +105,30 @@ public class QueryParseEngine {
             throw new NullPointerException("Value must not be null");
         }
 
-        if (value.getClass() != repositoryInformation.getType())
-            throw new IllegalArgumentException("Value must be of type " + repositoryInformation.getType());
+        if (value.getClass() != repositoryInformation.getEntityClass())
+            throw new IllegalArgumentException("Value must be of type " + repositoryInformation.getEntityClass());
 
         if (repositoryInformation.getPrimaryKey() == null) {
             throw new IllegalArgumentException("Primary key must not be null");
         }
 
-        String key = "DELETE:ENTITY:" + repositoryInformation.getType().getName();
-        return queryMap.computeIfAbsent(key, k -> {
-            if (repositoryInformation.hasCompositeKey()) {
-                // For composite keys, we need to include all primary key fields in the WHERE clause
-                StringJoiner whereClause = new StringJoiner(" AND ");
-                for (FieldData<?> keyField : repositoryInformation.getPrimaryKeys()) {
-                    whereClause.add(keyField.name() + " = ?");
-                }
-                return "DELETE FROM " + repositoryInformation.getRepositoryName() + " WHERE " + whereClause;
-            } else {
-                // For single primary key
-                return "DELETE FROM " + repositoryInformation.getRepositoryName() + " WHERE " + repositoryInformation.getPrimaryKey().name() + " = ?";
-            }
-        });
+        String key = "DELETE:ENTITY:" + repositoryInformation.entitySimpleName();
+        return queryMap.computeIfAbsent(key, k -> deleteSqlBuilder.parseDeleteEntity(value));
     }
 
     public @NotNull String parseInsert() {
-        Logging.info("Parsed query for inserting: " + insert);
+        Logging.info(() -> "Parsed query for inserting: " + insert);
         return insert;
     }
 
-    public @NotNull String parseInsert0() {
-        StringJoiner columnJoiner = new StringJoiner(", ");
-
-        StringBuilder queryBuilder = new StringBuilder("INSERT INTO " + sqlType.quoteChar());
-        queryBuilder.append(repositoryInformation.getRepositoryName()).append(sqlType.quoteChar()).append(" (");
-
-        StringJoiner joiner = new StringJoiner(", ");
-        for (FieldData<?> data : repositoryInformation.getFields()) {
-            if (Collection.class.isAssignableFrom(data.type()) || Map.class.isAssignableFrom(data.type())) continue;
-            if (data.autoIncrement()) {
-                joiner.add("default");
-            } else {
-                joiner.add("?");
-            }
-            columnJoiner.add(data.name());
-        }
-
-        queryBuilder.append(columnJoiner).append(") VALUES (");
-        queryBuilder.append(joiner).append(')');
-        return queryBuilder.toString();
-    }
-
-    public @NotNull String parseUpdate(UpdateQuery query) {
+    public @NotNull String parseUpdate(@NotNull UpdateQuery query) {
         String key = "UPDATE:" + query.hashCode();
-        return queryMap.computeIfAbsent(key, k -> {
-            String tableName = repositoryInformation.getRepositoryName();
-            String setClause = generateSetClause(query);
-
-            return query.filters().isEmpty()
-                    ? "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + ";"
-                    : "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + buildConditions(query.filters()) + ";";
-        });
+        return queryMap.computeIfAbsent(key, k -> updateSqlBuilder.parseUpdate(query));
     }
 
     public @NotNull String parseUpdateFromEntity() {
-        FieldData<?> primaryKey = repositoryInformation.getPrimaryKey();
-        if (primaryKey == null) {
-            throw new IllegalArgumentException("Primary key must not be null");
-        }
-
-        String key = "UPDATE:ENTITY:" + repositoryInformation.getType().getName();
-        return queryMap.computeIfAbsent(key, k -> {
-            String tableName = repositoryInformation.getRepositoryName();
-            String setClause = generateSetClauseFromEntity();
-
-            if (repositoryInformation.hasCompositeKey()) {
-                // For composite keys, include all primary key fields in the WHERE clause
-                StringJoiner whereClause = new StringJoiner(" AND ");
-                for (FieldData<?> keyField : repositoryInformation.getPrimaryKeys()) {
-                    whereClause.add(keyField.name() + " = ?");
-                }
-                return "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + whereClause + ";";
-            } else {
-                // For single primary key
-                return "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + primaryKey.name() + " = ?;";
-            }
-        });
-    }
-
-    private String generateSetClauseFromEntity() {
-        StringJoiner joiner = new StringJoiner(", ");
-        for (FieldData<?> data : repositoryInformation.getFields()) {
-            if (Collection.class.isAssignableFrom(data.type())) continue;
-            if (Map.class.isAssignableFrom(data.type())) continue;
-            if (data.autoIncrement()) continue;
-            if (data.primary()) continue;
-            joiner.add(data.name() + " = ?");
-        }
-        return joiner.toString();
+        String key = "UPDATE:ENTITY:" + repositoryInformation.entityQualifiedName();
+        return queryMap.computeIfAbsent(key, k -> updateSqlBuilder.parseUpdateFromEntity());
     }
 
     /*
@@ -261,353 +137,8 @@ public class QueryParseEngine {
      * |--------------|
      */
 
-    @SuppressWarnings("RedundantOperationOnEmptyContainer")
     public @NotNull String parseRepository(boolean ifNotExists) {
-        Logging.deepInfo("Starting repository parse: " + repositoryInformation.getRepositoryName());
-        Logging.deepInfo("IF NOT EXISTS = " + ifNotExists);
-
-        Set<FieldData<?>> childTableQueue = new HashSet<>(4);
-
-        String tableName = repositoryInformation.getRepositoryName();
-        String ddlPrefix =
-            "CREATE TABLE " + (ifNotExists ? "IF NOT EXISTS " : "") +
-                sqlType.quoteChar() + tableName + sqlType.quoteChar();
-
-        Logging.deepInfo("DDL prefix: " + ddlPrefix);
-
-        StringJoiner joiner = new StringJoiner(", ", ddlPrefix + " (", ");");
-
-        generateColumns(joiner, childTableQueue);
-
-        String classConstraints = processClassLevelConstraints();
-        if (!classConstraints.isEmpty()) {
-            Logging.deepInfo("Adding class-level constraints: " + classConstraints);
-            joiner.add(classConstraints);
-        }
-
-        String finalQuery = joiner.toString();
-        Logging.deepInfo("Final CREATE TABLE query:\n" + finalQuery);
-
-        String query = createTable(
-            finalQuery,
-            "Failed to create main repository table: ",
-            tableName
-        );
-
-        //noinspection ConstantValue
-        if (!childTableQueue.isEmpty()) {
-            Logging.deepInfo("Creating " + childTableQueue.size() + " child tables");
-        }
-
-        for (FieldData<?> data : childTableQueue) {
-            Logging.deepInfo("Creating child table for field: " + data.name());
-            createChildTable(data);
-        }
-
-        return query;
-    }
-
-    private String createTable(String query, String errorMessage, String repositoryName) {
-        try (Connection connection = connectionProvider.getConnection();
-             PreparedStatement statement = connectionProvider.prepareStatement(query, connection)) {
-            statement.executeUpdate();
-        } catch (Exception e) {
-            throw new RuntimeException(errorMessage + repositoryName, e);
-        }
-        return query;
-    }
-
-    private String processClassLevelConstraints() {
-        Constraint[] constraints = repositoryInformation.getConstraints();
-        if (constraints.length == 0) {
-            Logging.deepInfo("No class-level constraints found");
-            return "";
-        }
-
-        Logging.deepInfo("Processing " + constraints.length + " class-level constraints");
-
-        StringJoiner joiner = new StringJoiner(", ");
-        for (Constraint constraint : constraints) {
-            Logging.deepInfo("Processing constraint: " + constraint.name());
-
-            StringJoiner checkConditionsJoiner = new StringJoiner(" AND ");
-            StringJoiner uniqueFieldsJoiner = new StringJoiner(", ");
-
-            for (String fieldName : constraint.fields()) {
-                FieldData<?> fieldData = repositoryInformation.getField(fieldName);
-                if (fieldData == null) {
-                    Logging.deepInfo("Constraint field not found: " + fieldName);
-                    continue;
-                }
-
-                if (fieldData.condition() != null) {
-                    checkConditionsJoiner.add(fieldData.condition().value());
-                }
-                if (fieldData.unique()) {
-                    uniqueFieldsJoiner.add(fieldName);
-                }
-            }
-
-            if (checkConditionsJoiner.length() > 0) {
-                String check = "CONSTRAINT " + constraint.name() +
-                    " CHECK (" + checkConditionsJoiner + ")";
-                Logging.deepInfo("Generated CHECK constraint: " + check);
-                joiner.add(check);
-            }
-
-            if (uniqueFieldsJoiner.length() > 0) {
-                String unique = "CONSTRAINT " + constraint.name() +
-                    " UNIQUE (" + uniqueFieldsJoiner + ")";
-                Logging.deepInfo("Generated UNIQUE constraint: " + unique);
-                joiner.add(unique);
-            }
-        }
-
-        return joiner.toString();
-    }
-
-    @Contract(pure = true)
-    private void generateColumns(final StringJoiner joiner, Set<FieldData<?>> childTableQueue) {
-        Logging.deepInfo("Generating columns for repository: " +
-            repositoryInformation.getRepositoryName());
-
-        StringJoiner primaryKeysJoiner = new StringJoiner(", ");
-        StringJoiner relationshipsJoiner = new StringJoiner(", ");
-
-        for (FieldData<?> data : repositoryInformation.getFields()) {
-            Logging.deepInfo("----");
-            Logging.deepInfo("Processing field: " + data.name());
-
-            generateColumn(
-                joiner,
-                data,
-                data.type(),
-                new StringBuilder(32),
-                data.name(),
-                data.unique(),
-                data.primary(),
-                primaryKeysJoiner,
-                relationshipsJoiner,
-                childTableQueue
-            );
-        }
-
-        if (primaryKeysJoiner.length() > 0) {
-            String pk = "PRIMARY KEY (" + primaryKeysJoiner + ")";
-            Logging.deepInfo("Primary key clause: " + pk);
-            joiner.add(pk);
-        }
-
-        if (relationshipsJoiner.length() > 0) {
-            Logging.deepInfo("Relationship clauses: " + relationshipsJoiner);
-            joiner.add(relationshipsJoiner.toString());
-        }
-    }
-
-    private void generateColumn(
-        StringJoiner joiner,
-        FieldData<?> data,
-        Class<?> type,
-        StringBuilder fieldBuilder,
-        String name,
-        boolean unique,
-        boolean primaryKey,
-        StringJoiner primaryKeysJoiner,
-        StringJoiner relationshipsJoiner,
-        Set<FieldData<?>> childTableQueue
-    ) {
-        if (data.isRelationship()) {
-            return;
-        }
-
-        // handle collections
-        if (Collection.class.isAssignableFrom(type)) {
-            if (!sqlType.supportsArrays()) {
-                childTableQueue.add(data);
-                return;
-            }
-
-            Class<?> genericType = data.elementType() != null ? data.elementType() : Object.class;
-            String resolvedType = resolverRegistry.getType(genericType, data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
-            appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
-            return;
-        }
-
-        // handle maps
-        if (Map.class.isAssignableFrom(type)) {
-            childTableQueue.add(data);
-            return;
-        }
-
-        // handle arrays
-        if (type.isArray()) {
-            if (!sqlType.supportsArrays()) {
-                childTableQueue.add(data);
-                return;
-            }
-            String resolvedType = resolverRegistry.getType(type.getComponentType(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
-            appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
-            return;
-        }
-
-        String resolvedType = resolverRegistry.getType(type, data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
-        if (resolvedType == null) {
-            TypeResolver<?> newResolver = createResolver(data);
-            resolvedType = resolverRegistry.getType(newResolver);
-        }
-
-        RepositoryInformation metadata;
-        if (resolvedType == null && (metadata = RepositoryMetadata.getMetadata(type)) != null) {
-            FieldData<?> metadataPrimaryKey = metadata.getPrimaryKey();
-            Objects.requireNonNull(metadataPrimaryKey, "Primary key must not be null");
-            resolvedType = resolverRegistry.getType(metadataPrimaryKey.type(), data.binary() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
-        }
-
-        Objects.requireNonNull(resolvedType, "Unsupported type: " + type);
-
-        appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
-    }
-
-    private void appendColumn(
-        @NotNull StringJoiner joiner,
-        FieldData<?> data,
-        @NotNull StringBuilder fieldBuilder,
-        String name,
-        boolean unique,
-        boolean primaryKey,
-        StringJoiner primaryKeysJoiner,
-        StringJoiner relationshipsJoiner,
-        String resolvedType
-    ) {
-        fieldBuilder.append(name).append(' ').append(resolvedType);
-        addColumnMetaData(data, fieldBuilder, unique);
-
-        String columnSql = fieldBuilder.toString();
-        Logging.deepInfo("Generated column SQL: " + columnSql);
-
-        joiner.add(columnSql);
-
-        if (primaryKey) {
-            Logging.deepInfo("Marked as PRIMARY KEY: " + name);
-            primaryKeysJoiner.add(name);
-        }
-
-        addPotentialManyToOne(data, name, relationshipsJoiner);
-    }
-
-    private void addColumnMetaData(@NotNull FieldData<?> data, StringBuilder fieldBuilder, boolean unique) {
-        if (data.nonNull()) fieldBuilder.append(" NOT NULL");
-        if (data.autoIncrement()) fieldBuilder.append(" ").append(sqlType.autoIncrementKeyword());
-        if (data.condition() != null) fieldBuilder.append(" CHECK (").append(data.condition().value()).append(")");
-        if (unique) fieldBuilder.append(" UNIQUE");
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> @Nullable TypeResolver<T> createResolver(final @NotNull FieldData<?> data) {
-        TypeResolver<?> resolver = parseNewResolver(data);
-        return (TypeResolver<T>) resolver;
-    }
-
-    @SuppressWarnings("unchecked")
-    private @Nullable TypeResolver<Object> parseNewResolver(final @NotNull FieldData<?> data) {
-        ResolveWith annotation = data.resolveWith();
-        if (annotation == null) {
-            return null;
-        }
-
-        if (!TypeResolver.class.isAssignableFrom(annotation.value())) {
-            throw new IllegalArgumentException("Annotation value must be an SQLValueTypeResolver: " + annotation.value());
-        }
-        try {
-            TypeResolver<Object> newResolver = (TypeResolver<Object>) annotation.value().getDeclaredConstructor().newInstance();
-            resolverRegistry.register(newResolver);
-            return newResolver;
-        } catch (InstantiationException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void createChildTable(FieldData<?> data) {
-        String childTableName = repositoryInformation.getRepositoryName() + "_" + data.name();
-        Class<?> elementType = (data.elementType() != null) ? data.elementType() : Object.class;
-
-        String elementSqlType = resolverRegistry.getType(elementType);
-        String idSqlType = resolverRegistry.getType(repositoryInformation.getPrimaryKey().type());
-
-        StringBuilder sb = new StringBuilder(128);
-        sb.append("CREATE TABLE IF NOT EXISTS ").append(sqlType.quoteChar()).append(childTableName).append(sqlType.quoteChar())
-            .append(" (\n")
-            .append("  ").append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(" ").append(idSqlType).append(" NOT NULL,\n");
-
-        if (Collection.class.isAssignableFrom(data.type())) {
-            sb.append("  ").append(sqlType.quoteChar()).append("value").append(sqlType.quoteChar()).append(" ").append(elementSqlType).append(" NOT NULL,\n");
-        } else if (Map.class.isAssignableFrom(data.type())) {
-            sb.append("  ").append(sqlType.quoteChar()).append("map_key").append(sqlType.quoteChar()).append(" ").append(resolverRegistry.getType(data.mapKeyType())).append(" NOT NULL,\n")
-                .append("  ").append(sqlType.quoteChar()).append("map_value").append(sqlType.quoteChar()).append(" ").append(elementSqlType).append(" NOT NULL,\n");
-        }
-
-        sb.append("  FOREIGN KEY (").append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(") REFERENCES ")
-            .append(sqlType.quoteChar()).append(repositoryInformation.getRepositoryName()).append(sqlType.quoteChar()).append("(")
-            .append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(") ON DELETE CASCADE ON UPDATE CASCADE\n")
-            .append(");");
-
-        createTable(sb.toString(), "Failed to create child table: ", childTableName);
-    }
-
-    private static void addPotentialManyToOne(@NotNull FieldData<?> data, String name, StringJoiner relationshipsJoiner) {
-        if (data.manyToOne() == null) return;
-        RepositoryInformation parent = RepositoryMetadata.getMetadata(data.type());
-        Objects.requireNonNull(parent, "Parent should not be null");
-
-        FieldData<?> primaryKey = parent.getPrimaryKey();
-        if (primaryKey == null) {
-            throw new IllegalArgumentException("Parent should have a primary key");
-        }
-
-        String table = parent.getRepositoryName();
-
-        String primaryKeyName = primaryKey.name();
-        String onDelete = data.onDelete() != null ? data.onDelete().value().name() : "";
-        String onUpdate = data.onUpdate() != null ? data.onUpdate().value().name() : "";
-
-        // optimization: we counted 38 chars in the string builder, and we added the lengths of the unknown strings.
-        // this should be enough to avoid array copies.
-        StringBuilder fkBuilder = new StringBuilder(38 + name.length() + table.length() + primaryKeyName.length() + onDelete.length() + onUpdate.length());
-        fkBuilder.append("FOREIGN KEY (").append(name).append(") REFERENCES ").append(table).append('(').append(primaryKeyName).append(')');
-        if (data.onDelete() != null) fkBuilder.append(" ON DELETE ").append(onDelete);
-        if (data.onUpdate() != null) fkBuilder.append(" ON UPDATE ").append(onUpdate);
-        relationshipsJoiner.add(fkBuilder);
-    }
-
-    private static @NotNull String generateSetClause(@NotNull UpdateQuery query) {
-        StringJoiner joiner = new StringJoiner(", ");
-        for (String key : query.updates().keySet()) joiner.add(key + " = ?");
-        return joiner.toString();
-    }
-
-    private static String buildConditions(@NotNull Iterable<SelectOption> filters) {
-        StringJoiner joiner = new StringJoiner(" AND ");
-        for (SelectOption filter : filters) {
-            // Handle IN clause specially
-            if ("IN".equalsIgnoreCase(filter.operator())) {
-                Object value = filter.value();
-                if (value instanceof Collection<?> list) {
-                    String placeholders = String.join(", ", Collections.nCopies(list.size(), "?"));
-                    joiner.add(filter.option() + " IN (" + placeholders + ")");
-                } else {
-                    joiner.add(filter.option() + " IN (?)");
-                }
-            } else {
-                joiner.add(filter.option() + " " + filter.operator() + " ?");
-            }
-        }
-        return joiner.toString();
-    }
-
-    private static String buildSortOptions(@NotNull Iterable<SortOption> sortOptions) {
-        StringJoiner joiner = new StringJoiner(", ");
-        for (SortOption sortOption : sortOptions) joiner.add(sortOption.field() + " " + (sortOption.order() == SortOrder.ASCENDING ? "ASC" : "DESC"));
-        return joiner.toString();
+        return repositoryDdlBuilder.parseRepository(ifNotExists);
     }
 
     public enum SQLType implements DatabaseImplementation {

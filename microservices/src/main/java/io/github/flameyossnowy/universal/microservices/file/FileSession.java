@@ -267,9 +267,18 @@ public class FileSession<T, ID> implements DatabaseSession<ID, T, FileContext> {
             if (!operations.isEmpty()) {
                 for (Operation op : operations) {
                     switch (op.type) {
-                        case INSERT -> adapter.insert(op.entity, tx);
-                        case UPDATE -> adapter.updateAll(op.entity, tx);
-                        case DELETE -> adapter.delete(op.entity, tx);
+                        case INSERT -> {
+                            TransactionResult<Boolean> insert = adapter.insert(op.entity, tx);
+                            if (insert.isError()) return insert;
+                        }
+                        case UPDATE -> {
+                            TransactionResult<Boolean> update = adapter.updateAll(op.entity, tx);
+                            if (update.isError()) return update;
+                        }
+                        case DELETE -> {
+                            TransactionResult<Boolean> delete = adapter.delete(op.entity, tx);
+                            if (delete.isError()) return delete;
+                        }
                     }
                 }
                 operations.clear();
@@ -290,7 +299,9 @@ public class FileSession<T, ID> implements DatabaseSession<ID, T, FileContext> {
         }
         
         try (FileTransactionContext tx = new FileTransactionContext(batchSize)) {
-            adapter.insertAll(insertBatch.values(), tx);
+            adapter.insertAll(insertBatch.values(), tx).ifError(e -> {
+                throw new RuntimeException(e);
+            });
             tx.commit();
             insertBatch.clear();
         } catch (Exception e) {
@@ -308,7 +319,9 @@ public class FileSession<T, ID> implements DatabaseSession<ID, T, FileContext> {
         
         try (FileTransactionContext tx = new FileTransactionContext(batchSize)) {
             for (T entity : updateBatch.values()) {
-                adapter.updateAll(entity, tx);
+                adapter.updateAll(entity, tx).ifError(e -> {
+                    throw new RuntimeException(e);
+                });
             }
             tx.commit();
             updateBatch.clear();
@@ -327,7 +340,9 @@ public class FileSession<T, ID> implements DatabaseSession<ID, T, FileContext> {
         
         try (FileTransactionContext tx = new FileTransactionContext(batchSize)) {
             for (ID id : deleteBatch) {
-                adapter.deleteById(id, tx);
+                adapter.deleteById(id, tx).ifError(e -> {
+                    throw new RuntimeException(e);
+                });
             }
             tx.commit();
             deleteBatch.clear();

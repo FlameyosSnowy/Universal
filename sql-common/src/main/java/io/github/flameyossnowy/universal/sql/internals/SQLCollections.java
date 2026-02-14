@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.sql.internals;
 
-import io.github.flameyossnowy.universal.api.reflect.RepositoryInformation;
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.sql.resolvers.MultiMapTypeResolver;
 import io.github.flameyossnowy.universal.sql.resolvers.CollectionTypeResolver;
@@ -20,28 +21,34 @@ public class SQLCollections {
 
     @SuppressWarnings("unchecked")
     public <T, ID> CollectionTypeResolver<T, ID> getResolver(
-            Class<T> elementType, Class<ID> idType, SQLConnectionProvider connectionProvider,
-            RepositoryInformation information, TypeResolverRegistry resolverRegistry
+        Class<T> elementType, Class<ID> idType, SQLConnectionProvider connectionProvider,
+        RepositoryModel<?, ID> information, TypeResolverRegistry resolverRegistry,
+        CollectionHandler collectionHandler, boolean supportsArrays
     ) {
         return (CollectionTypeResolver<T, ID>)
-                resolvers.computeIfAbsent(elementType, k -> new CollectionTypeResolver<>(idType, elementType, connectionProvider, information, resolverRegistry));
+                resolvers.computeIfAbsent(elementType, k ->
+                    new CollectionTypeResolver<>(idType, elementType, connectionProvider, information, resolverRegistry, collectionHandler, supportsArrays));
     }
 
     @SuppressWarnings("unchecked")
     public <K, V, ID> MapTypeResolver<K, V, ID> getMapResolver(
             Class<K> keyType, Class<V> valueType, Class<ID> idType,
-            SQLConnectionProvider connectionProvider, RepositoryInformation information, TypeResolverRegistry resolverRegistry
+            SQLConnectionProvider connectionProvider, RepositoryModel<?, ID> information,
+            TypeResolverRegistry resolverRegistry, CollectionHandler collectionHandler, boolean supportsArrays
     ) {
         return (MapTypeResolver<K, V, ID>) mapResolvers.computeIfAbsent(keyType, valueType,
-                (k, v) -> new MapTypeResolver<>(idType, keyType, valueType, connectionProvider, information, resolverRegistry));
+                (k, v) ->
+                    new MapTypeResolver<>(idType, keyType, valueType, connectionProvider, information, resolverRegistry, collectionHandler, supportsArrays));
     }
 
     @SuppressWarnings("unchecked")
     public <K, V, ID> MultiMapTypeResolver<K, V, ID> getMultiMapResolver(
             Class<K> keyType, Class<V> valueType, Class<ID> idType,
-            SQLConnectionProvider connectionProvider, RepositoryInformation information, TypeResolverRegistry resolverRegistry
+            SQLConnectionProvider connectionProvider, RepositoryModel<?, ID> information,
+            TypeResolverRegistry resolverRegistry, CollectionHandler collectionHandler, boolean supportsArrays
     ) {
         return (MultiMapTypeResolver<K, V, ID>) multiMapResolvers.computeIfAbsent(keyType, valueType,
-                (k, v) -> new MultiMapTypeResolver<>(idType, keyType, valueType, connectionProvider, information, resolverRegistry));
+                (k, v) ->
+                    new MultiMapTypeResolver<>(idType, keyType, valueType, connectionProvider, information, resolverRegistry, collectionHandler, supportsArrays));
     }
 }
