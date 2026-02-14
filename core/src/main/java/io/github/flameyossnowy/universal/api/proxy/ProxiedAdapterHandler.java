@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.api.proxy;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.annotations.proxy.*;
 import io.github.flameyossnowy.universal.api.options.Query;
+import io.github.flameyossnowy.universal.api.options.QueryField;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -77,7 +78,7 @@ public class ProxiedAdapterHandler<T, ID, C> implements InvocationHandler {
                 Filter filter = methodData.filters[parameterIndex];
                 Object value = args[parameterIndex];
 
-                SelectQuery.SelectQueryBuilder.QueryField where = selectQuery.where(filter.value());
+                QueryField<SelectQuery.SelectQueryBuilder> where = selectQuery.where(filter.value());
                 selectQuery = switch (filter.operator()) {
                     case "=" -> where.eq(value);
                     case ">=" -> where.gte(value);

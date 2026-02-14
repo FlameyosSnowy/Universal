@@ -1,13 +1,20 @@
 package io.github.flameyossnowy.universal.api.options;
 
+import org.jetbrains.annotations.ApiStatus;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 public record DeleteQuery(List<FilterOption> filters, boolean cache) implements Query {
-    public static class DeleteQueryBuilder {
+    public static class DeleteQueryBuilder implements Filterable {
         private final List<FilterOption> filters = new ArrayList<>(3);
         private boolean cache = true;
+
+        public DeleteQueryBuilder cache(boolean cache) {
+            this.cache = cache;
+            return this;
+        }
 
         /**
          * Adds a condition to the query based on the specified key, operator, and value.
@@ -17,13 +24,10 @@ public record DeleteQuery(List<FilterOption> filters, boolean cache) implements 
          * @param value the value to compare the field against
          * @return the updated SelectQueryBuilder instance
          */
+        @Deprecated
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
         public DeleteQueryBuilder where(String option, String operator, Object value) {
             filters.add(new SelectOption(option, operator, value));
-            return this;
-        }
-
-        public DeleteQueryBuilder cache(boolean cache) {
-            this.cache = cache;
             return this;
         }
 
@@ -34,9 +38,31 @@ public record DeleteQuery(List<FilterOption> filters, boolean cache) implements 
          * @param value the value to compare the field against
          * @return the updated SelectQueryBuilder instance
          */
+        @Deprecated
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
         public DeleteQueryBuilder where(String option, Object value) {
             filters.add(new SelectOption(option, "=", value));
             return this;
+        }
+
+        /**
+         * Adds a condition to the query based on the specified key and value.
+         *
+         * @param option the field to apply the condition on
+         * @return the query field
+         */
+        public QueryField<DeleteQueryBuilder> where(String option) {
+            return new QueryField<>(this, option);
+        }
+
+        /**
+         * Adds a condition to the query based on the specified key and value.
+         *
+         * @param option the field to apply the condition on
+         * @return the query field
+         */
+        public QueryField<DeleteQueryBuilder> whereJson(String option, String jsonPath) {
+            return new QueryField<>(this, option, jsonPath);
         }
 
         /**
@@ -47,11 +73,15 @@ public record DeleteQuery(List<FilterOption> filters, boolean cache) implements 
          * @param values the list of values to compare the field against
          * @return the updated SelectQueryBuilder instance
          */
+        @Deprecated
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
         public DeleteQueryBuilder whereIn(String key, Collection<?> values) {
             filters.add(new SelectOption(key, "IN", values));
             return this;
         }
 
+        @Deprecated
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
         public DeleteQueryBuilder whereJson(
             String field,
             String jsonPath,
@@ -64,6 +94,10 @@ public record DeleteQuery(List<FilterOption> filters, boolean cache) implements 
 
         public DeleteQuery build() {
             return new DeleteQuery(filters, cache);
+        }
+
+        public void addFilter(FilterOption filter) {
+            filters.add(filter);
         }
     }
 }

@@ -228,6 +228,37 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     }
 
     @Override
+    public long count(SelectQuery query, ReadPolicy policy) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = dataSource.prepareStatement(engine.parseCount(query), connection)) {
+
+            if (query != null && query.filters() != null && !query.filters().isEmpty()) {
+                String sql = engine.parseCount(query);
+                SQLDatabaseParameters parameters = new SQLDatabaseParameters(
+                    statement,
+                    resolverRegistry,
+                    sql,
+                    repositoryModel,
+                    collectionHandler,
+                    supportsArrays
+                );
+                this.parameterBinder.addFilterToPreparedStatement(query.filters(), parameters, resolverRegistry, repositoryModel, sqlType);
+            }
+
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : 0L;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to count results", e);
+        }
+    }
+
+    @Override
+    public long count(ReadPolicy policy) {
+        return count(null, policy);
+    }
+
+    @Override
     public List<T> find(SelectQuery q) {
         return find(q, ReadPolicy.NO_READ_POLICY);
     }

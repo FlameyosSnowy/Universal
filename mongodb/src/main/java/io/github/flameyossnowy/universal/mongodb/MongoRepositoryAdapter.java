@@ -372,6 +372,29 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     }
 
     @Override
+    public long count(SelectQuery query, ReadPolicy policy) {
+        if (query != null && query.limit() == 0) {
+            return 0L;
+        }
+
+        if (query != null) {
+            ValidationEstimation validation = queryValidator.validateSelectQuery(query);
+            if (validation.isFail()) {
+                Logging.warn("Query validation failed: " + validation.reason());
+                return 0L;
+            }
+        }
+
+        Bson filter = query == null ? new Document() : createFilterBson(query.filters());
+        return collection.countDocuments(filter);
+    }
+
+    @Override
+    public long count(ReadPolicy policy) {
+        return count(null, policy);
+    }
+
+    @Override
     public @Nullable T findById(ID key) {
         if (readThroughCache == null) {
             return this.loadFromDatabase(key);
@@ -633,6 +656,13 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                     throw new IllegalArgumentException("ELEM_MATCH requires a Bson value");
                 }
                 yield elemMatch(key, b);
+            }
+
+            case "MATCHES" -> {
+                if (!(value instanceof String keyValue)) {
+                    throw new IllegalArgumentException("MATCHES requires a String value");
+                }
+                yield text(keyValue);
             }
 
             default -> throw new IllegalArgumentException(

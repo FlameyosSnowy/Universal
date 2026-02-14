@@ -30,7 +30,7 @@ public record SelectQuery(
      * {@code where("age").gte(18)} instead of constructing filter objects
      * manually.</p>
      */
-    public static class SelectQueryBuilder {
+    public static class SelectQueryBuilder implements Filterable {
 
         private final List<FilterOption> filters = new ArrayList<>();
         private final List<SortOption> sortOptions = new ArrayList<>();
@@ -53,15 +53,15 @@ public record SelectQuery(
          *   .build();
          * }</pre>
          */
-        public QueryField where(String field) {
-            return new QueryField(this, field);
+        public QueryField<SelectQueryBuilder> where(String field) {
+            return new QueryField<>(this, field);
         }
 
         /**
          * Begins a filter clause for the given field in JSON
          */
-        public QueryField whereJson(String field, String jsonPath) {
-            return new QueryField(this, field, jsonPath);
+        public QueryField<SelectQueryBuilder> whereJson(String field, String jsonPath) {
+            return new QueryField<>(this, field, jsonPath);
         }
 
         /* =========================
@@ -178,66 +178,8 @@ public record SelectQuery(
             );
         }
 
-        void addFilter(FilterOption filter) {
+        public void addFilter(FilterOption filter) {
             filters.add(filter);
-        }
-
-        /**
-         * Field-scoped operator builder.
-         *
-         * <p>Ensures operators are attached to a concrete field and prevents
-         * malformed filter construction.</p>
-         */
-        @SuppressWarnings("unused")
-        public static class QueryField {
-            private final SelectQueryBuilder builder;
-            private final String field;
-            private final String jsonPath;
-
-            @Contract(pure = true)
-            QueryField(SelectQueryBuilder builder, String field) {
-                this(builder, field, null);
-            }
-
-            @Contract(pure = true)
-            QueryField(SelectQueryBuilder builder, String field, String jsonPath) {
-                this.builder = builder;
-                this.field = field;
-                this.jsonPath = jsonPath;
-            }
-
-            private SelectQueryBuilder add(String operator, Object value) {
-                FilterOption filter;
-                if (jsonPath != null) {
-                    filter = new JsonSelectOption(field, jsonPath, operator, value);
-                } else {
-                    filter = new SelectOption(field, operator, value);
-                }
-                builder.addFilter(filter);
-                return builder;
-            }
-
-            public SelectQueryBuilder eq(Object value) { return add("=", value); }
-
-            public SelectQueryBuilder ne(Object value) { return add("!=", value); }
-
-            public SelectQueryBuilder gt(Object value) { return add(">", value); }
-
-            public SelectQueryBuilder gte(Object value) { return add(">=", value); }
-
-            public SelectQueryBuilder lt(Object value) { return add("<", value); }
-
-            public SelectQueryBuilder lte(Object value) { return add("<=", value); }
-
-            public SelectQueryBuilder in(Collection<?> values) { return add("IN", values); }
-
-            public SelectQueryBuilder like(String pattern) { return add("LIKE", pattern); }
-
-            public SelectQueryBuilder not() { return add("NOT", null); }
-
-            public SelectQueryBuilder and() { return add("AND", null); }
-
-            public SelectQueryBuilder or() { return add("OR", null); }
         }
     }
 }

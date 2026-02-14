@@ -67,6 +67,13 @@ public class QueryParseEngine<T, ID> {
         return first ? "QUERY:SELECT:FIRST:" + query.hashCode() : ("QUERY:SELECT:" + query.hashCode());
     }
 
+    private static @NotNull String getCountKey(SelectQuery query) {
+        if (query == null) {
+            return "QUERY:COUNT";
+        }
+        return "QUERY:COUNT:" + query.hashCode();
+    }
+
     public String parseIndex(final @NotNull IndexOptions index) {
         return indexSqlBuilder.parseIndex(index);
     }
@@ -84,6 +91,22 @@ public class QueryParseEngine<T, ID> {
 
         if (queryMap != null) queryMap.put(key, queryString);
         Logging.info(() -> "Parsed query for selecting: " + queryString);
+        return queryString;
+    }
+
+    public @NotNull String parseCount(SelectQuery query) {
+        String key = null;
+
+        if (queryMap != null) {
+            key = getCountKey(query);
+            String queryString = queryMap.get(key);
+            if (queryString != null) return queryString;
+        }
+
+        String queryString = selectSqlBuilder.parseCount(query);
+
+        if (queryMap != null) queryMap.put(key, queryString);
+        Logging.info(() -> "Parsed query for count: " + queryString);
         return queryString;
     }
 

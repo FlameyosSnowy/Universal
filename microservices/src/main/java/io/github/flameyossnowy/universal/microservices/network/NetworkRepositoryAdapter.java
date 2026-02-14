@@ -602,6 +602,20 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     }
 
     @Override
+    public long count(SelectQuery query, ReadPolicy policy) {
+        if (query != null && query.limit() == 0) {
+            return 0L;
+        }
+
+        return find(query, policy).size();
+    }
+
+    @Override
+    public long count(ReadPolicy policy) {
+        return count(null, policy);
+    }
+
+    @Override
     public T findById(ID key) {
         try {
             return get(key);

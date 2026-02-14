@@ -72,6 +72,60 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         ModelsBootstrap.init();
     }
 
+    private long countAllFilesFast() throws IOException {
+        long count = 0L;
+
+        if (sharding) {
+            for (int i = 0; i < shardCount; i++) {
+                Path shardPath = basePath.resolve(String.valueOf(i));
+                if (!Files.exists(shardPath)) {
+                    continue;
+                }
+                count += countRegularEntityFiles(shardPath);
+            }
+        } else {
+            count += countRegularEntityFiles(basePath);
+        }
+
+        return count;
+    }
+
+    private long countRegularEntityFiles(Path directory) throws IOException {
+        if (!Files.exists(directory)) {
+            return 0L;
+        }
+
+        try (var files = Files.list(directory)) {
+            return files
+                .filter(Files::isRegularFile)
+                .filter(p -> p.getFileName().toString().endsWith(getFileExtension()))
+                .count();
+        }
+    }
+
+    private long countDirectoryMatches(Path directory, @NotNull SelectQuery query) throws IOException {
+        if (!Files.exists(directory)) {
+            return 0L;
+        }
+
+        long count = 0L;
+        try (var files = Files.list(directory)) {
+            for (Path path : (Iterable<Path>) files::iterator) {
+                if (!Files.isRegularFile(path)) continue;
+                if (!path.getFileName().toString().endsWith(getFileExtension())) continue;
+
+                T entity = readEntity(path);
+                if (!matchesAll(entity, query.filters())) {
+                    continue;
+                }
+
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     private final Class<T> entityType;
     private final Class<ID> idType;
     private final RepositoryModel<T, ID> repositoryModel;
@@ -108,6 +162,42 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     @Override
     public List<T> find(ReadPolicy policy) {
         return find(null, policy);
+    }
+
+    @Override
+    public long count(SelectQuery query, ReadPolicy policy) {
+        try {
+            if (query == null) {
+                return countAllFilesFast();
+            }
+
+            if (query.limit() == 0) {
+                return 0L;
+            }
+
+            long count = 0L;
+
+            if (sharding) {
+                for (int i = 0; i < shardCount; i++) {
+                    Path shardPath = basePath.resolve(String.valueOf(i));
+                    if (!Files.exists(shardPath)) {
+                        continue;
+                    }
+                    count += countDirectoryMatches(shardPath, query);
+                }
+            } else {
+                count += countDirectoryMatches(basePath, query);
+            }
+
+            return count;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to count entities", e);
+        }
+    }
+
+    @Override
+    public long count(ReadPolicy policy) {
+        return count(null, policy);
     }
 
     private ReentrantReadWriteLock getLockForId(ID id) {

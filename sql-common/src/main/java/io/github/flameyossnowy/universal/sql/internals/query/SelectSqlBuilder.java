@@ -40,6 +40,21 @@ public final class SelectSqlBuilder<T, ID> {
         return sql.toString();
     }
 
+    public String parseCount(SelectQuery query) {
+        String tableName = repositoryInformation.tableName();
+
+        if (query == null) {
+            return "SELECT COUNT(*) FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar();
+        }
+
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM " + sqlType.quoteChar())
+            .append(tableName)
+            .append(sqlType.quoteChar());
+
+        appendConditions(query, sql);
+        return sql.toString();
+    }
+
     public String parseQueryIds(SelectQuery query, boolean first) {
         String tableName = repositoryInformation.tableName();
 

@@ -230,6 +230,22 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
     @CheckReturnValue
     List<T> find(ReadPolicy policy);
 
+    @CheckReturnValue
+    default long count(SelectQuery query) {
+        return count(query, ReadPolicy.NO_READ_POLICY);
+    }
+
+    @CheckReturnValue
+    long count(SelectQuery query, ReadPolicy policy);
+
+    @CheckReturnValue
+    default long count() {
+        return count(ReadPolicy.NO_READ_POLICY);
+    }
+
+    @CheckReturnValue
+    long count(ReadPolicy policy);
+
     /**
      * Finds and returns an item with the specified primary key from the repository.
      * <p>

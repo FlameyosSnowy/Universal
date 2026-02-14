@@ -5,37 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Handle no ID case">
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/checksums/checksums.lock" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/checksums/md5-checksums.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/checksums/sha1-checksums.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/executionHistory/executionHistory.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/executionHistory/executionHistory.lock" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/expanded/expanded.lock" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/fileChanges/last-build.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/fileHashes/fileHashes.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/fileHashes/fileHashes.lock" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/fileHashes/resourceHashesCache.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/8.12/gc.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/cache.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gradle/vcs-1/gc.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules/mysql/Universal.mysql.test.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/jit/SmartWritebackDefer.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/write/AsyncWriteBackQueue.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/write/ThreadMode.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRelationshipHandler.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/SQLRelationshipHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/kotlinc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/kotlinc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/Filterable.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/QueryField.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedMetadata.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedMetadata.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedObjectFactories.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedObjectFactories.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/RepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/RepositoryAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/DeleteQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/DeleteQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/SelectQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/SelectQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/UpdateQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/UpdateQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/proxy/ProxiedAdapterHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/proxy/ProxiedAdapterHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapter.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/AbstractRelationalRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/AbstractRelationalRepositoryAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/QueryParseEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/QueryParseEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/SelectSqlBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/SelectSqlBuilder.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -198,9 +182,9 @@
       <list>
         <option value="package-info" />
         <option value="Enum" />
-        <option value="Interface" />
         <option value="AnnotationType" />
         <option value="Class" />
+        <option value="Interface" />
       </list>
     </option>
   </component>
@@ -218,18 +202,18 @@
     &quot;assignee&quot;: &quot;FlameyosSnowy&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/MeveraStudios/Universal.git&quot;,
-    &quot;accountId&quot;: &quot;91ccccb7-93dc-4f09-a43c-c51391e8f982&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/FlameyosSnowy/Universal.git",
+    "accountId": "91ccccb7-93dc-4f09-a43c-c51391e8f982"
   }
-}</component>
-  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="$USER_HOME$/.gradle/wrapper/dists/gradle-9.3.1-bin/23ovyewtku6u96viwx3xl3oks/gradle-9.3.1" javaHome="$USER_HOME$/.jdks/corretto-21.0.10" gradleVersion="9.3.1" />
+}]]></component>
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="$PROJECT_DIR$/../.gradle/wrapper/dists/gradle-9.3.1-bin/23ovyewtku6u96viwx3xl3oks/gradle-9.3.1" javaHome="$PROJECT_DIR$/../.jdks/corretto-21.0.10" gradleVersion="9.3.1" />
   <component name="HighlightingSettingsPerFile">
-    <setting file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.15.2/32d4d520f3e46e7b2c2d4d863d8f2f381af4fa6/jackson-databind-2.15.2-sources.jar!/com/fasterxml/jackson/databind/deser/Deserializers.java" root0="SKIP_INSPECTION" />
-    <setting file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.15.2/32d4d520f3e46e7b2c2d4d863d8f2f381af4fa6/jackson-databind-2.15.2-sources.jar!/com/fasterxml/jackson/databind/module/SimpleDeserializers.java" root0="SKIP_INSPECTION" />
-    <setting file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.15.2/32d4d520f3e46e7b2c2d4d863d8f2f381af4fa6/jackson-databind-2.15.2-sources.jar!/com/fasterxml/jackson/databind/module/SimpleModule.java" root0="SKIP_INSPECTION" />
-    <setting file="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.datatype/jackson-datatype-jsr310/2.15.2/dab6447bacd9d7189b27936639219273c2c47432/jackson-datatype-jsr310-2.15.2-sources.jar!/com/fasterxml/jackson/datatype/jsr310/JavaTimeModule.java" root0="SKIP_INSPECTION" />
+    <setting file="jar://$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.15.2/32d4d520f3e46e7b2c2d4d863d8f2f381af4fa6/jackson-databind-2.15.2-sources.jar!/com/fasterxml/jackson/databind/deser/Deserializers.java" root0="SKIP_INSPECTION" />
+    <setting file="jar://$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.15.2/32d4d520f3e46e7b2c2d4d863d8f2f381af4fa6/jackson-databind-2.15.2-sources.jar!/com/fasterxml/jackson/databind/module/SimpleDeserializers.java" root0="SKIP_INSPECTION" />
+    <setting file="jar://$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.15.2/32d4d520f3e46e7b2c2d4d863d8f2f381af4fa6/jackson-databind-2.15.2-sources.jar!/com/fasterxml/jackson/databind/module/SimpleModule.java" root0="SKIP_INSPECTION" />
+    <setting file="jar://$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.datatype/jackson-datatype-jsr310/2.15.2/dab6447bacd9d7189b27936639219273c2c47432/jackson-datatype-jsr310-2.15.2-sources.jar!/com/fasterxml/jackson/datatype/jsr310/JavaTimeModule.java" root0="SKIP_INSPECTION" />
   </component>
   <component name="JvmLoggingSettingsStorage">
     <option name="loggerId" value="Slf4j" />
@@ -307,10 +291,10 @@
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "dart.analysis.tool.window.visible": "false",
     "extract.method.default.visibility": "private",
-    "git-widget-placeholder": "v7",
+    "git-widget-placeholder": "main",
     "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/home/flameyosflow/StorySMPPlugin",
+    "last_opened_file_path": "/home/flameyosflow/Universal-new",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -620,6 +604,7 @@
       <workItem from="1770875656232" duration="54000" />
       <workItem from="1770957548802" duration="8346000" />
       <workItem from="1770973536039" duration="7432000" />
+      <workItem from="1771071031192" duration="725000" />
     </task>
     <task id="LOCAL-00102" summary="Readability">
       <option name="closed" value="true" />
