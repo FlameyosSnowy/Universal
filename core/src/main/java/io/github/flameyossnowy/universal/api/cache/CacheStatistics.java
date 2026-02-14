@@ -68,20 +68,24 @@ public class CacheStatistics {
         long elapsed = now - lastSnapshotTime.get();
 
         // Only update throughput when a full minute has passed
-        if (elapsed >= ONE_MINUTE_MS) {
-            lock.lock();
-            try {
-                // Double-check inside lock
-                if (now - lastSnapshotTime.get() >= ONE_MINUTE_MS) {
-                    long totalOps = hits.get() + misses.get() + evictions.get() + puts.get();
-                    long prevOps = lastSnapshotTotalOps.getAndSet(totalOps);
-                    long delta = totalOps - prevOps;
-                    lastThroughput.set(delta);
-                    lastSnapshotTime.set(now);
-                }
-            } finally {
-                lock.unlock();
+        if (elapsed < ONE_MINUTE_MS) {
+           return;
+        }
+
+        lock.lock();
+        try {
+            // Double-check inside lock
+            if (now - lastSnapshotTime.get() < ONE_MINUTE_MS) {
+                return;
             }
+
+            long totalOps = hits.get() + misses.get() + evictions.get() + puts.get();
+            long prevOps = lastSnapshotTotalOps.getAndSet(totalOps);
+            long delta = totalOps - prevOps;
+            lastThroughput.set(delta);
+            lastSnapshotTime.set(now);
+        } finally {
+            lock.unlock();
         }
     }
 
