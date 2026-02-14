@@ -17,10 +17,23 @@ import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Month;
+import java.time.MonthDay;
+import java.time.OffsetDateTime;
+import java.time.Year;
+import java.time.YearMonth;
+import java.time.ZonedDateTime;
+import java.util.Calendar;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 
 public final class SqlParameterBinder<T, ID> {
@@ -147,6 +160,15 @@ public final class SqlParameterBinder<T, ID> {
             }
 
             T value = (T) fieldData.getValue(entity);
+
+            if (fieldData.hasNowAnnotation()) {
+                Object nowValue = nowValue(fieldData.type());
+                if (nowValue != null) {
+                    //noinspection unchecked
+                    value = (T) nowValue;
+                    fieldData.setValue(entity, value);
+                }
+            }
             T finalValue1 = value;
             Logging.deepInfo(() -> "Processing field for update: " + fieldData.name() + " with value: " + finalValue1);
 
@@ -194,6 +216,51 @@ public final class SqlParameterBinder<T, ID> {
             Logging.deepInfo(() -> "Binding parameter " + fieldData.name() + ": " + finalValue2 + " (type: " + (finalValue2 != null ? finalValue2.getClass().getSimpleName() : "null") + ")");
             resolver.insert(statement, fieldData.name(), value);
         }
+    }
+
+    private static @Nullable Object nowValue(@NotNull Class<?> type) {
+        if (type == Instant.class) {
+            return Instant.now();
+        }
+        if (type == LocalDateTime.class) {
+            return LocalDateTime.now();
+        }
+        if (type == LocalDate.class) {
+            return LocalDate.now();
+        }
+        if (type == ZonedDateTime.class) {
+            return ZonedDateTime.now();
+        }
+        if (type == OffsetDateTime.class) {
+            return OffsetDateTime.now();
+        }
+        if (type == Timestamp.class) {
+            return new Timestamp(System.currentTimeMillis());
+        }
+        if (type == Date.class) {
+            return new Date();
+        }
+        if (type == java.sql.Date.class) {
+            return new java.sql.Date(System.currentTimeMillis());
+        }
+        if (type == java.sql.Time.class) {
+            return new java.sql.Time(System.currentTimeMillis());
+        }
+        if (type == Year.class) {
+            return Year.now();
+        }
+        if (type == YearMonth.class) {
+            return YearMonth.now();
+        }
+        if (type == MonthDay.class) {
+            return MonthDay.now();
+        }
+        if (type == Calendar.class) {
+            return Calendar.getInstance();
+        }
+
+        // Fallback: if someone uses a temporal type we don't recognize, don't mutate.
+        return null;
     }
 
     @SuppressWarnings("unchecked")

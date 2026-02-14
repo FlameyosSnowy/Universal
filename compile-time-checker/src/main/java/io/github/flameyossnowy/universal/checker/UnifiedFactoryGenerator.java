@@ -1547,6 +1547,28 @@ public final class UnifiedFactoryGenerator {
 
             m.addStatement("$T $L = entity.$L()", fieldType, valueVar, field.getterName());
 
+            if (field.hasNowAnnotation()) {
+                String typeName = fieldTypeMirror.toString();
+
+                if (typeName.contains("java.time.Instant")) {
+                    m.addStatement("$L = $T.now()", valueVar, ClassName.get("java.time", "Instant"));
+                } else if (typeName.contains("java.time.LocalDateTime")) {
+                    m.addStatement("$L = $T.now()", valueVar, ClassName.get("java.time", "LocalDateTime"));
+                } else if (typeName.contains("java.time.LocalDate")) {
+                    m.addStatement("$L = $T.now()", valueVar, ClassName.get("java.time", "LocalDate"));
+                } else if (typeName.contains("java.time.ZonedDateTime")) {
+                    m.addStatement("$L = $T.now()", valueVar, ClassName.get("java.time", "ZonedDateTime"));
+                } else if (typeName.contains("java.time.OffsetDateTime")) {
+                    m.addStatement("$L = $T.now()", valueVar, ClassName.get("java.time", "OffsetDateTime"));
+                } else if (typeName.contains("java.sql.Timestamp")) {
+                    m.addStatement("$L = new $T($T.currentTimeMillis())", valueVar, ClassName.get("java.sql", "Timestamp"), System.class);
+                } else if (typeName.contains("java.util.Date")) {
+                    m.addStatement("$L = new $T()", valueVar, ClassName.get("java.util", "Date"));
+                }
+
+                m.addStatement("entity.$L($L)", field.setterName(), valueVar);
+            }
+
             if (field.relationship() && field.relationshipKind() != null) {
                 RelationshipKind kind = field.relationshipKind();
 

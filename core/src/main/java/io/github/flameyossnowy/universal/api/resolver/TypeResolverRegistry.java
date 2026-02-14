@@ -36,6 +36,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.Month;
+import java.time.MonthDay;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
 import java.time.Period;
@@ -122,6 +123,7 @@ public class TypeResolverRegistry {
                 Map.entry(Year.class, SqlTypeMapping.of("INT", "INT")),
                 Map.entry(Month.class, SqlTypeMapping.of("INT", "INT")),
                 Map.entry(YearMonth.class, SqlTypeMapping.of("TEXT", "TEXT")),
+                Map.entry(MonthDay.class, SqlTypeMapping.of("TEXT", "TEXT")),
                 Map.entry(TimeZone.class, SqlTypeMapping.of("TEXT", "TEXT")),
                 Map.entry(ZoneId.class, SqlTypeMapping.of("TEXT", "TEXT")),
                 Map.entry(LocalDate.class, SqlTypeMapping.of("DATE")),
@@ -467,6 +469,7 @@ public class TypeResolverRegistry {
         registerInternal(new YearTypeResolver());
         registerInternal(new MonthTypeResolver());
         registerInternal(new YearMonthTypeResolver());
+        registerInternal(new MonthDayTypeResolver());
         registerInternal(new ZoneIdTypeResolver());
         registerInternal(new TimeZoneTypeResolver());
         registerInternal(new OffsetTimeTypeResolver());
@@ -1094,6 +1097,22 @@ public class TypeResolverRegistry {
 
         @Override
         public void insert(DatabaseParameters parameters, String index, YearMonth value) {
+            parameters.set(index, value != null ? value.toString() : null, String.class);
+        }
+    }
+
+    public static final class MonthDayTypeResolver implements TypeResolver<MonthDay> {
+        @Override public Class<MonthDay> getType() { return MonthDay.class; }
+        @Override public Class<String> getDatabaseType() { return String.class; }
+
+        @Override
+        public @Nullable MonthDay resolve(DatabaseResult result, String columnName) {
+            String value = result.get(columnName, String.class);
+            return value != null ? MonthDay.parse(value) : null;
+        }
+
+        @Override
+        public void insert(DatabaseParameters parameters, String index, MonthDay value) {
             parameters.set(index, value != null ? value.toString() : null, String.class);
         }
     }
