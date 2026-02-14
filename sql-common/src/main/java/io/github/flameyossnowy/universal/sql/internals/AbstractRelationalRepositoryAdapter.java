@@ -215,14 +215,26 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     }
 
     @Override
-    public List<T> find(SelectQuery q) {
+    public List<T> find(SelectQuery q, ReadPolicy policy) {
+        ReadPolicy effective = policy == null ? ReadPolicy.NO_READ_POLICY : policy;
         String query = engine.parseSelect(q, false);
-        return queryExecutor.executeQueryWithParams(query, q, q == null ? List.of() : q.filters());
+        return queryExecutor.executeQueryWithParams(query, q, effective, false, q == null ? List.of() : q.filters());
+    }
+
+    @Override
+    public List<T> find(ReadPolicy policy) {
+        ReadPolicy effective = policy == null ? ReadPolicy.NO_READ_POLICY : policy;
+        return queryExecutor.executeQuery(engine.parseSelect(null, false), effective);
+    }
+
+    @Override
+    public List<T> find(SelectQuery q) {
+        return find(q, ReadPolicy.NO_READ_POLICY);
     }
 
     @Override
     public List<T> find() {
-        return queryExecutor.executeQuery(engine.parseSelect(null, false));
+        return find(ReadPolicy.NO_READ_POLICY);
     }
 
     @Override

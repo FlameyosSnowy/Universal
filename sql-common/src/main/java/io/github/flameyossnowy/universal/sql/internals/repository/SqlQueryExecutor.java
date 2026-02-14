@@ -7,6 +7,7 @@ import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.FilterOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
+import io.github.flameyossnowy.universal.api.RepositoryAdapter.ReadPolicy;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 
@@ -42,22 +43,52 @@ public class SqlQueryExecutor<T, ID> {
     }
 
     public List<T> executeQuery(String query) {
-        List<T> result;
+        return executeQuery(query, ReadPolicy.NO_READ_POLICY);
+    }
+
+    public List<T> executeQuery(String query, ReadPolicy policy) {
         try {
-            return cache != null && (result = cache.fetch(query)) != null ? result : readExecutor.search(query, false, List.of());
+            boolean bypassCache = policy != null && policy.bypassCache();
+            if (!bypassCache && cache != null) {
+                List<T> cached = cache.fetch(query);
+                if (cached != null) {
+                    return cached;
+                }
+            }
+            return readExecutor.search(query, false, List.of());
         } catch (Exception e) {
             return this.exceptionHandler.handleRead(e, repositoryModel, null, adapter);
         }
     }
 
     public List<T> executeQueryWithParams(String query, SelectQuery selectQuery, List<FilterOption> params) {
-        return executeQueryWithParams(query, selectQuery, false, params);
+        return executeQueryWithParams(query, selectQuery, ReadPolicy.NO_READ_POLICY, false, params);
     }
 
     public List<T> executeQueryWithParams(String query, SelectQuery selectQuery, boolean first, List<FilterOption> params) {
-        List<T> result = cache == null ? null : cache.fetch(query);
         try {
-            return result != null ? result : readExecutor.search(query, first, params);
+            return executeQueryWithParams(query, selectQuery, ReadPolicy.NO_READ_POLICY, first, params);
+        } catch (Exception e) {
+            return this.exceptionHandler.handleRead(e, repositoryModel, selectQuery, adapter);
+        }
+    }
+
+    public List<T> executeQueryWithParams(
+        String query,
+        SelectQuery selectQuery,
+        ReadPolicy policy,
+        boolean first,
+        List<FilterOption> params
+    ) {
+        try {
+            boolean bypassCache = policy != null && policy.bypassCache();
+            if (!bypassCache && cache != null) {
+                List<T> cached = cache.fetch(query);
+                if (cached != null) {
+                    return cached;
+                }
+            }
+            return readExecutor.search(query, first, params);
         } catch (Exception e) {
             return this.exceptionHandler.handleRead(e, repositoryModel, selectQuery, adapter);
         }

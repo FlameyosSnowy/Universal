@@ -1182,14 +1182,27 @@ public final class UnifiedFactoryGenerator {
         m.beginControlFlow("switch (fieldName)");
         for (RelationshipModel rel : repo.relationships()) {
             if (rel.relationshipKind() == RelationshipKind.ONE_TO_ONE) {
+                m.addCode("case $S: {\n", rel.fieldName());
                 m.addStatement(
-                    "case $S: return ($T) oneToOneCache"
+                    "$T field = repositoryModel.fieldByName(fieldName)",
+                    ClassName.get("io.github.flameyossnowy.universal.api.meta", "FieldModel")
+                );
+                m.beginControlFlow(
+                    "if (field.consistency() == io.github.flameyossnowy.universal.api.annotations.enums.Consistency.STRONG)"
+                );
+                m.addStatement(
+                    "return ($T) handler.handleOneToOneRelationship(id, field)",
+                    e
+                );
+                m.endControlFlow();
+                m.addStatement(
+                    "return ($T) oneToOneCache"
                         + ".computeIfAbsent(id, f -> new $T<>())"
-                        + ".computeIfAbsent(fieldName, k -> handler.handleOneToOneRelationship(id, repositoryModel.fieldByName(fieldName)))",
-                    rel.fieldName(),
+                        + ".computeIfAbsent(fieldName, k -> handler.handleOneToOneRelationship(id, field))",
                     e,
                     ConcurrentHashMap.class
                 );
+                m.addCode("}\n");
             }
         }
         m.addStatement("default: throw new $T($S + fieldName)",
@@ -1215,14 +1228,27 @@ public final class UnifiedFactoryGenerator {
         m.beginControlFlow("switch (fieldName)");
         for (RelationshipModel rel : repo.relationships()) {
             if (rel.relationshipKind() == RelationshipKind.MANY_TO_ONE) {
+                m.addCode("case $S: {\n", rel.fieldName());
                 m.addStatement(
-                    "case $S: return ($T) manyToOneCache"
+                    "$T field = repositoryModel.fieldByName(fieldName)",
+                    ClassName.get("io.github.flameyossnowy.universal.api.meta", "FieldModel")
+                );
+                m.beginControlFlow(
+                    "if (field.consistency() == io.github.flameyossnowy.universal.api.annotations.enums.Consistency.STRONG)"
+                );
+                m.addStatement(
+                    "return ($T) handler.handleManyToOneRelationship(id, field)",
+                    e
+                );
+                m.endControlFlow();
+                m.addStatement(
+                    "return ($T) manyToOneCache"
                         + ".computeIfAbsent(id, f -> new $T<>())"
-                        + ".computeIfAbsent(fieldName, k -> handler.handleManyToOneRelationship(id, repositoryModel.fieldByName(fieldName)))",
-                    rel.fieldName(),
+                        + ".computeIfAbsent(fieldName, k -> handler.handleManyToOneRelationship(id, field))",
                     e,
                     ConcurrentHashMap.class
                 );
+                m.addCode("}\n");
             }
         }
         m.addStatement("default: throw new $T($S + fieldName)",
@@ -1249,14 +1275,27 @@ public final class UnifiedFactoryGenerator {
         m.beginControlFlow("switch (fieldName)");
         for (RelationshipModel rel : repo.relationships()) {
             if (rel.relationshipKind() == RelationshipKind.ONE_TO_MANY) {
+                m.addCode("case $S: {\n", rel.fieldName());
                 m.addStatement(
-                    "case $S: return ($T) oneToManyCache"
+                    "$T field = repositoryModel.fieldByName(fieldName)",
+                    ClassName.get("io.github.flameyossnowy.universal.api.meta", "FieldModel")
+                );
+                m.beginControlFlow(
+                    "if (field.consistency() == io.github.flameyossnowy.universal.api.annotations.enums.Consistency.STRONG)"
+                );
+                m.addStatement(
+                    "return ($T) handler.handleOneToManyRelationship(id, field)",
+                    ParameterizedTypeName.get(collection, e)
+                );
+                m.endControlFlow();
+                m.addStatement(
+                    "return ($T) oneToManyCache"
                         + ".computeIfAbsent(id, f -> new $T<>())"
-                        + ".computeIfAbsent(fieldName, k -> handler.handleOneToManyRelationship(id, repositoryModel.fieldByName(fieldName)))",
-                    rel.fieldName(),
+                        + ".computeIfAbsent(fieldName, k -> handler.handleOneToManyRelationship(id, field))",
                     ParameterizedTypeName.get(collection, e),
                     ConcurrentHashMap.class
                 );
+                m.addCode("}\n");
             }
         }
         m.addStatement("default: throw new $T($S + fieldName)",

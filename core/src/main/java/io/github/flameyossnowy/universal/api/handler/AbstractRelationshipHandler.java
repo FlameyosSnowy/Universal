@@ -47,11 +47,22 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         this.entityPrefix = repositoryModel.entitySimpleName() + ":";
     }
 
+    private static RepositoryAdapter.ReadPolicy policyFor(@NotNull FieldModel<?> field) {
+        return switch (field.consistency()) {
+            case STRONG -> RepositoryAdapter.ReadPolicy.STRONG_READ_POLICY;
+            case EVENTUAL -> RepositoryAdapter.ReadPolicy.EVENTUAL_READ_POLICY;
+            case NONE -> RepositoryAdapter.ReadPolicy.NO_READ_POLICY;
+        };
+    }
+
     @Override
     public @Nullable Object handleManyToOneRelationship(ID primaryKeyValue, @NotNull FieldModel<T> field) {
+        RepositoryAdapter.ReadPolicy policy = policyFor(field);
         String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
-        Object cached = relationshipCache.get(cacheKey);
-        if (cached != null) return cached == NULL_MARKER ? null : cached;
+        if (policy.allowStale()) {
+            Object cached = relationshipCache.get(cacheKey);
+            if (cached != null) return cached == NULL_MARKER ? null : cached;
+        }
 
         RepositoryModel<?, ?> parentInfo = GeneratedMetadata.getByEntityClass(field.type());
         if (parentInfo == null) {
@@ -68,17 +79,22 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             .limit(1)
             .build();
 
-        List<Object> result = adapter.find(query);
+        List<Object> result = adapter.find(query, policy);
         Object value = result.isEmpty() ? null : result.getFirst();
-        relationshipCache.put(cacheKey, value == null ? NULL_MARKER : value);
+        if (policy.allowStale()) {
+            relationshipCache.put(cacheKey, value == null ? NULL_MARKER : value);
+        }
         return value;
     }
 
     @Override
     public @Nullable Object handleOneToOneRelationship(ID primaryKeyValue, @NotNull FieldModel<T> field) {
+        RepositoryAdapter.ReadPolicy policy = policyFor(field);
         String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
-        Object cached = relationshipCache.get(cacheKey);
-        if (cached != null) return cached == NULL_MARKER ? null : cached;
+        if (policy.allowStale()) {
+            Object cached = relationshipCache.get(cacheKey);
+            if (cached != null) return cached == NULL_MARKER ? null : cached;
+        }
 
         // The field type is the "target" side (e.g. Warp for Faction.warp)
         Class<?> targetType = field.type();
@@ -108,21 +124,26 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             .limit(1)
             .build();
 
-        List<Object> results = adapter.find(query);
+        List<Object> results = adapter.find(query, policy);
         Object result = (results == null || results.isEmpty()) ? null : results.getFirst();
 
-        relationshipCache.put(cacheKey, result == null ? NULL_MARKER : result);
+        if (policy.allowStale()) {
+            relationshipCache.put(cacheKey, result == null ? NULL_MARKER : result);
+        }
 
         return result;
     }
 
     @Override
     public List<Object> handleOneToManyRelationship(ID primaryKeyValue, FieldModel<T> field) {
+        RepositoryAdapter.ReadPolicy policy = policyFor(field);
         // Check cache first
         String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
-        Object cached = relationshipCache.get(cacheKey);
-        if (cached != null) {
-            return (List<Object>) cached;
+        if (policy.allowStale()) {
+            Object cached = relationshipCache.get(cacheKey);
+            if (cached != null) {
+                return (List<Object>) cached;
+            }
         }
 
         // Get the target entity type from the field's element type
@@ -151,12 +172,12 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         }
 
         if (!field.lazy()) {
-            return loadOneToManyResults(primaryKeyValue, adapter, relationName, cacheKey);
+            return loadOneToManyResults(primaryKeyValue, adapter, relationName, cacheKey, policy);
         }
 
         // Lazy loading
         return new LazyArrayList<>(() ->
-            loadOneToManyResults(primaryKeyValue, adapter, relationName, cacheKey)
+            loadOneToManyResults(primaryKeyValue, adapter, relationName, cacheKey, policy)
         );
     }
 
@@ -164,15 +185,18 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         ID primaryKeyValue,
         RepositoryAdapter<Object, Object, ?> adapter,
         String relationName,
-        String cacheKey
+        String cacheKey,
+        RepositoryAdapter.ReadPolicy policy
     ) {
         List<Object> result = adapter.find(
             Query.select()
                 .where(relationName).eq(primaryKeyValue)
                 .build()
-        );
+        , policy);
         List<Object> immutable = result == null ? Collections.emptyList() : List.copyOf(result);
-        relationshipCache.put(cacheKey, immutable);
+        if (policy.allowStale()) {
+            relationshipCache.put(cacheKey, immutable);
+        }
         return immutable;
     }
 
@@ -270,12 +294,11 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             return;
         }
 
-        List<Object> results = adapter.find(
-            Query.select()
-                .where(backRef.columnName()).in(parentIds)
-                .build()
-        );
+        SelectQuery query = Query.select()
+            .where(backRef.columnName()).in(parentIds)
+            .build();
 
+        List<Object> results = adapter.find(query, policyFor(field));
         Map<ID, Object> mapped = new HashMap<>();
         for (Object obj : results) {
             ID parentId = (ID) backRef.getValue(obj);
@@ -319,8 +342,9 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
 
         List<Object> results = adapter.find(
             Query.select()
-                .where(relationName).eq(parentIds)
-                .build()
+                .where(relationName).in(parentIds)
+                .build(),
+            policyFor(field)
         );
 
         Map<ID, List<Object>> grouped = new HashMap<>(parentIds.size());

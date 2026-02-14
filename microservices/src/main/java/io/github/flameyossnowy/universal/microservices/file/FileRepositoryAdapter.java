@@ -100,6 +100,16 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
+    @Override
+    public List<T> find() {
+        return find(ReadPolicy.NO_READ_POLICY);
+    }
+
+    @Override
+    public List<T> find(ReadPolicy policy) {
+        return find(null, policy);
+    }
+
     private ReentrantReadWriteLock getLockForId(ID id) {
         return stripes[(id.hashCode() & Integer.MAX_VALUE) % STRIPE_COUNT];
     }
@@ -569,6 +579,11 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     @Override
     public List<T> find(SelectQuery query) {
+        return find(query, ReadPolicy.NO_READ_POLICY);
+    }
+
+    @Override
+    public List<T> find(SelectQuery query, ReadPolicy policy) {
         try {
             // Fast path
             if (query == null) {
@@ -776,11 +791,6 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             }
         }
         return current;
-    }
-
-    @Override
-    public List<T> find() {
-        return find(null);
     }
 
     @Override

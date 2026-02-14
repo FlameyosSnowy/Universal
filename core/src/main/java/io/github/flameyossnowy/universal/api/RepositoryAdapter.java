@@ -31,6 +31,49 @@ import java.util.stream.Stream;
 
 @SuppressWarnings("unused")
 public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID, C> {
+
+    interface ReadPolicy {
+        boolean bypassCache();
+
+        boolean allowStale();
+
+        ReadPolicy NO_READ_POLICY = new ReadPolicy() {
+            @Override
+            public boolean bypassCache() {
+                return false;
+            }
+
+            @Override
+            public boolean allowStale() {
+                return true;
+            }
+        };
+
+        ReadPolicy STRONG_READ_POLICY = new ReadPolicy() {
+            @Override
+            public boolean bypassCache() {
+                return true;
+            }
+
+            @Override
+            public boolean allowStale() {
+                return false;
+            }
+        };
+
+        ReadPolicy EVENTUAL_READ_POLICY = new ReadPolicy() {
+            @Override
+            public boolean bypassCache() {
+                return false;
+            }
+
+            @Override
+            public boolean allowStale() {
+                return true;
+            }
+        };
+    }
+
     /**
      * Creates the repository table, if it does not exist.
      * <p>
@@ -165,7 +208,12 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @return A {@link List<T>} containing the results of the query.
      */
     @CheckReturnValue
-    List<T> find(SelectQuery query);
+    default List<T> find(SelectQuery query) {
+        return find(query, ReadPolicy.NO_READ_POLICY);
+    }
+
+    @CheckReturnValue
+    List<T> find(SelectQuery query, ReadPolicy policy);
 
     /**
      * Executes a select query on the underlying storage with no filters (which essentially returns all items in the database).
@@ -175,7 +223,12 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @return A {@link List<T>} containing the results of the query.
      */
     @CheckReturnValue
-    List<T> find();
+    default List<T> find() {
+        return find(ReadPolicy.NO_READ_POLICY);
+    }
+
+    @CheckReturnValue
+    List<T> find(ReadPolicy policy);
 
     /**
      * Finds and returns an item with the specified primary key from the repository.

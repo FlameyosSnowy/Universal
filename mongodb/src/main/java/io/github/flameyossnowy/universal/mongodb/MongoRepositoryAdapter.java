@@ -251,6 +251,11 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public List<T> find(@NotNull SelectQuery query) {
+        return find(query, ReadPolicy.NO_READ_POLICY);
+    }
+
+    @Override
+    public List<T> find(@NotNull SelectQuery query, ReadPolicy policy) {
         // Validate query
         ValidationEstimation validation = queryValidator.validateSelectQuery(query);
         if (validation.isFail()) {
@@ -259,11 +264,11 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         }
 
         Bson filterDoc = createFilterBson(query.filters());
-        List<T> cached = null;
-        if (resultCache != null) {
-            cached = resultCache.fetch(filterDoc);
+        boolean bypassCache = policy != null && policy.bypassCache();
+        if (!bypassCache && resultCache != null) {
+            List<T> cached = resultCache.fetch(filterDoc);
+            if (cached != null) return cached;
         }
-        if (cached != null) return cached;
 
         FindIterable<Document> iterable = process(query, collection.find(filterDoc), repositoryModel.getFetchPageSize());
         if (query.limit() == 1) {
@@ -328,8 +333,15 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public List<T> find() {
-        FieldModel<T>  primaryKey = repositoryModel.getPrimaryKey();
-        if (resultCache != null) {
+        return find(ReadPolicy.NO_READ_POLICY);
+    }
+
+    @Override
+    public List<T> find(ReadPolicy policy) {
+        FieldModel<T> primaryKey = repositoryModel.getPrimaryKey();
+        boolean bypassCache = policy != null && policy.bypassCache();
+
+        if (!bypassCache && resultCache != null) {
             if (primaryKey == null) {
                 throw new IllegalArgumentException("Primary key not found for " + repositoryModel.tableName());
             }

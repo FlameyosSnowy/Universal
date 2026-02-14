@@ -515,6 +515,11 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     @Override
     public List<T> find(SelectQuery query) {
+        return find(query, ReadPolicy.NO_READ_POLICY);
+    }
+
+    @Override
+    public List<T> find(SelectQuery query, ReadPolicy policy) {
         try {
             if (query == null) {
                 return getAll();
@@ -588,7 +593,12 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     @Override
     public List<T> find() {
-        return find(null);
+        return find(ReadPolicy.NO_READ_POLICY);
+    }
+
+    @Override
+    public List<T> find(ReadPolicy policy) {
+        return find(null, policy);
     }
 
     @Override
