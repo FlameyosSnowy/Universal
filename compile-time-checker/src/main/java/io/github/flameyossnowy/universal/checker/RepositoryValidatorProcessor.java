@@ -81,6 +81,7 @@ import static io.github.flameyossnowy.universal.api.meta.RelationshipKind.*;
     "io.github.flameyossnowy.universal.api.annotations.Named",
     "io.github.flameyossnowy.universal.api.annotations.DefaultValue",
     "io.github.flameyossnowy.universal.api.annotations.DefaultValueProvider",
+    "io.github.flameyossnowy.universal.api.annotations.Resolves",
 })
 public class RepositoryValidatorProcessor extends AbstractProcessor {
     // TODO: implement Instant.now() processing
@@ -118,7 +119,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         DefaultValue.class.getCanonicalName(),
         DefaultValueProvider.class.getCanonicalName(),
         ExternalRepository.class.getCanonicalName(),
-        Binary.class.getCanonicalName()
+        Binary.class.getCanonicalName(),
+        ResolveWith.class.getCanonicalName()
     );
 
     @Override
@@ -138,8 +140,122 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         this.deque = TypeMirrorUtils.typeOf(Deque.class, elements);
     }
 
+    private final Map<String, ResolverInfo> globalTypeResolvers = new HashMap<>();
+
+    private record ResolverInfo(String resolverClassName, int priority) {
+    }
+
+    private void scanResolverAnnotations(RoundEnvironment roundEnv) {
+        for (Element element : roundEnv.getElementsAnnotatedWith(elements.getTypeElement("io.github.flameyossnowy.universal.api.resolver.Resolves"))) {
+            if (!(element instanceof TypeElement resolverClass)) {
+                continue;
+            }
+
+            // Verify it implements TypeResolver
+            if (!implementsTypeResolver(resolverClass)) {
+                messager.printMessage(
+                    Diagnostic.Kind.ERROR,
+                    "@Resolves can only be used on classes implementing TypeResolver",
+                    element
+                );
+                continue;
+            }
+
+            AnnotationMirror resolvesMirror = AnnotationUtils.getAnnotationMirror(
+                element,
+                "io.github.flameyossnowy.universal.api.resolver.Resolves"
+            );
+
+            if (resolvesMirror == null) continue;
+
+            // Extract types and priority
+            List<TypeMirror> handledTypes = new ArrayList<>();
+            int priority = 0;
+
+            for (var entry : resolvesMirror.getElementValues().entrySet()) {
+                String key = entry.getKey().getSimpleName().toString();
+
+                if ("value".equals(key)) {
+                    @SuppressWarnings("unchecked")
+                    List<AnnotationValue> values = (List<AnnotationValue>) entry.getValue().getValue();
+                    for (AnnotationValue val : values) {
+                        TypeMirror type = (TypeMirror) val.getValue();
+                        handledTypes.add(type);
+                    }
+                } else if ("priority".equals(key)) {
+                    priority = (int) entry.getValue().getValue();
+                }
+            }
+
+            String resolverQualifiedName = resolverClass.getQualifiedName().toString();
+
+            // Register each type
+            for (TypeMirror handledType : handledTypes) {
+                String typeQualifiedName = TypeMirrorUtils.qualifiedName(handledType);
+
+                ResolverInfo existing = globalTypeResolvers.get(typeQualifiedName);
+                if (existing != null) {
+                    if (priority > existing.priority) {
+                        // Higher priority wins
+                        globalTypeResolvers.put(
+                            typeQualifiedName,
+                            new ResolverInfo(resolverQualifiedName, priority)
+                        );
+                    } else if (priority == existing.priority) {
+                        messager.printMessage(
+                            Diagnostic.Kind.WARNING,
+                            "Multiple @Resolves with same priority (" + priority + ") for type: " + typeQualifiedName,
+                            element
+                        );
+                    }
+                } else {
+                    globalTypeResolvers.put(
+                        typeQualifiedName,
+                        new ResolverInfo(resolverQualifiedName, priority)
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if a TypeElement implements TypeResolver interface.
+     */
+    private boolean implementsTypeResolver(TypeElement element) {
+        TypeMirror typeResolverType = TypeMirrorUtils.typeOf(
+            io.github.flameyossnowy.universal.api.resolver.TypeResolver.class,
+            elements
+        );
+
+        if (typeResolverType == null) return false;
+
+        for (TypeMirror iface : element.getInterfaces()) {
+            TypeMirror erasedIface = types.erasure(iface);
+            TypeMirror erasedTypeResolver = types.erasure(typeResolverType);
+
+            if (types.isSameType(erasedIface, erasedTypeResolver)) {
+                return true;
+            }
+        }
+
+        // Check superclass recursively
+        TypeMirror superclass = element.getSuperclass();
+        if (superclass.getKind() != TypeKind.NONE) {
+            TypeElement superElement = (TypeElement) types.asElement(superclass);
+            if (superElement != null) {
+                return implementsTypeResolver(superElement);
+            }
+        }
+
+        return false;
+    }
+
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        if (!roundEnv.processingOver()) {
+            scanResolverAnnotations(roundEnv);
+        }
+
         for (Element element : roundEnv.getElementsAnnotatedWith(Repository.class)) {
             if (!(element instanceof TypeElement type)) continue;
 
@@ -513,6 +629,15 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                     if (resolverType != null) {
                         resolveWithClass = TypeMirrorUtils.qualifiedName(resolverType);
                     }
+                }
+            }
+
+            if (resolveWithClass == null) {
+                String fieldTypeQualifiedName = TypeMirrorUtils.qualifiedName(type);
+                ResolverInfo globalResolver = globalTypeResolvers.get(fieldTypeQualifiedName);
+
+                if (globalResolver != null) {
+                    resolveWithClass = globalResolver.resolverClassName;
                 }
             }
 
