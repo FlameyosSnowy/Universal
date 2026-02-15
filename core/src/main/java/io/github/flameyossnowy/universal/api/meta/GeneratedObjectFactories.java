@@ -1,9 +1,7 @@
 package io.github.flameyossnowy.universal.api.meta;
 
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
-import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;

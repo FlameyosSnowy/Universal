@@ -597,7 +597,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     }
 
     private static String buildQueryString(SelectQuery query) {
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(32);
+        StringBuilder jsonSb = null;
         if (query.filters() != null && !query.filters().isEmpty()) {
             for (FilterOption filter : query.filters()) {
                 if (!sb.isEmpty()) {
@@ -614,10 +615,14 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                     }
 
                     case JsonSelectOption(var field, var jsonPath, var operator, var value) -> {
-                        String key = field + ":" + jsonPath + ":" + operator;
+                        if (jsonSb == null) {
+                            jsonSb = new StringBuilder(field);
+                        }
+                        String key = jsonSb.append(':').append(jsonPath).append(':').append(operator).toString();
                         sb.append(URLEncoder.encode(key, StandardCharsets.UTF_8));
                         sb.append('=');
                         sb.append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8));
+                        jsonSb.setLength(0);
                     }
 
                     default -> throw new UnsupportedOperationException(
@@ -696,7 +701,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             return Collections.singletonMap(keys.iterator().next(), findById(keys.iterator().next()));
         }
 
-        Map<ID, T> results = new HashMap<>();
+        Map<ID, T> results = new HashMap<>(keys.size());
         for (ID key : keys) {
             results.put(key, findById(key));
         }

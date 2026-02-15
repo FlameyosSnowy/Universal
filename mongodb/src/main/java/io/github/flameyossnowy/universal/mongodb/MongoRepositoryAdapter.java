@@ -592,9 +592,11 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     private static <T> FindIterable<T> process(@NotNull SelectQuery query, FindIterable<T> iterable, int pageSize) {
         if (pageSize > 0) iterable = iterable.batchSize(pageSize);
         if (query.limit() != -1) iterable = iterable.limit(query.limit());
-        if (!query.sortOptions().isEmpty()) {
-            List<Bson> sorts = new ArrayList<>();
-            for (SortOption o : query.sortOptions()) {
+
+        List<SortOption> sortOptions = query.sortOptions();
+        if (!sortOptions.isEmpty()) {
+            List<Bson> sorts = new ArrayList<>(sortOptions.size());
+            for (SortOption o : sortOptions) {
                 Bson bson = o.order() == SortOrder.ASCENDING ? Sorts.ascending(o.field()) : Sorts.descending(o.field());
                 sorts.add(bson);
             }

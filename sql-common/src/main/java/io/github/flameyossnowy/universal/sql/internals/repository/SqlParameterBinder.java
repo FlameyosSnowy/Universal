@@ -26,7 +26,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Month;
 import java.time.MonthDay;
 import java.time.OffsetDateTime;
 import java.time.Year;
@@ -35,9 +34,7 @@ import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public final class SqlParameterBinder<T, ID> {
     public void addFilterToPreparedStatement(
@@ -58,7 +55,7 @@ public final class SqlParameterBinder<T, ID> {
     }
 
     @SuppressWarnings("unchecked")
-    private void bindAggregationSelectOption(
+    private static void bindAggregationSelectOption(
         AggregateFilterOption value,
         SQLDatabaseParameters parameters,
         TypeResolverRegistry resolverRegistry
@@ -98,7 +95,7 @@ public final class SqlParameterBinder<T, ID> {
     }
 
     @SuppressWarnings("unchecked")
-    private void bindSelectOption(SelectOption value, SQLDatabaseParameters parameters, TypeResolverRegistry resolverRegistry) {
+    private static void bindSelectOption(SelectOption value, SQLDatabaseParameters parameters, TypeResolverRegistry resolverRegistry) {
         if ("IN".equalsIgnoreCase(value.operator()) && value.value() instanceof Collection<?> list) {
             for (Object item : list) {
                 TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(item.getClass());

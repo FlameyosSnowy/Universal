@@ -2,7 +2,6 @@ package io.github.flameyossnowy.universal.microservices.file;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.flameyossnowy.universal.api.CloseableIterator;
 import io.github.flameyossnowy.universal.api.IndexOptions;
 import io.github.flameyossnowy.universal.api.ModelsBootstrap;
@@ -43,7 +42,6 @@ import io.github.flameyossnowy.universal.api.options.SortOption;
 import io.github.flameyossnowy.universal.api.options.SubQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.options.WindowFieldDefinition;
-import io.github.flameyossnowy.universal.api.options.WindowFunctionType;
 import io.github.flameyossnowy.universal.api.options.WindowQuery;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
@@ -161,6 +159,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     {
         for (int i = 0; i < STRIPE_COUNT; i++) {
+            //noinspection ObjectAllocationInLoop
             stripes[i] = new ReentrantReadWriteLock();
         }
     }
@@ -841,15 +840,16 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         List<Object> values = executeSubQuerySelectSingleField(entity, subQuery);
         Object localValue = repositoryModel.fieldByName(localField).getValue(entity);
         boolean contains = values.contains(localValue);
-        return negate ? !contains : contains;
+        return negate != contains;
     }
 
     private boolean evaluateExistsSubQuery(T entity, @NotNull SubQuery subQuery, boolean negate) {
         boolean exists = !executeSubQuerySelectSingleField(entity, subQuery).isEmpty();
-        return negate ? !exists : exists;
+        return negate != exists;
     }
 
     private @NotNull List<Object> executeSubQuerySelectSingleField(T outerEntity, @NotNull SubQuery subQuery) {
+        @SuppressWarnings("unchecked")
         RepositoryAdapter<Object, Object, ?> adapter = (RepositoryAdapter<Object, Object, ?>) RepositoryRegistry.get(subQuery.entityClass());
         if (adapter == null) {
             throw new IllegalStateException("No adapter registered for subquery entity: " + subQuery.entityClass().getName());
@@ -874,10 +874,11 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             null
         );
 
-        List<Object> out = new ArrayList<>();
-        for (Object e : adapter.find(sq, ReadPolicy.NO_READ_POLICY)) {
+        List<Object> objects = adapter.find(sq, ReadPolicy.NO_READ_POLICY);
+        List<Object> out = new ArrayList<>(objects.size());
+        for (Object e : objects) {
             RepositoryModel<Object, Object> model = adapter.getRepositoryModel();
-            FieldModel<Object> fm = (FieldModel<Object>) model.fieldByName(selectedField);
+            FieldModel<Object> fm = model.fieldByName(selectedField);
             if (fm != null) {
                 out.add(fm.getValue(e));
             }
@@ -900,16 +901,17 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             null
         ));
 
-        Map<List<Object>, List<T>> groups = new LinkedHashMap<>();
         List<String> groupBy = query.groupByFields() == null ? Collections.emptyList() : query.groupByFields();
+        Map<List<Object>, List<T>> groups = new LinkedHashMap<>(groupBy.size());
 
+        List<Object> key = new ArrayList<>(groupBy.size());
         for (T entity : base) {
-            List<Object> key = new ArrayList<>(groupBy.size());
             for (String field : groupBy) {
                 var fm = repositoryModel.fieldByName(field);
                 key.add(fm != null ? fm.getValue(entity) : null);
             }
             groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(entity);
+            key.clear();
         }
 
         List<Map<String, Object>> rows = new ArrayList<>(groups.size());
@@ -961,7 +963,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         ));
 
         // Apply top-level ORDER BY (for final results)
-        if (query.orderBy() != null && !query.orderBy().isEmpty()) {
+        if (!query.orderBy().isEmpty()) {
             Comparator<T> comparator = null;
             for (SortOption option : query.orderBy()) {
                 Comparator<T> next = compareBySortField(option);
@@ -1039,6 +1041,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         return row;
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private Object computeAggregate(@NotNull AggregateFieldDefinition a, @NotNull List<T> group) {
         AggregationType type = a.aggregationType();
 
@@ -1075,8 +1078,10 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
         // The DSL helper Query.eq(value) currently builds a SelectOption with empty option.
         // Interpret that as: <field> <op> <value>
-        if (condition instanceof SelectOption s && (s.option() == null || s.option().isBlank())) {
-            return group.stream().filter(e -> matchesSelectOption(e, new SelectOption(field, s.operator(), s.value()))).count();
+        if (condition instanceof SelectOption(
+            String option, String operator, Object value
+        ) && (option == null || option.isBlank())) {
+            return group.stream().filter(e -> matchesSelectOption(e, new SelectOption(field, operator, value))).count();
         }
 
         return group.stream().filter(e -> matches(e, condition)).count();
@@ -1122,8 +1127,10 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         boolean seen = false;
         for (T e : group) {
             boolean matches;
-            if (condition instanceof SelectOption s && (s.option() == null || s.option().isBlank())) {
-                matches = matchesSelectOption(e, new SelectOption(field, s.operator(), s.value()));
+            if (condition instanceof SelectOption(
+                String option, String operator, Object value
+            ) && (option == null || option.isBlank())) {
+                matches = matchesSelectOption(e, new SelectOption(field, operator, value));
             } else {
                 matches = matches(e, condition);
             }
@@ -1173,8 +1180,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private boolean matchesAggregatedRow(@NotNull Map<String, Object> row, @NotNull List<T> group, @NotNull FilterOption filter) {
-        if (filter instanceof SelectOption s) {
-            return matchesAggregatedValue(row.get(s.option()), s.operator(), s.value());
+        if (filter instanceof SelectOption(String option, String operator1, Object value1)) {
+            return matchesAggregatedValue(row.get(option), operator1, value1);
         }
 
         if (filter instanceof AggregateFilterOption(
@@ -1203,7 +1210,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private boolean matchesAggregatedValue(@Nullable Object actual, @NotNull String operator, @Nullable Object expected) {
+    private static boolean matchesAggregatedValue(@Nullable Object actual, @NotNull String operator, @Nullable Object expected) {
         if (actual == null) {
             return expected == null;
         }
@@ -1238,8 +1245,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private @NotNull List<Map<String, Object>> evaluateWindowRows(@NotNull List<FieldDefinition> fields, @NotNull List<T> base) {
         // Prepare base rows
         List<Map<String, Object>> rows = new ArrayList<>(base.size());
+        Map<String, Object> row = new LinkedHashMap<>(fields.size());
         for (T e : base) {
-            Map<String, Object> row = new LinkedHashMap<>();
             for (FieldDefinition fd : fields) {
                 if (fd instanceof SimpleFieldDefinition s) {
                     var fm = repositoryModel.fieldByName(s.field());
@@ -1265,8 +1272,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
 
         // Remove backrefs
-        for (Map<String, Object> row : rows) {
-            row.remove("__entity");
+        for (Map<String, Object> existingRow : rows) {
+            existingRow.remove("__entity");
         }
         return rows;
     }
@@ -1274,10 +1281,11 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     @SuppressWarnings({"rawtypes", "unchecked"})
     private void applyWindowFunction(@NotNull List<Map<String, Object>> rows, @NotNull WindowFieldDefinition w) {
         // Partition rows
-        Map<List<Object>, List<Map<String, Object>>> partitions = new LinkedHashMap<>();
+        int partitionBySize = w.partitionBy() == null ? 16 : w.partitionBy().size();
+        Map<List<Object>, List<Map<String, Object>>> partitions = new LinkedHashMap<>(partitionBySize);
+        List<Object> key = new ArrayList<>(partitionBySize);
         for (Map<String, Object> row : rows) {
             T e = (T) row.get("__entity");
-            List<Object> key = new ArrayList<>(w.partitionBy() == null ? 0 : w.partitionBy().size());
             if (w.partitionBy() != null) {
                 for (String p : w.partitionBy()) {
                     var fm = repositoryModel.fieldByName(p);
@@ -1290,18 +1298,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         for (List<Map<String, Object>> part : partitions.values()) {
             // Sort partition according to window orderBy
             if (w.orderBy() != null && !w.orderBy().isEmpty()) {
-                Comparator<Map<String, Object>> cmp = null;
-                for (SortOption s : w.orderBy()) {
-                    Comparator<Map<String, Object>> next = Comparator.comparing(m -> {
-                        T e = (T) m.get("__entity");
-                        var fm = repositoryModel.fieldByName(s.field());
-                        return (Comparable) (fm != null ? fm.getValue(e) : null);
-                    }, Comparator.nullsFirst(Comparator.naturalOrder()));
-                    if (s.order() == SortOrder.DESCENDING) {
-                        next = next.reversed();
-                    }
-                    cmp = cmp == null ? next : cmp.thenComparing(next);
-                }
+                Comparator<Map<String, Object>> cmp = createComparatorFromWindowField(w);
                 part.sort(cmp);
             }
 
@@ -1367,6 +1364,22 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
                 default -> throw new UnsupportedOperationException("Window function not supported in file adapter: " + w.functionType());
             }
         }
+    }
+
+    private @Nullable Comparator<Map<String, Object>> createComparatorFromWindowField(@NotNull WindowFieldDefinition w) {
+        Comparator<Map<String, Object>> cmp = null;
+        for (SortOption s : w.orderBy()) {
+            Comparator<Map<String, Object>> next = Comparator.comparing(m -> {
+                T e = (T) m.get("__entity");
+                var fm = repositoryModel.fieldByName(s.field());
+                return (Comparable) (fm != null ? fm.getValue(e) : null);
+            }, Comparator.nullsFirst(Comparator.naturalOrder()));
+            if (s.order() == SortOrder.DESCENDING) {
+                next = next.reversed();
+            }
+            cmp = cmp == null ? next : cmp.thenComparing(next);
+        }
+        return cmp;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -1772,20 +1785,17 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private void updateIndexesBatch(Collection<T> entities) {
         if (entities.isEmpty() || indexes.isEmpty()) return;
 
+        Map<Object, Set<ID>> additions = new HashMap<>();
         for (SecondaryIndex<ID> index : indexes.values()) {
             FieldModel<T> field = repositoryModel.fieldByName(index.field());
 
-            // Local aggregation: value -> IDs
-            Map<Object, Set<ID>> additions = new HashMap<>();
-
             updateCollectionFromEntities(entities, field, additions);
 
-            // Apply to index map in bulk
-            additions.forEach((value, ids) ->
+            for (Map.Entry<Object, Set<ID>> entry : additions.entrySet()) {
                 index.map()
-                    .computeIfAbsent(value, k -> ConcurrentHashMap.newKeySet())
-                    .addAll(ids)
-            );
+                    .computeIfAbsent(entry.getKey(), k -> ConcurrentHashMap.newKeySet())
+                    .addAll(entry.getValue());
+            }
         }
     }
 
@@ -1808,16 +1818,17 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private void removeFromIndexesBatch(Collection<T> entities) {
         if (entities.isEmpty() || indexes.isEmpty()) return;
 
+        Map<Object, Set<ID>> removals = new HashMap<>(entities.size());
         for (SecondaryIndex<ID> index : indexes.values()) {
             var field = repositoryModel.fieldByName(index.field());
 
             // value -> IDs to remove
-            Map<Object, Set<ID>> removals = new HashMap<>();
 
             updateCollectionFromEntities(entities, field, removals);
 
-            // Apply removals
-            removals.forEach((value, ids) -> {
+            for (Map.Entry<Object, Set<ID>> entry : removals.entrySet()) {
+                Object value = entry.getKey();
+                Set<ID> ids = entry.getValue();
                 Set<ID> existing = index.map().get(value);
                 if (existing == null) return;
 
@@ -1826,7 +1837,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
                 if (existing.isEmpty()) {
                     index.map().remove(value);
                 }
-            });
+            }
         }
     }
 
