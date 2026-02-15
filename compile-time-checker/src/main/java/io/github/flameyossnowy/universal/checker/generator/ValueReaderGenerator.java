@@ -202,7 +202,7 @@ public class ValueReaderGenerator {
 
             if (!field.relationship() && needsSpecialLoader(field.type())) {
                 String methodName = "read" + helperMethodIndex;
-                generateValueReaderMethod(builder, field, methodName, "result.repositoryModel()", repo);
+                generateValueReaderMethod(builder, field, methodName, "result.repositoryModel()");
                 helperMethodIndex++;
             }
         }
@@ -229,8 +229,7 @@ public class ValueReaderGenerator {
         TypeSpec.Builder builder,
         FieldModel field,
         String methodName,
-        String repoModelRef,
-        RepositoryModel model
+        String repoModelRef
     ) {
         TypeMirror rawType = field.type();
         TypeName returnType;
