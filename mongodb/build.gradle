@@ -42,3 +42,15 @@ dependencies {
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = 'io.github.flameyossnowy.universal'
+            artifactId = 'mongodb'
+            version = '7.0.0'
+
+            from components.java
+        }
+    }
+}

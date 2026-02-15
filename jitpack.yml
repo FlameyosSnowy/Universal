@@ -1,2 +1,7 @@
 jdk:
   - openjdk21
+before_install:
+  - sdk install java 21.0.2-open
+  - sdk use java 21.0.2-open
+install:
+  - ./gradlew clean publishToMavenLocal -Pgroup=io.github.flameyossnowy.universal -Pversion=7.0.0
