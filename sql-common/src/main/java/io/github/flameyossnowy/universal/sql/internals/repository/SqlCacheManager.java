@@ -6,6 +6,7 @@ import io.github.flameyossnowy.universal.api.cache.SecondLevelCache;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.utils.Logging;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -15,10 +16,14 @@ public class SqlCacheManager<T, ID> {
     private final DefaultResultCache<String, T, ID> cache;
     private final ObjectModel<T, ID> objectModel;
     private final boolean cacheEnabled;
+
+    @Nullable
     private final SecondLevelCache<ID, T> l2Cache;
+
+    @Nullable
     private final ReadThroughCache<ID, T> readThroughCache;
 
-    public SqlCacheManager(DefaultResultCache<String, T, ID> cache, ObjectModel<T, ID> objectModel, boolean cacheEnabled, SecondLevelCache<ID, T> l2Cache, ReadThroughCache<ID, T> readThroughCache) {
+    public SqlCacheManager(DefaultResultCache<String, T, ID> cache, ObjectModel<T, ID> objectModel, boolean cacheEnabled, @Nullable SecondLevelCache<ID, T> l2Cache, @Nullable ReadThroughCache<ID, T> readThroughCache) {
         this.cache = cache;
         this.objectModel = objectModel;
         this.cacheEnabled = cacheEnabled;

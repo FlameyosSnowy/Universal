@@ -9,10 +9,12 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.operations.*;
+import io.github.flameyossnowy.universal.api.options.AggregationQuery;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 
+import io.github.flameyossnowy.universal.api.options.WindowQuery;
 import io.github.flameyossnowy.universal.api.proxy.ProxiedAdapterHandler;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -965,4 +967,137 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
             }
         });
     }
+
+    /**
+     * Execute an aggregation query with GROUP BY and HAVING.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * List<Map<String, Object>> results = repository.aggregate(
+     *     Query.aggregate()
+     *         .select(
+     *             field("status"),
+     *             field("id").count().as("count")
+     *         )
+     *         .groupBy("status")
+     *         .build()
+     * );
+     * // Returns: [
+     * //   {"status": "active", "count": 42},
+     * //   {"status": "inactive", "count": 13}
+     * // ]
+     * }</pre>
+     *
+     * @param query The aggregation query specification
+     * @return List of result maps (field name → value)
+     */
+    List<Map<String, Object>> aggregate(@NotNull AggregationQuery query);
+
+    /**
+     * Execute an aggregation query and map results to entities.
+     *
+     * <p>This is supported only when the underlying backend returns full entity rows/documents.
+     * Default implementation throws.</p>
+     */
+    default @NotNull List<T> aggregateEntities(@NotNull AggregationQuery query) {
+        throw new UnsupportedOperationException(
+            "Entity aggregation is not supported by adapter: " + getClass().getName()
+        );
+    }
+
+    /**
+     * Execute a window function query.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * List<Map<String, Object>> ranked = repository.window(
+     *     Query.window()
+     *         .select(
+     *             field("name"),
+     *             field("salary").rank()
+     *                 .partitionBy("departmentId")
+     *                 .orderBy("salary", DESC)
+     *                 .as("rank")
+     *         )
+     *         .build()
+     * );
+     * }</pre>
+     *
+     * @param query The window function query
+     * @return List of result maps
+     */
+    List<Map<String, Object>> window(@NotNull WindowQuery query);
+
+    /**
+     * Execute a window function query and map results.
+     *
+     * @param query The window function query
+     * @param resultType The class to map results to
+     * @return List of mapped result objects
+     */
+    <R> List<R> window(@NotNull WindowQuery query, @NotNull Class<R> resultType);
+
+    /**
+     * Execute a window function query and map results to entities.
+     *
+     * <p>This is supported only when the underlying backend returns full entity rows/documents.
+     * Default implementation throws.</p>
+     */
+    default @NotNull List<T> windowEntities(@NotNull WindowQuery query) {
+        throw new UnsupportedOperationException(
+            "Entity window queries are not supported by adapter: " + getClass().getName()
+        );
+    }
+
+    /**
+     * Execute a raw aggregation query (for complex cases not covered by the builder).
+     *
+     * <p>SQL Example:
+     * <pre>{@code
+     * String sql = """
+     *     SELECT department_id,
+     *            COUNT(*) FILTER (WHERE status = 'active') AS active_count,
+     *            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary) AS median_salary
+     *     FROM employees
+     *     GROUP BY department_id
+     *     """;
+     * List<Map<String, Object>> results = repository.executeAggregation(sql);
+     * }</pre>
+     *
+     * <p>MongoDB Example:
+     * <pre>{@code
+     * List<Bson> pipeline = List.of(
+     *     Aggregates.match(Filters.eq("status", "active")),
+     *     Aggregates.group("$departmentId",
+     *         Accumulators.sum("count", 1),
+     *         Accumulators.avg("avgSalary", "$salary"))
+     * );
+     * List<Map<String, Object>> results = repository.executeAggregation(pipeline);
+     * }</pre>
+     *
+     * @param rawQuery Raw SQL string or MongoDB pipeline
+     * @return List of result maps
+     */
+    List<Map<String, Object>> executeAggregation(@NotNull Object rawQuery);
+
+    /**
+     * Get a scalar value from an aggregation (single result).
+     *
+     * <p>Example:
+     * <pre>{@code
+     * Long totalUsers = repository.aggregateScalar(
+     *     Query.aggregate()
+     *         .select(field("id").count().as("total"))
+     *         .build(),
+     *     "total",
+     *     Long.class
+     * );
+     * }</pre>
+     *
+     * @param query The aggregation query
+     * @param fieldName The field name to extract
+     * @param type The expected type
+     * @return The scalar value, or null if no results
+     */
+    <R> R aggregateScalar(@NotNull AggregationQuery query, @NotNull String fieldName, @NotNull Class<R> type);
 }

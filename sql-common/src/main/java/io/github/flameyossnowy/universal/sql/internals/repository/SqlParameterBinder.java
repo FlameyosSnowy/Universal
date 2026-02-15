@@ -7,6 +7,7 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.FilterOption;
+import io.github.flameyossnowy.universal.api.options.AggregateFilterOption;
 import io.github.flameyossnowy.universal.api.options.JsonSelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
@@ -34,7 +35,9 @@ import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class SqlParameterBinder<T, ID> {
     public void addFilterToPreparedStatement(
@@ -49,8 +52,49 @@ public final class SqlParameterBinder<T, ID> {
                 case null -> {}
                 case SelectOption s -> bindSelectOption(s, parameters, resolverRegistry);
                 case JsonSelectOption j -> bindJsonSelectOption(j, parameters, resolverRegistry, repositoryModel, sqlType);
+                case AggregateFilterOption a -> bindAggregationSelectOption(a, parameters, resolverRegistry);
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void bindAggregationSelectOption(
+        AggregateFilterOption value,
+        SQLDatabaseParameters parameters,
+        TypeResolverRegistry resolverRegistry
+    ) {
+        // Bind any conditional value inside COUNT_IF / SUM_IF conditions if needed.
+        // The SQL parser currently inlines values for aggregation expressions, but the
+        // binder can still support parameterized aggregate parsing in the future.
+        if (value.condition() instanceof SelectOption(String option, String operator, Object value1) && value1 != null) {
+            if ("IN".equalsIgnoreCase(operator) && value1 instanceof Collection<?> list) {
+                for (Object item : list) {
+                    if (item == null) continue;
+                    TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(item.getClass());
+                    resolver.insert(parameters, option, item);
+                }
+            } else {
+                TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(value1.getClass());
+                resolver.insert(parameters, option, value1);
+            }
+        }
+
+        // Bind the right-hand-side of the aggregate comparison, if present.
+        if (value.value() == null) {
+            return;
+        }
+
+        if ("IN".equalsIgnoreCase(value.operator()) && value.value() instanceof Collection<?> list) {
+            for (Object item : list) {
+                if (item == null) continue;
+                TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(item.getClass());
+                resolver.insert(parameters, value.field(), item);
+            }
+            return;
+        }
+
+        TypeResolver<Object> resolver = (TypeResolver<Object>) resolverRegistry.resolve(value.value().getClass());
+        resolver.insert(parameters, value.field(), value.value());
     }
 
     @SuppressWarnings("unchecked")

@@ -8,6 +8,12 @@ plugins {
 group = "io.github.flameyossnowy.universal"
 version = '7.0.0'
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
 repositories {
     mavenCentral()
     //maven { url = "https://repo.foxikle.dev/flameyos" }

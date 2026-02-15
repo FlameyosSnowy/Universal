@@ -37,7 +37,9 @@ dependencies {
     compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"
 
     testImplementation "org.junit.jupiter:junit-jupiter-engine:5.11.0-M2"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
     testImplementation project(":core")
+    testAnnotationProcessor project(":compile-time-checker")
 
     testImplementation "com.fasterxml.jackson.core:jackson-databind:2.15.1"
     testImplementation "com.fasterxml.jackson.core:jackson-annotations:2.15.1"

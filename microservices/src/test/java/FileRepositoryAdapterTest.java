@@ -20,16 +20,15 @@ class FileRepositoryAdapterTest {
 
     @BeforeEach
     void setup() {
-        adapter = new FileRepositoryAdapter<>(
-                TestEntity.class,
-                String.class,
-                tempDir,
-                FileFormat.JSON,
-                false,
-                CompressionType.GZIP,
-                false,
-                0,
-            IndexPathStrategies.underBase());
+        adapter = FileRepositoryAdapter.builder(TestEntity.class, String.class)
+            .basePath(tempDir)
+            .sharding(false)
+            .format(FileFormat.JSON)
+            .compressionType(CompressionType.GZIP)
+            .compressed(false)
+            .shardCount(0)
+            .indexPathStrategy(IndexPathStrategies.underBase())
+            .build();
         adapter.createRepository(true);
     }
 
@@ -88,17 +87,15 @@ class FileRepositoryAdapterTest {
 
     @Test
     void jsonField_roundTrip_and_jsonSelectOption_filtering() {
-        FileRepositoryAdapter<JsonTestEntity, String> jsonAdapter = new FileRepositoryAdapter<>(
-            JsonTestEntity.class,
-            String.class,
-            tempDir,
-            FileFormat.JSON,
-            false,
-            CompressionType.GZIP,
-            false,
-            0,
-            IndexPathStrategies.underBase()
-        );
+        FileRepositoryAdapter<JsonTestEntity, String> jsonAdapter = FileRepositoryAdapter.builder(JsonTestEntity.class, String.class)
+            .basePath(tempDir)
+            .sharding(false)
+            .format(FileFormat.JSON)
+            .compressionType(CompressionType.GZIP)
+            .compressed(false)
+            .shardCount(0)
+            .indexPathStrategy(IndexPathStrategies.underBase())
+            .build();
         jsonAdapter.createRepository(true);
 
         JsonTestEntity entity = new JsonTestEntity(

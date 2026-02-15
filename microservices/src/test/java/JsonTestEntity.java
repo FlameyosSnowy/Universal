@@ -43,5 +43,21 @@ public class JsonTestEntity {
         public int getAge() {
             return age;
         }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public void setAge(int age) {
+            this.age = age;
+        }
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public void setPayload(Payload payload) {
+        this.payload = payload;
     }
 }

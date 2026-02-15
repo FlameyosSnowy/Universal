@@ -48,7 +48,8 @@ class NetworkRepositoryAdapterTest {
                 5,
                 Map.of(),
                 EndpointConfig.defaults(),
-                new ObjectMapper()
+                new ObjectMapper(),
+                null
         );
     }
 
@@ -139,7 +140,8 @@ class NetworkRepositoryAdapterTest {
             0,
             Map.of(),
             EndpointConfig.defaults(),
-            new ObjectMapper()
+            new ObjectMapper(),
+            null
         );
 
         server.enqueue(new MockResponse()

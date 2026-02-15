@@ -44,7 +44,13 @@ public class ValueReaderGenerator {
         String className = repo.entitySimpleName() + "_ValueReader";
 
         // Check if entity has a primary key
-        boolean hasId = repo.fields().stream().anyMatch(FieldModel::id);
+        boolean hasId = false;
+        for (FieldModel fieldModel : repo.fields()) {
+            if (fieldModel.id()) {
+                hasId = true;
+                break;
+            }
+        }
 
         ParameterizedTypeName readerInterface = ParameterizedTypeName.get(
             ClassName.get("io.github.flameyossnowy.universal.api.factory", "ValueReader"),

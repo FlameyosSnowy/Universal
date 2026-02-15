@@ -26,14 +26,25 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
+import io.github.flameyossnowy.universal.api.options.AggregateFieldDefinition;
+import io.github.flameyossnowy.universal.api.options.AggregateFilterOption;
+import io.github.flameyossnowy.universal.api.options.AggregationQuery;
+import io.github.flameyossnowy.universal.api.options.AggregationType;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
+import io.github.flameyossnowy.universal.api.options.FieldDefinition;
 import io.github.flameyossnowy.universal.api.options.FilterOption;
 import io.github.flameyossnowy.universal.api.options.JsonSelectOption;
+import io.github.flameyossnowy.universal.api.options.QueryField;
+import io.github.flameyossnowy.universal.api.options.SimpleFieldDefinition;
 import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.SortOrder;
 import io.github.flameyossnowy.universal.api.options.SortOption;
+import io.github.flameyossnowy.universal.api.options.SubQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.api.options.WindowFieldDefinition;
+import io.github.flameyossnowy.universal.api.options.WindowFunctionType;
+import io.github.flameyossnowy.universal.api.options.WindowQuery;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.microservices.MicroservicesJsonCodecBridge;
@@ -209,7 +220,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     private final RelationshipResolver<T, ID> relationshipResolver;
 
-    public FileRepositoryAdapter(
+    FileRepositoryAdapter(
             @NotNull Class<T> entityType,
             @NotNull Class<ID> idType,
             @NotNull Path basePath,
@@ -262,7 +273,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         this.objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
 
         MicroserviceRelationshipHandler<T, ID> handler = new MicroserviceRelationshipHandler<>(repositoryModel, idType, resolverRegistry);
-        this.relationshipLoader = GeneratedRelationshipLoaders.get(repositoryModel.entityQualifiedName(), handler, null, repositoryModel);
+        this.relationshipLoader = GeneratedRelationshipLoaders.get(repositoryModel.tableName(), handler, null, repositoryModel);
         this.relationshipResolver = new RelationshipResolver<>(handler);
 
         RepositoryRegistry.register(repositoryModel.tableName(), this);
@@ -808,9 +819,576 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             case "<" -> value instanceof Comparable && filterValue != null && ((Comparable) value).compareTo(filterValue) < 0;
             case ">=" -> value instanceof Comparable && filterValue != null && ((Comparable) value).compareTo(filterValue) >= 0;
             case "<=" -> value instanceof Comparable && filterValue != null && ((Comparable) value).compareTo(filterValue) <= 0;
-            case "IN" -> filterValue instanceof Collection<?> list && list.contains(value);
+            case "IN" -> {
+                if (filterValue instanceof SubQuery sq) {
+                    yield evaluateInSubQuery(entity, filter.option(), sq, false);
+                }
+                yield filterValue instanceof Collection<?> list && list.contains(value);
+            }
+            case "NOT IN" -> {
+                if (filterValue instanceof SubQuery sq) {
+                    yield evaluateInSubQuery(entity, filter.option(), sq, true);
+                }
+                yield !(filterValue instanceof Collection<?> list) || !list.contains(value);
+            }
+            case "EXISTS" -> filterValue instanceof SubQuery sq && evaluateExistsSubQuery(entity, sq, false);
+            case "NOT EXISTS" -> !(filterValue instanceof SubQuery sq) || evaluateExistsSubQuery(entity, sq, true);
             default -> false;
         };
+    }
+
+    private boolean evaluateInSubQuery(T entity, String localField, @NotNull SubQuery subQuery, boolean negate) {
+        List<Object> values = executeSubQuerySelectSingleField(entity, subQuery);
+        Object localValue = repositoryModel.fieldByName(localField).getValue(entity);
+        boolean contains = values.contains(localValue);
+        return negate ? !contains : contains;
+    }
+
+    private boolean evaluateExistsSubQuery(T entity, @NotNull SubQuery subQuery, boolean negate) {
+        boolean exists = !executeSubQuerySelectSingleField(entity, subQuery).isEmpty();
+        return negate ? !exists : exists;
+    }
+
+    private @NotNull List<Object> executeSubQuerySelectSingleField(T outerEntity, @NotNull SubQuery subQuery) {
+        RepositoryAdapter<Object, Object, ?> adapter = (RepositoryAdapter<Object, Object, ?>) RepositoryRegistry.get(subQuery.entityClass());
+        if (adapter == null) {
+            throw new IllegalStateException("No adapter registered for subquery entity: " + subQuery.entityClass().getName());
+        }
+
+        String selectedField = null;
+        if (subQuery.selectFields() != null && subQuery.selectFields().size() == 1) {
+            selectedField = subQuery.selectFields().getFirst().getFieldName();
+        }
+
+        if (selectedField == null) {
+            throw new UnsupportedOperationException("File subqueries currently require selecting exactly one simple field");
+        }
+
+        // Execute subquery as a SelectQuery against the target adapter.
+        // Note: correlation via OuterFieldReference is not supported in file adapter currently.
+        SelectQuery sq = new SelectQuery(
+            List.of(selectedField),
+            subQuery.whereFilters(),
+            subQuery.orderBy(),
+            subQuery.limit(),
+            null
+        );
+
+        List<Object> out = new ArrayList<>();
+        for (Object e : adapter.find(sq, ReadPolicy.NO_READ_POLICY)) {
+            RepositoryModel<Object, Object> model = adapter.getRepositoryModel();
+            FieldModel<Object> fm = (FieldModel<Object>) model.fieldByName(selectedField);
+            if (fm != null) {
+                out.add(fm.getValue(e));
+            }
+        }
+        return out;
+    }
+
+    @Override
+    public List<Map<String, Object>> aggregate(@NotNull AggregationQuery query) {
+        if (query.limit() == 0) {
+            return Collections.emptyList();
+        }
+
+        // Filter base rows using WHERE
+        List<T> base = find(new SelectQuery(
+            Collections.emptyList(),
+            query.whereFilters(),
+            Collections.emptyList(),
+            -1,
+            null
+        ));
+
+        Map<List<Object>, List<T>> groups = new LinkedHashMap<>();
+        List<String> groupBy = query.groupByFields() == null ? Collections.emptyList() : query.groupByFields();
+
+        for (T entity : base) {
+            List<Object> key = new ArrayList<>(groupBy.size());
+            for (String field : groupBy) {
+                var fm = repositoryModel.fieldByName(field);
+                key.add(fm != null ? fm.getValue(entity) : null);
+            }
+            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(entity);
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>(groups.size());
+        for (List<T> group : groups.values()) {
+            Map<String, Object> row = evaluateAggregationRow(query.selectFields(), group);
+            if (matchesAggregatedRowAll(row, group, query.havingFilters())) {
+                rows.add(row);
+            }
+        }
+
+        // ORDER BY (on produced row fields)
+        if (query.orderBy() != null && !query.orderBy().isEmpty()) {
+            rows.sort(createComparator(query));
+        }
+
+        if (query.limit() >= 0 && rows.size() > query.limit()) {
+            return rows.subList(0, query.limit());
+        }
+        return rows;
+    }
+
+    private static @Nullable Comparator<Map<String, Object>> createComparator(@NotNull AggregationQuery query) {
+        Comparator<Map<String, Object>> comparator = null;
+        for (SortOption sort : query.orderBy()) {
+            @SuppressWarnings("unchecked")
+            Comparator<Map<String, Object>> next = Comparator.comparing(m -> (Comparable<Object>) m.get(sort.field()), Comparator.nullsFirst(Comparator.naturalOrder()));
+
+            if (sort.order() == SortOrder.DESCENDING) {
+                next = next.reversed();
+            }
+            comparator = comparator == null ? next : comparator.thenComparing(next);
+        }
+        return comparator;
+    }
+
+    @Override
+    public List<Map<String, Object>> window(@NotNull WindowQuery query) {
+        if (query.limit() == 0) {
+            return Collections.emptyList();
+        }
+
+        // Base data set from WHERE
+        List<T> base = find(new SelectQuery(
+            Collections.emptyList(),
+            query.whereFilters(),
+            Collections.emptyList(),
+            -1,
+            null
+        ));
+
+        // Apply top-level ORDER BY (for final results)
+        if (query.orderBy() != null && !query.orderBy().isEmpty()) {
+            Comparator<T> comparator = null;
+            for (SortOption option : query.orderBy()) {
+                Comparator<T> next = compareBySortField(option);
+                comparator = (comparator == null) ? next : comparator.thenComparing(next);
+            }
+            base.sort(comparator);
+        }
+
+        List<Map<String, Object>> rows = evaluateWindowRows(query.selectFields(), base);
+        if (query.limit() >= 0 && rows.size() > query.limit()) {
+            return rows.subList(0, query.limit());
+        }
+        return rows;
+    }
+
+    @Override
+    public <R> List<R> window(@NotNull WindowQuery query, @NotNull Class<R> resultType) {
+        List<Map<String, Object>> rows = window(query);
+        List<R> out = new ArrayList<>(rows.size());
+        for (Map<String, Object> row : rows) {
+            out.add(objectMapper.convertValue(row, resultType));
+        }
+        return out;
+    }
+
+    @Override
+    public List<Map<String, Object>> executeAggregation(@NotNull Object rawQuery) {
+        throw new UnsupportedOperationException("File adapter does not support raw aggregation execution");
+    }
+
+    @Override
+    public <R> R aggregateScalar(@NotNull AggregationQuery query, @NotNull String fieldName, @NotNull Class<R> type) {
+        List<Map<String, Object>> rows = aggregate(query);
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Object v = rows.getFirst().get(fieldName);
+        return objectMapper.convertValue(v, type);
+    }
+
+    private @NotNull Map<String, Object> evaluateAggregationRow(@NotNull List<FieldDefinition> fields, @NotNull List<T> group) {
+        Map<String, Object> row = new LinkedHashMap<>(fields.size());
+        T first = group.getFirst();
+
+        for (FieldDefinition fd : fields) {
+            if (fd instanceof SimpleFieldDefinition s) {
+                var fm = repositoryModel.fieldByName(s.field());
+                row.put(s.getFieldName(), fm != null ? fm.getValue(first) : null);
+                continue;
+            }
+
+            if (fd instanceof QueryField<?> s) {
+                var fm = repositoryModel.fieldByName(s.getFieldName());
+                row.put(s.getFieldName(), fm != null ? fm.getValue(first) : null);
+                continue;
+            }
+
+            if (fd instanceof AggregateFieldDefinition a) {
+                row.put(a.alias(), computeAggregate(a, group));
+                continue;
+            }
+
+            if (fd instanceof SubQuery.SubQueryFieldDefinition) {
+                throw new UnsupportedOperationException("Scalar subqueries in SELECT are not supported by file aggregation yet");
+            }
+
+            // If an adapter accidentally passes WindowFieldDefinition into aggregation
+            if (fd instanceof WindowFieldDefinition w) {
+                throw new UnsupportedOperationException("Window fields are not valid in AggregationQuery: " + w.alias());
+            }
+
+            throw new UnsupportedOperationException("Unsupported field definition: " + fd.getClass().getName());
+        }
+
+        return row;
+    }
+
+    private Object computeAggregate(@NotNull AggregateFieldDefinition a, @NotNull List<T> group) {
+        AggregationType type = a.aggregationType();
+
+        // Field extraction helper
+        java.util.function.Function<T, Object> extractor = e -> {
+            var fm = repositoryModel.fieldByName(a.field());
+            Object base = fm != null ? fm.getValue(e) : null;
+            if (a.isJson()) {
+                JsonNode root = objectMapper.valueToTree(base);
+                JsonNode selected = selectJsonPath(root, a.jsonPath());
+                return selected == null ? null : objectMapper.convertValue(selected, Object.class);
+            }
+            return base;
+        };
+
+        return switch (type) {
+            case COUNT -> (long) group.size();
+            case COUNT_DISTINCT -> group.stream().map(extractor).filter(Objects::nonNull).distinct().count();
+            case MIN -> group.stream().map(extractor).filter(Objects::nonNull).min((o1, o2) -> ((Comparable) o1).compareTo(o2)).orElse(null);
+            case MAX -> group.stream().map(extractor).filter(Objects::nonNull).max((o1, o2) -> ((Comparable) o1).compareTo(o2)).orElse(null);
+            case SUM -> sumNumbers(group, extractor);
+            case AVG -> avgNumbers(group, extractor);
+            case COUNT_IF -> countIf(group, a.field(), a.condition());
+            case SUM_IF -> sumIf(group, a.field(), a.condition(), extractor);
+            case ARRAY_LENGTH -> arrayLengthAggregate(group, extractor);
+            default -> throw new UnsupportedOperationException("Aggregation not supported in file adapter: " + type);
+        };
+    }
+
+    private long countIf(@NotNull List<T> group, @NotNull String field, @Nullable FilterOption condition) {
+        if (condition == null) {
+            return group.size();
+        }
+
+        // The DSL helper Query.eq(value) currently builds a SelectOption with empty option.
+        // Interpret that as: <field> <op> <value>
+        if (condition instanceof SelectOption s && (s.option() == null || s.option().isBlank())) {
+            return group.stream().filter(e -> matchesSelectOption(e, new SelectOption(field, s.operator(), s.value()))).count();
+        }
+
+        return group.stream().filter(e -> matches(e, condition)).count();
+    }
+
+    private @Nullable Double sumNumbers(@NotNull List<T> group, java.util.function.Function<T, Object> extractor) {
+        double sum = 0d;
+        boolean seen = false;
+        for (T e : group) {
+            Object v = extractor.apply(e);
+            if (v instanceof Number n) {
+                sum += n.doubleValue();
+                seen = true;
+            }
+        }
+        return seen ? sum : null;
+    }
+
+    private @Nullable Double avgNumbers(@NotNull List<T> group, java.util.function.Function<T, Object> extractor) {
+        double sum = 0d;
+        long count = 0;
+        for (T e : group) {
+            Object v = extractor.apply(e);
+            if (v instanceof Number n) {
+                sum += n.doubleValue();
+                count++;
+            }
+        }
+        return count == 0 ? null : (sum / count);
+    }
+
+    private @Nullable Double sumIf(
+        @NotNull List<T> group,
+        @NotNull String field,
+        @Nullable FilterOption condition,
+        java.util.function.Function<T, Object> extractor
+    ) {
+        if (condition == null) {
+            return sumNumbers(group, extractor);
+        }
+
+        double sum = 0d;
+        boolean seen = false;
+        for (T e : group) {
+            boolean matches;
+            if (condition instanceof SelectOption s && (s.option() == null || s.option().isBlank())) {
+                matches = matchesSelectOption(e, new SelectOption(field, s.operator(), s.value()));
+            } else {
+                matches = matches(e, condition);
+            }
+
+            if (!matches) {
+                continue;
+            }
+
+            Object v = extractor.apply(e);
+            if (v instanceof Number n) {
+                sum += n.doubleValue();
+                seen = true;
+            }
+        }
+
+        return seen ? sum : null;
+    }
+
+    private @Nullable Integer arrayLengthAggregate(@NotNull List<T> group, java.util.function.Function<T, Object> extractor) {
+        // For grouped results, arrayLength only makes sense when grouped on an array field (we'll return first non-null)
+        for (T e : group) {
+            Object v = extractor.apply(e);
+            if (v instanceof Collection<?> c) {
+                return c.size();
+            }
+            if (v != null && v.getClass().isArray()) {
+                return java.lang.reflect.Array.getLength(v);
+            }
+            if (v instanceof JsonNode node && node.isArray()) {
+                return node.size();
+            }
+        }
+        return null;
+    }
+
+    private boolean matchesAggregatedRowAll(@NotNull Map<String, Object> row, @NotNull List<T> group, @Nullable List<FilterOption> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return true;
+        }
+        for (FilterOption f : filters) {
+            if (!matchesAggregatedRow(row, group, f)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private boolean matchesAggregatedRow(@NotNull Map<String, Object> row, @NotNull List<T> group, @NotNull FilterOption filter) {
+        if (filter instanceof SelectOption s) {
+            return matchesAggregatedValue(row.get(s.option()), s.operator(), s.value());
+        }
+
+        if (filter instanceof AggregateFilterOption(
+            String field, String jsonPath, String operator, Object value, AggregationType aggregationType,
+            FilterOption condition, String alias
+        )) {
+            Object actual;
+            if (alias != null && !alias.isBlank()) {
+                actual = row.get(alias);
+            } else {
+                // HAVING commonly uses field("id").count().gt(1) without alias.
+                // Recompute the aggregate for the current group.
+                actual = computeAggregate(new AggregateFieldDefinition(
+                    field,
+                    jsonPath,
+                    aggregationType,
+                    condition,
+                    "__having"
+                ), group);
+            }
+
+            return matchesAggregatedValue(actual, operator, value);
+        }
+
+        return false;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private boolean matchesAggregatedValue(@Nullable Object actual, @NotNull String operator, @Nullable Object expected) {
+        if (actual == null) {
+            return expected == null;
+        }
+
+        // Make numeric comparisons robust (e.g. Long vs Integer)
+        if (actual instanceof Number an && expected instanceof Number en) {
+            double a = an.doubleValue();
+            double e = en.doubleValue();
+            return switch (operator) {
+                case "=" -> Double.compare(a, e) == 0;
+                case "!=" -> Double.compare(a, e) != 0;
+                case ">" -> a > e;
+                case "<" -> a < e;
+                case ">=" -> a >= e;
+                case "<=" -> a <= e;
+                default -> false;
+            };
+        }
+
+        return switch (operator) {
+            case "=" -> actual.equals(expected);
+            case "!=" -> !actual.equals(expected);
+            case ">" -> actual instanceof Comparable c && expected != null && c.compareTo(expected) > 0;
+            case "<" -> actual instanceof Comparable c && expected != null && c.compareTo(expected) < 0;
+            case ">=" -> actual instanceof Comparable c && expected != null && c.compareTo(expected) >= 0;
+            case "<=" -> actual instanceof Comparable c && expected != null && c.compareTo(expected) <= 0;
+            case "IN" -> expected instanceof Collection<?> list && list.contains(actual);
+            default -> false;
+        };
+    }
+
+    private @NotNull List<Map<String, Object>> evaluateWindowRows(@NotNull List<FieldDefinition> fields, @NotNull List<T> base) {
+        // Prepare base rows
+        List<Map<String, Object>> rows = new ArrayList<>(base.size());
+        for (T e : base) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            for (FieldDefinition fd : fields) {
+                if (fd instanceof SimpleFieldDefinition s) {
+                    var fm = repositoryModel.fieldByName(s.field());
+                    row.put(s.getFieldName(), fm != null ? fm.getValue(e) : null);
+                } else if (fd instanceof WindowFieldDefinition w) {
+                    // fill later
+                    row.put(w.alias(), null);
+                } else {
+                    throw new UnsupportedOperationException("Unsupported field in WindowQuery: " + fd.getClass().getName());
+                }
+            }
+            // keep a backref for window computations
+            row.put("__entity", e);
+            rows.add(row);
+        }
+
+        // Compute each window column
+        for (FieldDefinition fd : fields) {
+            if (!(fd instanceof WindowFieldDefinition w)) {
+                continue;
+            }
+            applyWindowFunction(rows, w);
+        }
+
+        // Remove backrefs
+        for (Map<String, Object> row : rows) {
+            row.remove("__entity");
+        }
+        return rows;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void applyWindowFunction(@NotNull List<Map<String, Object>> rows, @NotNull WindowFieldDefinition w) {
+        // Partition rows
+        Map<List<Object>, List<Map<String, Object>>> partitions = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            T e = (T) row.get("__entity");
+            List<Object> key = new ArrayList<>(w.partitionBy() == null ? 0 : w.partitionBy().size());
+            if (w.partitionBy() != null) {
+                for (String p : w.partitionBy()) {
+                    var fm = repositoryModel.fieldByName(p);
+                    key.add(fm != null ? fm.getValue(e) : null);
+                }
+            }
+            partitions.computeIfAbsent(key, ignored -> new ArrayList<>()).add(row);
+        }
+
+        for (List<Map<String, Object>> part : partitions.values()) {
+            // Sort partition according to window orderBy
+            if (w.orderBy() != null && !w.orderBy().isEmpty()) {
+                Comparator<Map<String, Object>> cmp = null;
+                for (SortOption s : w.orderBy()) {
+                    Comparator<Map<String, Object>> next = Comparator.comparing(m -> {
+                        T e = (T) m.get("__entity");
+                        var fm = repositoryModel.fieldByName(s.field());
+                        return (Comparable) (fm != null ? fm.getValue(e) : null);
+                    }, Comparator.nullsFirst(Comparator.naturalOrder()));
+                    if (s.order() == SortOrder.DESCENDING) {
+                        next = next.reversed();
+                    }
+                    cmp = cmp == null ? next : cmp.thenComparing(next);
+                }
+                part.sort(cmp);
+            }
+
+            switch (w.functionType()) {
+                case ROW_NUMBER -> {
+                    for (int i = 0; i < part.size(); i++) {
+                        part.get(i).put(w.alias(), i + 1L);
+                    }
+                }
+                case RANK -> {
+                    long rank = 1;
+                    for (int i = 0; i < part.size(); i++) {
+                        if (i > 0 && !sameOrdering(part.get(i - 1), part.get(i), w.orderBy())) {
+                            rank = i + 1L;
+                        }
+                        part.get(i).put(w.alias(), rank);
+                    }
+                }
+                case DENSE_RANK -> {
+                    long rank = 1;
+                    for (int i = 0; i < part.size(); i++) {
+                        if (i > 0 && !sameOrdering(part.get(i - 1), part.get(i), w.orderBy())) {
+                            rank++;
+                        }
+                        part.get(i).put(w.alias(), rank);
+                    }
+                }
+                case COUNT -> {
+                    long running = 0;
+                    for (Map<String, Object> m : part) {
+                        running++;
+                        m.put(w.alias(), running);
+                    }
+                }
+                case SUM, AVG, MIN, MAX -> {
+                    double runningSum = 0d;
+                    long runningCount = 0;
+                    Comparable runningMin = null;
+                    Comparable runningMax = null;
+                    for (Map<String, Object> m : part) {
+                        T e = (T) m.get("__entity");
+                        var fm = repositoryModel.fieldByName(w.field());
+                        Object v = fm != null ? fm.getValue(e) : null;
+                        if (v instanceof Number n) {
+                            runningSum += n.doubleValue();
+                            runningCount++;
+                        }
+                        if (v instanceof Comparable c) {
+                            runningMin = runningMin == null ? c : (runningMin.compareTo(c) <= 0 ? runningMin : c);
+                            runningMax = runningMax == null ? c : (runningMax.compareTo(c) >= 0 ? runningMax : c);
+                        }
+
+                        Object out = switch (w.functionType()) {
+                            case SUM -> runningCount == 0 ? null : runningSum;
+                            case AVG -> runningCount == 0 ? null : (runningSum / runningCount);
+                            case MIN -> runningMin;
+                            case MAX -> runningMax;
+                            default -> null;
+                        };
+                        m.put(w.alias(), out);
+                    }
+                }
+                default -> throw new UnsupportedOperationException("Window function not supported in file adapter: " + w.functionType());
+            }
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private boolean sameOrdering(
+        @NotNull Map<String, Object> a,
+        @NotNull Map<String, Object> b,
+        @Nullable List<SortOption> order
+    ) {
+        if (order == null || order.isEmpty()) {
+            return true;
+        }
+        T ea = (T) a.get("__entity");
+        T eb = (T) b.get("__entity");
+        for (SortOption s : order) {
+            var fm = repositoryModel.fieldByName(s.field());
+            Object va = fm != null ? fm.getValue(ea) : null;
+            Object vb = fm != null ? fm.getValue(eb) : null;
+            if (!Objects.equals(va, vb)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

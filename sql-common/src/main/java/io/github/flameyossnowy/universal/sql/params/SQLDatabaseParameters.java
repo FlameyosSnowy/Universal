@@ -156,10 +156,27 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         }
     }
 
-    // ───────── rest of your binding code unchanged ─────────
-
     private int getIndexForName(Object index) {
         if (index instanceof Integer i) return i;
+        if (index instanceof String s) {
+            // Allow positional binding for parameterized SQL (e.g. aggregation/HAVING) by
+            // passing "1", "2", ... as the parameter name.
+            int len = s.length();
+            if (len > 0) {
+                int n = 0;
+                for (int i1 = 0; i1 < len; i1++) {
+                    char c = s.charAt(i1);
+                    if (c < '0' || c > '9') {
+                        n = -1;
+                        break;
+                    }
+                    n = n * 10 + (c - '0');
+                }
+                if (n > 0) {
+                    return n;
+                }
+            }
+        }
         Integer mapped = nameToIndexMap.get(index.toString());
         if (mapped == null) throw new IllegalArgumentException("Unknown parameter: " + index);
         return mapped;

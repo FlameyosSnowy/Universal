@@ -5,10 +5,11 @@ import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public final class GeneratedObjectFactories {
-    private static final Map<String, ModelEntry<?, ?>> MODELS = new HashMap<>(16);
+    private static final Map<String, ModelEntry<?, ?>> MODELS = new ConcurrentHashMap<>(16);
 
     public static final class ModelEntry<T, ID> {
         public final Class<T> elementType;

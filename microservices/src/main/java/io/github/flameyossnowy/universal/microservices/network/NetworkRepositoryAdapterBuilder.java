@@ -48,6 +48,7 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
             HttpMethod.PUT
     );
     private ObjectMapper customObjectMapper;
+    private NetworkRepositoryAdapter.NetworkAggregationProviderFactory<T, ID> aggregationProviderFactory;
 
     /**
      * Creates a new builder for the given entity and ID types.
@@ -156,6 +157,13 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    public NetworkRepositoryAdapterBuilder<T, ID> aggregationProvider(
+        NetworkRepositoryAdapter.NetworkAggregationProviderFactory<T, ID> aggregationProviderFactory
+    ) {
+        this.aggregationProviderFactory = aggregationProviderFactory;
+        return this;
+    }
+
     /**
      * Builds and returns a new {@link NetworkRepositoryAdapter} instance.
      */
@@ -180,7 +188,8 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
                 cacheTtl,
                 new HashMap<>(customHeaders),
                 endpointConfig,
-                createDefaultObjectMapper()
+                createDefaultObjectMapper(),
+                aggregationProviderFactory
         );
     }
     

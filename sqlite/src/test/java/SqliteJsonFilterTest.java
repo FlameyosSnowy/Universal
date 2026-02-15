@@ -1,3 +1,4 @@
+import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.annotations.Id;
 import io.github.flameyossnowy.universal.api.annotations.JsonField;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
@@ -16,6 +17,7 @@ class SqliteJsonFilterTest {
 
     @Test
     void json_select_option_is_not_supported_for_sqlite() {
+        ModelsBootstrap.init();
         RepositoryModel<SqliteJsonEntity, String> model = io.github.flameyossnowy.universal.api.meta.GeneratedMetadata.getByEntityClass(SqliteJsonEntity.class);
 
         SqlConditionBuilder<SqliteJsonEntity, String> builder =
@@ -24,6 +26,8 @@ class SqliteJsonFilterTest {
         List<FilterOption> options = List.of(
             new JsonSelectOption("payload", "$.profile.name", "=", "Flow")
         );
+
+        System.out.println(options);
 
         assertThrows(UnsupportedOperationException.class, () -> builder.buildConditions(options));
     }

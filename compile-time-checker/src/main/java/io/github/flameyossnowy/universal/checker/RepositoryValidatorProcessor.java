@@ -27,6 +27,7 @@ import io.github.flameyossnowy.universal.api.annotations.Repository;
 import io.github.flameyossnowy.universal.api.annotations.RepositoryAuditLogger;
 import io.github.flameyossnowy.universal.api.annotations.RepositoryEventLifecycleListener;
 import io.github.flameyossnowy.universal.api.annotations.RepositoryExceptionHandler;
+import io.github.flameyossnowy.universal.api.annotations.Resolves;
 import io.github.flameyossnowy.universal.api.annotations.Unique;
 import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
 import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
@@ -146,7 +147,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     }
 
     private void scanResolverAnnotations(RoundEnvironment roundEnv) {
-        for (Element element : roundEnv.getElementsAnnotatedWith(elements.getTypeElement("io.github.flameyossnowy.universal.api.resolver.Resolves"))) {
+        for (Element element : roundEnv.getElementsAnnotatedWith(Resolves.class)) {
             if (!(element instanceof TypeElement resolverClass)) {
                 continue;
             }

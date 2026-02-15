@@ -20,6 +20,7 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
+import io.github.flameyossnowy.universal.api.options.AggregationQuery;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.FilterOption;
 import io.github.flameyossnowy.universal.api.options.JsonSelectOption;
@@ -28,6 +29,7 @@ import io.github.flameyossnowy.universal.api.options.SelectOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.options.SortOption;
 import io.github.flameyossnowy.universal.api.options.SortOrder;
+import io.github.flameyossnowy.universal.api.options.WindowQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.microservices.MicroservicesJsonCodecBridge;
@@ -62,8 +64,21 @@ import java.util.stream.StreamSupport;
  */
 @SuppressWarnings("unused")
 public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, HttpClient> {
-    static {
-        ModelsBootstrap.init();
+    @FunctionalInterface
+    public interface NetworkAggregationProviderFactory<T, ID> {
+        @NotNull NetworkAggregationProvider<T, ID> create(@NotNull NetworkRepositoryAdapter<T, ID> adapter);
+    }
+
+    public interface NetworkAggregationProvider<T, ID> {
+        @NotNull List<Map<String, Object>> aggregate(@NotNull AggregationQuery query);
+
+        @NotNull List<Map<String, Object>> window(@NotNull WindowQuery query);
+
+        @NotNull <R> List<R> window(@NotNull WindowQuery query, @NotNull Class<R> resultType);
+
+        @NotNull List<Map<String, Object>> executeAggregation(@NotNull Object rawQuery);
+
+        <R> @Nullable R aggregateScalar(@NotNull AggregationQuery query, @NotNull String fieldName, @NotNull Class<R> type);
     }
 
     private static final int DEFAULT_PAGE_SIZE = 100;
@@ -82,6 +97,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private final Map<String, String> customHeaders;
     private final EndpointConfig endpointConfig;
     private final RelationshipResolver<T, ID> relationshipResolver;
+    private final @Nullable NetworkAggregationProvider<T, ID> aggregationProvider;
     
     // Response cache
     private final Map<String, CompletableFuture<CachedResponse>> responseCache;
@@ -102,7 +118,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             int cacheTtl,
             Map<String, String> customHeaders,
             EndpointConfig endpointConfig,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Nullable NetworkAggregationProviderFactory<T, ID> aggregationProviderFactory) {
         this.entityType = entityType;
         this.idType = idType;
         this.baseUrl = baseUrl.endsWith(FileSystems.getDefault().getSeparator()) ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
@@ -138,6 +155,46 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
         this.relationshipResolver = new RelationshipResolver<>(new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry));
         RepositoryRegistry.register(this.repositoryInformation.tableName(), this);
+
+        this.aggregationProvider = aggregationProviderFactory != null ? aggregationProviderFactory.create(this) : null;
+    }
+
+    private @NotNull NetworkAggregationProvider<T, ID> getAggregationProviderOrThrow() {
+        if (aggregationProvider == null) {
+            throw new UnsupportedOperationException(
+                "AggregationQuery/WindowQuery is not configured for NetworkRepositoryAdapter. " +
+                    "Configure an aggregation provider in NetworkRepositoryAdapterBuilder."
+            );
+        }
+        return aggregationProvider;
+    }
+
+    @Override
+    public @NotNull List<Map<String, Object>> aggregate(@NotNull AggregationQuery query) {
+        return getAggregationProviderOrThrow().aggregate(query);
+    }
+
+    @Override
+    public @NotNull List<Map<String, Object>> window(@NotNull WindowQuery query) {
+        return getAggregationProviderOrThrow().window(query);
+    }
+
+    @Override
+    public @NotNull <R> List<R> window(@NotNull WindowQuery query, @NotNull Class<R> resultType) {
+        return getAggregationProviderOrThrow().window(query, resultType);
+    }
+
+    @Override
+    public @NotNull List<Map<String, Object>> executeAggregation(@NotNull Object rawQuery) {
+        return getAggregationProviderOrThrow().executeAggregation(rawQuery);
+    }
+
+    @Override
+    public <R> @Nullable R aggregateScalar(
+        @NotNull AggregationQuery query,
+        @NotNull String fieldName,
+        @NotNull Class<R> type) {
+        return getAggregationProviderOrThrow().aggregateScalar(query, fieldName, type);
     }
 
     public static <T, ID> NetworkRepositoryAdapter<T, ID> from(
@@ -186,7 +243,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 annotation.cacheTtl(),
                 headers,
                 endpointConfig,
-                NetworkRepositoryAdapterBuilder.createDefaultObjectMapper()
+                NetworkRepositoryAdapterBuilder.createDefaultObjectMapper(),
+                null
         );
     }
 
@@ -561,6 +619,10 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                         sb.append('=');
                         sb.append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8));
                     }
+
+                    default -> throw new UnsupportedOperationException(
+                        "NetworkRepositoryAdapter cannot serialize filter type: " + filter.getClass().getName()
+                    );
                 }
             }
         }
