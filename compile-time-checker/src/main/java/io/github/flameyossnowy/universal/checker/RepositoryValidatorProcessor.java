@@ -85,7 +85,6 @@ import static io.github.flameyossnowy.universal.api.meta.RelationshipKind.*;
     "io.github.flameyossnowy.universal.api.annotations.Resolves",
 })
 public class RepositoryValidatorProcessor extends AbstractProcessor {
-    // TODO: implement Instant.now() processing
     private Types types;
     private Messager messager;
     private Elements elements;
