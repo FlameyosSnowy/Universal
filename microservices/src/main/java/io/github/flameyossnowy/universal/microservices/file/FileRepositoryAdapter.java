@@ -830,25 +830,25 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
                 }
                 yield !(filterValue instanceof Collection<?> list) || !list.contains(value);
             }
-            case "EXISTS" -> filterValue instanceof SubQuery sq && evaluateExistsSubQuery(entity, sq, false);
-            case "NOT EXISTS" -> !(filterValue instanceof SubQuery sq) || evaluateExistsSubQuery(entity, sq, true);
+            case "EXISTS" -> filterValue instanceof SubQuery sq && evaluateExistsSubQuery(sq, false);
+            case "NOT EXISTS" -> !(filterValue instanceof SubQuery sq) || evaluateExistsSubQuery(sq, true);
             default -> false;
         };
     }
 
     private boolean evaluateInSubQuery(T entity, String localField, @NotNull SubQuery subQuery, boolean negate) {
-        List<Object> values = executeSubQuerySelectSingleField(entity, subQuery);
+        List<Object> values = executeSubQuerySelectSingleField(subQuery);
         Object localValue = repositoryModel.fieldByName(localField).getValue(entity);
         boolean contains = values.contains(localValue);
         return negate != contains;
     }
 
-    private boolean evaluateExistsSubQuery(T entity, @NotNull SubQuery subQuery, boolean negate) {
-        boolean exists = !executeSubQuerySelectSingleField(entity, subQuery).isEmpty();
+    private static <T> boolean evaluateExistsSubQuery(@NotNull SubQuery subQuery, boolean negate) {
+        boolean exists = !executeSubQuerySelectSingleField(subQuery).isEmpty();
         return negate != exists;
     }
 
-    private @NotNull List<Object> executeSubQuerySelectSingleField(T outerEntity, @NotNull SubQuery subQuery) {
+    private static @NotNull List<Object> executeSubQuerySelectSingleField(@NotNull SubQuery subQuery) {
         @SuppressWarnings("unchecked")
         RepositoryAdapter<Object, Object, ?> adapter = (RepositoryAdapter<Object, Object, ?>) RepositoryRegistry.get(subQuery.entityClass());
         if (adapter == null) {
@@ -856,7 +856,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
 
         String selectedField = null;
-        if (subQuery.selectFields() != null && subQuery.selectFields().size() == 1) {
+        if (subQuery.selectFields().size() == 1) {
             selectedField = subQuery.selectFields().getFirst().getFieldName();
         }
 
@@ -1366,6 +1366,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private @Nullable Comparator<Map<String, Object>> createComparatorFromWindowField(@NotNull WindowFieldDefinition w) {
         Comparator<Map<String, Object>> cmp = null;
         for (SortOption s : w.orderBy()) {
