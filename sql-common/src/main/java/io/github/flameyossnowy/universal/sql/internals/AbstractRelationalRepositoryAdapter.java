@@ -28,6 +28,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.SimpleTransactionContext;
+import io.github.flameyossnowy.universal.sql.internals.query.SqlAggregationImplementation;
 import io.github.flameyossnowy.universal.sql.internals.repository.SqlCacheManager;
 import io.github.flameyossnowy.universal.sql.internals.repository.SqlIteratorBuilder;
 import io.github.flameyossnowy.universal.sql.internals.repository.SqlParameterBinder;
@@ -37,6 +38,7 @@ import io.github.flameyossnowy.universal.sql.internals.repository.SqlResultMappe
 import io.github.flameyossnowy.universal.sql.internals.repository.SqlWriteExecutor;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.query.SQLQueryValidator;
+import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -64,6 +66,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     protected final LongFunction<SessionCache<ID, T>> sessionCacheSupplier;
     protected final QueryParseEngine<T, ID> engine;
     protected final TypeResolverRegistry resolverRegistry;
+
+    private final SqlAggregationImplementation<T, ID> aggregationImpl;
 
     private final AuditLogger<T> auditLogger;
     private final EntityLifecycleListener<T> entityLifecycleListener;
@@ -143,7 +147,12 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         
         if (cacheEnabled) {
             this.l2Cache = new SecondLevelCache<>(maxSize, 300000, CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED);
-            this.readThroughCache = new ReadThroughCache<>(maxSize, CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED, this::loadFromDatabase);
+            this.readThroughCache = new ReadThroughCache<>(
+                maxSize,
+                CacheAlgorithmType.LEAST_FREQ_AND_RECENTLY_USED,
+                this::loadFromDatabase,
+                this::loadFromDatabaseBatch
+            );
         } else {
             this.l2Cache = null;
             this.readThroughCache = null;
@@ -206,6 +215,16 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
                 Logging.error("Failed to create index: " + index.name() + " for repository: " + repositoryModel.tableName());
             }
         }
+
+        this.aggregationImpl = new SqlAggregationImplementation<>(
+            dataSource,
+            repositoryModel,
+            resolverRegistry,
+            sqlType,
+            resultMapper,
+            collectionHandler,
+            supportsArrays
+        );
     }
 
     @Override
@@ -271,6 +290,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     @Override
     public T findById(ID key) {
         FieldModel<T> primaryKey = this.repositoryModel.getPrimaryKey();
+        if (readThroughCache == null) return first(Query.select().where(primaryKey.name()).eq(key).build());
         if (l2Cache == null) return first(Query.select().where(primaryKey.name()).eq(key).build());
 
         T cached = l2Cache.get(key);
@@ -279,7 +299,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             return cached;
         }
         
-        T entity = first(Query.select().where(primaryKey.name()).eq(key).build());
+        T entity = readThroughCache.get(key);
         
         if (entity != null) {
             l2Cache.put(key, entity);
@@ -301,11 +321,53 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             return Collections.singletonMap(next, findById(next));
         }
 
+        if (readThroughCache != null) {
+            Map<ID, T> loaded = readThroughCache.getAll(keys instanceof List ? (List<ID>) keys : List.copyOf(keys));
+
+            if (loaded.isEmpty()) {
+                return loaded;
+            }
+
+            if (l2Cache != null) {
+                for (Map.Entry<ID, T> e : loaded.entrySet()) {
+                    if (e.getValue() != null) {
+                        l2Cache.put(e.getKey(), e.getValue());
+                    }
+                }
+            }
+            if (globalCache != null) {
+                for (Map.Entry<ID, T> e : loaded.entrySet()) {
+                    if (e.getValue() != null) {
+                        globalCache.put(e.getKey(), e.getValue());
+                    }
+                }
+            }
+
+            return loaded;
+        }
+
         SelectQuery query = Query.select().where(primaryKey.name()).eq(keys).build();
 
         List<T> ts = queryExecutor.executeQueryWithParams(engine.parseSelect(query, false), query, false, query.filters());
         Map<ID, T> result = new HashMap<>(ts.size());
         return this.cacheManager.addResultAndAddToCache(ts, result);
+    }
+
+    private Map<ID, T> loadFromDatabaseBatch(List<ID> keys) {
+        FieldModel<T> primaryKey = this.repositoryModel.getPrimaryKey();
+        if (keys.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        SelectQuery query = Query.select().where(primaryKey.name()).eq(keys).build();
+        List<T> ts = queryExecutor.executeQueryWithParams(engine.parseSelect(query, false), query, false, query.filters());
+
+        Map<ID, T> result = new HashMap<>(ts.size());
+        for (T t : ts) {
+            ID id = objectModel.getId(t);
+            result.put(id, t);
+        }
+        return result;
     }
 
     @Override
@@ -525,5 +587,53 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     public @NotNull RepositoryModel<T, ID> getRepositoryModel() {
         return repositoryModel;
+    }
+
+    @Override
+    public List<Map<String, Object>> aggregate(@NotNull AggregationQuery query) {
+        return aggregationImpl.aggregate(query);
+    }
+
+    @Override
+    public @NotNull List<T> aggregateEntities(@NotNull AggregationQuery query) {
+        return aggregationImpl.aggregateEntities(query);
+    }
+
+    @Override
+    public List<Map<String, Object>> window(@NotNull WindowQuery query) {
+        return aggregationImpl.window(query);
+    }
+
+    @Override
+    public <R> List<R> window(@NotNull WindowQuery query, @NotNull Class<R> resultType) {
+        return aggregationImpl.window(query, resultType);
+    }
+
+    @Override
+    public @NotNull List<T> windowEntities(@NotNull WindowQuery query) {
+        return aggregationImpl.windowEntities(query, rs ->
+            resultMapper.constructNewEntity(
+                new SQLDatabaseResult(
+                    rs,
+                    resolverRegistry,
+                    collectionHandler,
+                    supportsArrays,
+                    repositoryModel
+                )
+            )
+        );
+    }
+
+    @Override
+    public List<Map<String, Object>> executeAggregation(@NotNull Object rawQuery) {
+        return aggregationImpl.executeAggregation(rawQuery);
+    }
+
+    @Override
+    public <R> R aggregateScalar(
+        @NotNull AggregationQuery query,
+        @NotNull String fieldName,
+        @NotNull Class<R> type) {
+        return aggregationImpl.aggregateScalar(query, fieldName, type);
     }
 }
