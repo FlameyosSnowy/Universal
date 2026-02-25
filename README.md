@@ -151,13 +151,14 @@ Using the repository pattern:
 
 ```java
 SQLiteRepositoryAdapter<User> adapter = SQLiteRepositoryAdapter.builder(User.class)
-                .withCredentials(SQLiteCredentials.builder().directory("/home/flameyosflow/test.db").build())
+                .withCredentials(SQLiteCredentials.builder().directory("/home/.../test.db").build())
                 .setAutoCreate(false)
                 .build();
 adapter.createRepository(); // if it doesn't exist.
 
 List<User> minors = adapter.find(Query.select()
-                .where("age", "<", 18)
+                .where("age")
+                    .lt(18)
                 .orderBy("age", SortOrder.ASCENDING)
                 .build());
 
@@ -181,7 +182,8 @@ MongoRepositoryAdapter<User> adapter = MongoRepositoryAdapter.builder(User.class
 adapter.createRepository(); // if it doesn't exist.
 
 List<User> minors = adapter.find(Query.select()
-                .where("age", "<", 18)
+                .where("age")
+                    .lt(18)
                 .orderBy("age", SortOrder.ASCENDING)
                 .build());
 
