@@ -15,7 +15,9 @@ It provides a unified API to handle database interactions efficiently, making it
     - **N + 1 Queries**: aggressive relationship cache to attempt solving N+1 query problem for relationships and reduce it to the minimum
     - **Query parsing**: We cache query building to ensure you never build something more than one time
     - **Connection pooling support**: Allowing connection pools is a primary goal for Universal to thrive on high concurrency.
-    - **Reflection caching**: Despite Universal being heavily reflection-based, it takes extreme measures to ensure that reflection is not a big overhead by caching metadata and being [ASM](https://github.com/daniellansun/fast-reflection)-based.
+    - **Codegen and validation**:
+        - in **v7**, we have replaced **99% of ALL reflection** with code generated classes, which leads to significantly faster startup, better performance, less memory usage and compile-time validation!
+        - **Before v7**: There is only compile-time validation and reflection, though we takes extreme measures to ensure that reflection is not a big overhead by caching metadata and being [ASM](https://github.com/daniellansun/fast-reflection)-based.
     - **Batched relationships**: Universal tries to batch all relationship data, to use as little queries and achieve the highest throughput.
     - **Caching support**: Lots of caching, from Session caches, to Result caches, to Global caches, all being evicted and controlled.
 
@@ -103,13 +105,13 @@ To include Universal in your project, add it as a dependency in your `pom.xml` (
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifact>core</artifactId>
-  <version>6.1.6</version>
+  <version>7.0.0</version>
 </dependency>
 
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifactId>PLATFORM</artifactId>
-  <version>6.1.6</version>
+  <version>7.0.0</version>
 </dependency>
 ```
 
@@ -119,8 +121,9 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.FlameyosSnowy.Universal:core:6.1.6")
-    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:6.1.6")
+    implementation("com.github.FlameyosSnowy.Universal:core:7.0.0")
+    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:7.0.0") // + sql-common if you'd like to use SQL
+    annotationProcessor("com.github.FlameyosSnowy.Universal:compile-time-checker:7.0.0")
 }
 ```
 
@@ -149,8 +152,8 @@ Using the repository pattern:
 ```java
 SQLiteRepositoryAdapter<User> adapter = SQLiteRepositoryAdapter.builder(User.class)
                 .withCredentials(SQLiteCredentials.builder().directory("/home/flameyosflow/test.db").build())
+                .setAutoCreate(false)
                 .build();
-adapter.createRepository();
 adapter.createRepository(); // if it doesn't exist.
 
 List<User> minors = adapter.find(Query.select()
@@ -172,6 +175,7 @@ MongoRepositoryAdapter<User> adapter = MongoRepositoryAdapter.builder(User.class
                 .readConcern(ReadConcern.MAJORITY)
                 .writeConcern(WriteConcern.W1)
                 .build())
+        .setAutoCreate(false)
         .setDatabase("users")
         .build();
 adapter.createRepository(); // if it doesn't exist.
