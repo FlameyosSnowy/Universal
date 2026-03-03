@@ -15,6 +15,16 @@ import kotlin.jvm.optionals.getOrNull
 
 /**
  * Wraps a RepositoryAdapter to provide coroutine-friendly suspend functions.
+ *
+ * Performance and safety notes:
+ * - These helpers use `Dispatchers.IO` to avoid blocking the caller thread.
+ * - The underlying adapters/sessions are typically not designed for concurrent use.
+ *   Avoid using the same session from multiple coroutines at once.
+ * - Prefer a single transaction/session boundary per logical unit of work.
+ *
+ * Alternatives:
+ * - If you already have your own structured concurrency boundary, call adapter methods
+ *   directly and manage the dispatcher at the call site.
  */
 suspend fun <T, ID, C> RepositoryAdapter<T, ID, C>.transaction(
     block: suspend RepositoryAdapter<T, ID, C>.() -> Unit
@@ -88,6 +98,9 @@ fun <T, ID, C> RepositoryAdapter<T, ID, C>.asCoroutine() = object {
 suspend inline fun <ID, T, C, R> DatabaseSession<ID, T, C>.runSuspend(
     crossinline block: suspend DatabaseSession<ID, T, C>.() -> R
 ): TransactionResult<R> = withContext(Dispatchers.IO) {
+    // Notes:
+    // - This helper commits on success and rolls back on any thrown exception.
+    // - Keep the work inside the session short-lived; long-running blocks keep DB resources open.
     try {
         val result = block()
         val commit = commit()

@@ -1,5 +1,6 @@
 plugins {
     id("java")
+    id("me.champeau.jmh") version "0.7.2"
     id("com.gradleup.shadow") version("9.3.1")
 }
 
@@ -23,6 +24,9 @@ dependencies {
     // postgresql
     compileOnly("org.postgresql:postgresql:42.7.2")
 
+    jmh("org.openjdk.jmh:jmh-core:1.37")
+    jmhAnnotationProcessor("org.openjdk.jmh:jmh-generator-annprocess:1.35")
+
     testImplementation("org.postgresql:postgresql:42.7.2")
     testImplementation(project(":core"))
     testImplementation(project(":sql-common"))
@@ -34,6 +38,16 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.junit.platform:junit-platform-launcher")
+}
+
+sourceSets {
+    named("jmh") {
+        java {
+            setSrcDirs(listOf("src/jmh/java"))
+        }
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
 }
 
 tasks.withType<Test>().configureEach {

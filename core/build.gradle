@@ -29,10 +29,7 @@ dependencies {
     api "org.slf4j:slf4j-api:2.1.0-alpha1"
 
     api "com.github.FlameyosSnowy:Velocis:1.1.2"
-
-    implementation "com.fasterxml.jackson.core:jackson-databind:2.16.1"
-    implementation "com.fasterxml.jackson.core:jackson-annotations:2.16.1"
-    implementation "com.fasterxml.jackson.core:jackson-core:2.16.1"
+    implementation "com.github.FlameyosSnowy:Uniform:1.5.2"
 
     // error prone
     compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"
