@@ -826,7 +826,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return null;
     }
 
-    private TypeMirror resolveMapValueTypeMirror(TypeMirror type) {
+    private static TypeMirror resolveMapValueTypeMirror(TypeMirror type) {
         if (type instanceof DeclaredType dt) {
             List<? extends TypeMirror> args = dt.getTypeArguments();
             if (!args.isEmpty() && dt.asElement().toString().equals("java.util.Map") && args.size() == 2) {

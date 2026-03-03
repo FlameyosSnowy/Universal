@@ -28,7 +28,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import java.util.List;
 
-import static io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator.literal;
+import static io.github.flameyossnowy.universal.checker.GeneratorUtils.literal;
 
 public class RepositoryFieldModelGenerator {
     public static void generateFieldModels(TypeSpec.Builder type, RepositoryModel repo, ClassName entityClass) {

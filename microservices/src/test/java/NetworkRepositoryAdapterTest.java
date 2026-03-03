@@ -8,7 +8,6 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.*;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -48,9 +47,9 @@ class NetworkRepositoryAdapterTest {
                 5,
                 Map.of(),
                 EndpointConfig.defaults(),
-                new ObjectMapper(),
-                null
-        );
+                new me.flame.uniform.json.JsonAdapter(),
+                null,
+               false);
     }
 
     @Test
@@ -140,9 +139,9 @@ class NetworkRepositoryAdapterTest {
             0,
             Map.of(),
             EndpointConfig.defaults(),
-            new ObjectMapper(),
-            null
-        );
+            new me.flame.uniform.json.JsonAdapter(),
+            null,
+            false);
 
         server.enqueue(new MockResponse()
             .setResponseCode(200)

@@ -80,6 +80,11 @@ class PostgresJsonFilterTest {
         }
 
         @Override
+        public <T> void set(String name, T value, Class<?> type) {
+            setRaw(name, value, type);
+        }
+
+        @Override
         public <T> void setRaw(String name, T value, Class<?> type) {
             this.lastName = name;
             this.lastValue = value;

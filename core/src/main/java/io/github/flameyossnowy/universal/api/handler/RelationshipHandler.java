@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.api.handler;
 
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -16,7 +17,7 @@ public interface RelationshipHandler<T, ID> {
 
     List<Object> handleOneToManyRelationship(ID primaryKeyValue, FieldModel<T> field);
 
-    void prefetch(Iterable<?> results, Set<String> prefetch);
+    void prefetch(Collection<Object> results, Set<String> prefetch);
 
     void invalidateRelationshipsForId(ID id);
 

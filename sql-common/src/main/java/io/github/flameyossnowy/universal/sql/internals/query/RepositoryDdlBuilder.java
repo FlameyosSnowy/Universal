@@ -83,7 +83,6 @@ public final class RepositoryDdlBuilder<T, ID> {
     }
 
     private String createTable(String query, String errorMessage, String repositoryName) {
-        System.out.println(query);
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement statement = connectionProvider.prepareStatement(query, connection)) {
             statement.executeUpdate();

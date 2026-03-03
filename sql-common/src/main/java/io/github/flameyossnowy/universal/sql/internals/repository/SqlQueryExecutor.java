@@ -1,5 +1,6 @@
 package io.github.flameyossnowy.universal.sql.internals.repository;
 
+import io.github.flameyossnowy.universal.api.ReadPolicy;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
@@ -7,7 +8,6 @@ import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.FilterOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
-import io.github.flameyossnowy.universal.api.RepositoryAdapter.ReadPolicy;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 

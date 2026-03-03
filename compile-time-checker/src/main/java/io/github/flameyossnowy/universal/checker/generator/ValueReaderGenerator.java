@@ -26,8 +26,8 @@ import javax.lang.model.util.Types;
 
 import java.util.List;
 
-import static io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator.addFieldsAndView;
-import static io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator.write;
+import static io.github.flameyossnowy.universal.checker.GeneratorUtils.write;
+
 
 public class ValueReaderGenerator {
     private final Types types;
@@ -83,19 +83,15 @@ public class ValueReaderGenerator {
                 )
                 .build());
 
-        addFieldsAndView(
-            builder,
-            FieldSpec.builder(dbResult, "result", Modifier.PRIVATE, Modifier.FINAL),
-            FieldSpec.builder(typeResolverRegistry, "registry", Modifier.PRIVATE, Modifier.FINAL),
-            FieldSpec.builder(TypeVariableName.get("ID"), "id", Modifier.PRIVATE, Modifier.FINAL)
-        );
+        builder.addField(FieldSpec.builder(dbResult, "result", Modifier.PRIVATE, Modifier.FINAL).build());
+        builder.addField(FieldSpec.builder(typeResolverRegistry, "registry", Modifier.PRIVATE, Modifier.FINAL).build());
+        builder.addField(FieldSpec.builder(TypeVariableName.get("ID"), "id", Modifier.PRIVATE, Modifier.FINAL).build());
 
         CodeBlock.Builder columnNamesInit = CodeBlock.builder().add("{\n");
         for (FieldModel field : repo.fields()) {
             if (!field.participatesInConstruction()) continue;
             if (!field.isNotCollection(types, elements)) continue;
             columnNamesInit.add("  $S,\n", field.columnName());
-
         }
         columnNamesInit.add("}");
 
@@ -162,8 +158,6 @@ public class ValueReaderGenerator {
 
                 // Handle ID field
                 if (field.id()) {
-                    // If we have an ID, use the provided ID parameter
-                    // If ID is null (entity without ID), read from database result
                     if (hasId) {
                         readMethod.beginControlFlow("case $L:", index);
                         readMethod.addStatement("if (id != null) return (T) id");
@@ -179,7 +173,6 @@ public class ValueReaderGenerator {
                             .build());
                         readMethod.endControlFlow();
                     } else {
-                        // No ID field in model, but this shouldn't happen if field.id() is true
                         TypeName typeName = ClassName.get(rawType);
                         readMethod.addStatement("case $L: return (T) registry.resolve($T.class).resolve(result, $S)", index, typeName, columnName);
                     }
@@ -207,12 +200,12 @@ public class ValueReaderGenerator {
             }
         }
 
-        qualifiedNames.add(repo.packageName() + (repo.packageName() != null && !repo.packageName().isEmpty() ? "." : "")  + className);
+        qualifiedNames.add(repo.packageName() + (repo.packageName() != null && !repo.packageName().isEmpty() ? "." : "") + className);
         write(repo.packageName(), builder.build(), filer);
     }
 
     public TypeMirror getRawType(TypeMirror type) {
-        if (type instanceof DeclaredType dt) {
+        if (type instanceof DeclaredType) {
             return types.erasure(type);
         }
         return type;
@@ -245,9 +238,7 @@ public class ValueReaderGenerator {
             .addParameter(String.class, "columnName")
             .beginControlFlow("try");
 
-        CodeBlock.Builder callBuilder = CodeBlock.builder();
-
-        // Check if ID is null and handle gracefully for collections
+        // Check if ID is null and handle gracefully for collections/arrays
         boolean needsId = TypeMirrorUtils.isArray(rawType)
             || TypeMirrorUtils.isMap(types, elements, rawType)
             || TypeMirrorUtils.isCollection(types, elements, rawType);
@@ -258,68 +249,83 @@ public class ValueReaderGenerator {
             methodBuilder.endControlFlow();
         }
 
-        callBuilder.add("return result.getCollectionHandler().");
-
         if (TypeMirrorUtils.isArray(rawType)) {
-            TypeMirror mirror = field.type();
-            TypeName typeName = TypeName.get(mirror);
-
-            if (typeName instanceof ArrayTypeName arrayType) {
-                TypeName component = arrayType.componentType;
-                callBuilder.add("fetchArray(id, columnName, $T.class, ($T) $L);\n", component,
-                    ParameterizedTypeName.get(
-                        ClassName.get(io.github.flameyossnowy.universal.api.meta.RepositoryModel.class),
-                        WildcardTypeName.subtypeOf(TypeName.OBJECT),
-                        TypeVariableName.get("ID")
-                    ),
-                    repoModelRef
-                );
+            // Arrays: if the DB supports them natively, read straight from the result set;
+            // otherwise delegate to the collection handler (separate table / join).
+            TypeName typeName = TypeName.get(rawType);
+            if (!(typeName instanceof ArrayTypeName arrayTypeName)) {
+                throw new IllegalStateException("Expected ArrayTypeName for array field: " + field.name());
             }
+            TypeName component = arrayTypeName.componentType;
+
+            ParameterizedTypeName repoModelType = ParameterizedTypeName.get(
+                ClassName.get(io.github.flameyossnowy.universal.api.meta.RepositoryModel.class),
+                WildcardTypeName.subtypeOf(TypeName.OBJECT),
+                TypeVariableName.get("ID")
+            );
+
+            methodBuilder
+                .beginControlFlow("if (result.supportsArraysNatively())")
+                // Native path: the array column is in the current ResultSet row.
+                // We reuse the TypeResolverRegistry so adapters (e.g. JDBC Array → T[])
+                // are applied consistently.
+                .addStatement("return ($T) result.get(columnName, java.sql.Array.class).getArray()", returnType)
+                .nextControlFlow("else")
+                // Non-native path: array is stored in a related table; fetch via handler.
+                .addStatement("return result.getCollectionHandler().fetchArray(id, columnName, $T.class, ($T) $L)",
+                    component, repoModelType, repoModelRef)
+                .endControlFlow();
+
         } else if (TypeMirrorUtils.isMap(types, elements, rawType)) {
             boolean isMultiMap = TypeMirrorUtils.isCollection(types, elements, field.mapValueType());
 
+            ParameterizedTypeName repoModelType = ParameterizedTypeName.get(
+                ClassName.get(io.github.flameyossnowy.universal.api.meta.RepositoryModel.class),
+                WildcardTypeName.subtypeOf(TypeName.OBJECT),
+                TypeVariableName.get("ID")
+            );
+
             if (isMultiMap) {
-                callBuilder.add("fetchMultiMap(id, columnName, $T.class, $T.class, $T.$L, ($T) $L);\n",
+                methodBuilder.addStatement(
+                    "return result.getCollectionHandler().fetchMultiMap(id, columnName, $T.class, $T.class, $T.$L, ($T) $L)",
                     TypeName.get(field.mapKeyType()),
                     TypeName.get(field.elementType()),
                     ClassName.get("io.github.flameyossnowy.universal.api.factory", "CollectionKind"),
                     field.collectionKind().name(),
-                    ParameterizedTypeName.get(
-                        ClassName.get(io.github.flameyossnowy.universal.api.meta.RepositoryModel.class),
-                        WildcardTypeName.subtypeOf(TypeName.OBJECT),
-                        TypeVariableName.get("ID")
-                    ),
+                    repoModelType,
                     repoModelRef
                 );
             } else {
-                callBuilder.add("fetchMap(id, columnName, $T.class, $T.class, ($T) $L);\n",
+                methodBuilder.addStatement(
+                    "return result.getCollectionHandler().fetchMap(id, columnName, $T.class, $T.class, ($T) $L)",
                     TypeName.get(field.mapKeyType()),
                     TypeName.get(field.mapValueType()),
-                    ParameterizedTypeName.get(
-                        ClassName.get(io.github.flameyossnowy.universal.api.meta.RepositoryModel.class),
-                        WildcardTypeName.subtypeOf(TypeName.OBJECT),
-                        TypeVariableName.get("ID")
-                    ),
+                    repoModelType,
                     repoModelRef
                 );
             }
+
         } else if (TypeMirrorUtils.isCollection(types, elements, rawType)) {
-            callBuilder.add("fetchCollection(id, columnName, $T.class, $T.$L, ($T) $L);\n",
+            ParameterizedTypeName repoModelType = ParameterizedTypeName.get(
+                ClassName.get(io.github.flameyossnowy.universal.api.meta.RepositoryModel.class),
+                WildcardTypeName.subtypeOf(TypeName.OBJECT),
+                TypeVariableName.get("ID")
+            );
+
+            methodBuilder.addStatement(
+                "return result.getCollectionHandler().fetchCollection(id, columnName, $T.class, $T.$L, ($T) $L)",
                 TypeName.get(field.elementType()),
                 ClassName.get("io.github.flameyossnowy.universal.api.factory", "CollectionKind"),
                 field.collectionKind().name(),
-                ParameterizedTypeName.get(
-                    ClassName.get(io.github.flameyossnowy.universal.api.meta.RepositoryModel.class),
-                    WildcardTypeName.subtypeOf(TypeName.OBJECT),
-                    TypeVariableName.get("ID")
-                ),
+                repoModelType,
                 repoModelRef
             );
+
         } else {
             throw new IllegalStateException("Unsupported collection field: " + field.name());
         }
 
-        methodBuilder.addCode(callBuilder.build())
+        methodBuilder
             .nextControlFlow("catch ($T e)", Exception.class)
             .addStatement("throw new $T($S + $S, e)", RuntimeException.class, "Failed to load field ", field.name())
             .endControlFlow();
