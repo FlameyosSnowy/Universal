@@ -5,6 +5,7 @@ import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
@@ -31,60 +32,40 @@ import java.util.function.Consumer;
 import java.util.EnumSet;
 import java.util.stream.Stream;
 
+/**
+ * Repository adapter interface providing CRUD operations and query execution.
+ *
+ * <p>All implementations are <strong>thread-safe</strong> for concurrent read operations.
+ * Write operations must be properly synchronized via transactions or sessions.
+ *
+ * <h3>Concurrency</h3>
+ * <ul>
+ *   <li>Multiple threads can safely call read methods (find, findById, etc.) concurrently.</li>
+ *   <li>Write operations should use {@link #beginTransaction()} or {@link #createSession()} to ensure atomicity.</li>
+ *   <li>Sessions are <strong>not thread-safe</strong> and should not be shared across threads.</li>
+ * </ul>
+ *
+ * <h3>Performance Notes</h3>
+ * <ul>
+ *   <li>Prefer batch operations via sessions for multiple writes.</li>
+ *   <li>Use {@link ReadPolicy#STRONG_READ_POLICY} only when cache consistency is critical.</li>
+ *   <li>Consider {@link #findIds(SelectQuery)} when only primary keys are needed.</li>
+ * </ul>
+ *
+ * @param <T> Entity type
+ * @param <ID> Primary key type
+ * @param <C> Connection/transaction context type
+ */
 @SuppressWarnings("unused")
 public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID, C> {
-
-    interface ReadPolicy {
-        boolean bypassCache();
-
-        boolean allowStale();
-
-        ReadPolicy NO_READ_POLICY = new ReadPolicy() {
-            @Override
-            public boolean bypassCache() {
-                return false;
-            }
-
-            @Override
-            public boolean allowStale() {
-                return true;
-            }
-        };
-
-        ReadPolicy STRONG_READ_POLICY = new ReadPolicy() {
-            @Override
-            public boolean bypassCache() {
-                return true;
-            }
-
-            @Override
-            public boolean allowStale() {
-                return false;
-            }
-        };
-
-        ReadPolicy EVENTUAL_READ_POLICY = new ReadPolicy() {
-            @Override
-            public boolean bypassCache() {
-                return false;
-            }
-
-            @Override
-            public boolean allowStale() {
-                return true;
-            }
-        };
-    }
 
     /**
      * Creates the repository table, if it does not exist.
      * <p>
      * This method is a convenience wrapper for {@link #createRepository(boolean)} with the argument
      * set to {@code false}.
-     * @deprecated This is now done automatically, this is a useless operation.
      */
     @Contract(pure = true)
-    @Deprecated
     default TransactionResult<Boolean> createRepository() {
         return this.createRepository(false);
     }
@@ -98,10 +79,13 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * <p>
      * <b>This method is a one-time operation and will have no effect if the table already
      * exists.</b>
+     * 
+     * <p><strong>I/O:</strong> Performs DDL operations; may be expensive on some platforms.</p>
+     * <p><strong>Concurrency:</strong> Implementations must handle concurrent calls safely.</p>
+     * 
      * @param ifNotExists Whether to create the table if it exists or not.
-     * @deprecated This is now done automatically, this is a useless operation.
+     * @return Transaction result indicating success or failure
      */
-    @Deprecated
     @CheckReturnValue
     TransactionResult<Boolean> createRepository(boolean ifNotExists);
 
@@ -114,8 +98,14 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * You can use this method to start a transaction, perform your operations,
      * and then call either {@link TransactionContext#commit()} to commit the
      * changes or {@link TransactionContext#rollback()} to roll back the changes.
+     * 
+     * <p><strong>Concurrency:</strong> The returned TransactionContext is not thread-safe
+     * and should only be used by a single thread.</p>
+     * <p><strong>Resource Management:</strong> Always ensure commit or rollback is called
+     * to release resources. Prefer try-with-resources or {@link #withSession(Consumer)}.</p>
+     * 
      * @return A transaction context that will be used to commit or roll back the
-     * transaction.
+     *         transaction.
      */
     @Contract(pure = true)
     @CheckReturnValue
@@ -127,8 +117,13 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * Example query should look like:
      *
      * <p>SELECT id FROM courses WHERE user = ?;</p>
-     * @param query query
+     * 
+     * <p><strong>Performance:</strong> More efficient than full entity projection when only IDs are needed.</p>
+     * <p><strong>Security:</strong> Validates that the query only selects ID-compatible columns.</p>
+     * 
+     * @param query query that selects only ID-compatible fields
      * @return a List<ID>, might fail if SelectQuery is wrong.
+     * @throws IllegalArgumentException if query selects non-ID fields
      */
     @CheckReturnValue
     @NotNull
@@ -165,6 +160,20 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * buffered writes, or {@link SessionOption#LOG_OPERATIONS} to log
      * operations performed on the session.
      * <p>
+     * {@link SessionOption#CASCADE} enables relationship graph cascading for
+     * {@code insert}/{@code update}/{@code delete} within the session.
+     * Cascading is useful for convenience, but it can be significantly more
+     * expensive than explicit writes because it must traverse the object graph
+     * and may perform many additional operations.
+     * <p>
+     * <strong>Precautions:</strong>
+     * <ul>
+     *   <li>Prefer explicit insert/update/delete ordering for large graphs.</li>
+     *   <li>Be mindful of cyclic graphs; cascading uses a visited-set based on primary keys,
+     *       so entities without stable IDs may be visited multiple times.</li>
+     *   <li>When in doubt, keep cascading off and write your own orchestration.</li>
+     * </ul>
+     * <p>
      * You can use this method to create a session, perform your operations,
      * and then call either {@link DatabaseSession#commit()} to commit the
      * changes or {@link DatabaseSession#close()} to roll back the changes.
@@ -186,9 +195,14 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * <p>
      * Usage of this method ensures that resources are properly managed
      * and that the session is always closed, even if an exception occurs.
+     * 
+     * <p><strong>Concurrency:</strong> The session provided to the consumer is not thread-safe.</p>
+     * <p><strong>Performance:</strong> Prefer this for simple operations; use explicit session
+     * for complex transaction management or when you need to handle failures differently.</p>
      *
      * @param sessionConsumer A consumer that performs operations with the
-     *                        provided session.
+     *                        provided session. Must not be null.
+     * @return Transaction result indicating success or failure of the commit
      */
     @SuppressWarnings("UnusedReturnValue")
     default TransactionResult<Boolean> withSession(@NotNull Consumer<DatabaseSession<ID, T, C>> sessionConsumer) {
@@ -386,10 +400,13 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * <p>
      * This method is used to persist a single item into the underlying storage. The transaction
      * context ensures that the operation is atomic and can be committed or rolled back as needed.
+     * <p>
+     * Prefer to use <strong>transactions or batching</strong> if possible as they have better correctness and may improve performance under load
      *
      * @param value The item to be inserted into the repository.
      * @param transactionContext The transaction context within which the operation is performed.
      * @return {@code true} if the insertion was successful, {@code false} otherwise.
+     * @see RepositoryAdapter#insertAll
      */
     @CheckReturnValue
     TransactionResult<Boolean> insert(T value, TransactionContext<C> transactionContext);
@@ -1100,4 +1117,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * @return The scalar value, or null if no results
      */
     <R> R aggregateScalar(@NotNull AggregationQuery query, @NotNull String fieldName, @NotNull Class<R> type);
+
+    @ApiStatus.Internal
+    RelationshipHandler<T, ID> getRelationshipHandler();
 }
