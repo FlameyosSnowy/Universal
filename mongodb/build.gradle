@@ -18,9 +18,9 @@ repositories {
 dependencies {
     compileOnly "org.mongodb:mongodb-driver-sync:5.3.0"
     compileOnly "org.jetbrains:annotations:24.0.1"
-    compileOnly "com.fasterxml.jackson.core:jackson-databind:2.16.1"
+    /*compileOnly "com.fasterxml.jackson.core:jackson-databind:2.16.1"
     compileOnly "com.fasterxml.jackson.core:jackson-annotations:2.16.1"
-    compileOnly "com.fasterxml.jackson.core:jackson-core:2.16.1"
+    compileOnly "com.fasterxml.jackson.core:jackson-core:2.16.1"*/
 
     compileOnly project(":core")
 
@@ -30,6 +30,8 @@ dependencies {
 
     testImplementation "org.mockito:mockito-core:5.11.0"
     testImplementation "org.mockito:mockito-junit-jupiter:5.11.0"
+
+    compileOnly "com.github.FlameyosSnowy:Uniform:1.5.2"
 
     // Mongo driver interfaces (already present at runtime, but safe for tests)
     testImplementation "org.mongodb:mongodb-driver-sync:4.11.1"
