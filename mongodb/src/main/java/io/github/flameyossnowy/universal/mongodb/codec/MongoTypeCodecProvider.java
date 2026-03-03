@@ -28,7 +28,7 @@ public record MongoTypeCodecProvider(TypeResolverRegistry typeResolverRegistry, 
      * @param typeResolverRegistry the type resolver registry to use
      * @return a new instance
      */
-    @Contract("_, _ -> new")
+    @Contract("_, _, _ -> new")
     public static @NotNull MongoTypeCodecProvider create(TypeResolverRegistry typeResolverRegistry, CollectionHandler collectionHandler, RepositoryModel<?, ?> information) {
         return new MongoTypeCodecProvider(typeResolverRegistry, collectionHandler, information);
     }
