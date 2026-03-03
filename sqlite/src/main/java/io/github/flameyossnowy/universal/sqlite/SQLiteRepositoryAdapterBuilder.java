@@ -36,6 +36,8 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
     private final Class<ID> idClass;
     private CacheWarmer<T, ID> cacheWarmer;
 
+    private boolean autoCreate = true;
+
     private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
 
     public SQLiteRepositoryAdapterBuilder(Class<T> repository, Class<ID> id) {
@@ -141,6 +143,11 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    public SQLiteRepositoryAdapterBuilder<T, ID> setAutoCreate(boolean autoCreate) {
+        this.autoCreate = autoCreate;
+        return this;
+    }
+
     /**
      * Builds the {@link SQLiteRepositoryAdapter} instance.
      *
@@ -179,13 +186,15 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
                     sessionCacheSupplier,
                     cacheWarmer,
                     cacheable,
-                    maxSize
+                    maxSize,
+                    autoCreate
             );
 
         return new SQLiteRepositoryAdapter<>(
                 connectionProvider != null ? this.connectionProvider.apply(credentials, optimizations) : new SQLiteSimpleConnectionProvider(this.credentials, optimizations),
                 resultCache, this.repository, this.idClass, information.createGlobalSessionCache(), sessionCacheSupplier, cacheWarmer,
-                cacheable, maxSize
+                cacheable, maxSize,
+                autoCreate
         );
     }
 }

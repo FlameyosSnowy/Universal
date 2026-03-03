@@ -81,6 +81,9 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     private final boolean supportsArrays;
     private final QueryParseEngine.SQLType sqlType;
 
+    private final boolean autoCreate;
+    private final RelationshipHandler<T, ID> relationshipHandler;
+
     protected long openedSessions = 1;
 
     protected final OperationContext<T, ID, Connection> operationContext;
@@ -108,7 +111,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             LongFunction<SessionCache<ID, T>> sessionCacheSupplier,
             CacheWarmer<T, ID> cacheWarmer,
             boolean cacheEnabled,
-            int maxSize) {
+            int maxSize,
+            boolean autoCreate) {
         this.sessionCacheSupplier = sessionCacheSupplier;
         this.idClass = idClass;
         this.dataSource = dataSource;
@@ -117,6 +121,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         this.globalCache = globalCache;
         this.supportsArrays = sqlType.supportsArrays();
         this.sqlType = sqlType;
+        this.autoCreate = autoCreate;
         this.repositoryModel = GeneratedMetadata.getByEntityClass(repository);
 
         Objects.requireNonNull(repositoryModel);
@@ -167,7 +172,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         this.queryValidator = new SQLQueryValidator<>(repositoryModel, sqlType.getDialect());
         if (cacheWarmer != null) cacheWarmer.warmCache(this);
 
-        RelationshipHandler<T, ID> relationshipHandler = new SQLRelationshipHandler<>(repositoryModel, idClass, resolverRegistry);
+        this.relationshipHandler = new SQLRelationshipHandler<>(repositoryModel, idClass, resolverRegistry);
         this.collectionHandler = new SQLCollectionHandler(dataSource, this.resolverRegistry, supportsArrays);
         RelationshipLoader<T, ID> relationshipLoader = GeneratedRelationshipLoaders.get(
             repositoryModel.tableName(),
@@ -204,15 +209,17 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             objectModel, idClass, parameterBinder, sqlType, resultMapper, engine, relationshipLoader
         );
 
-        engine.parseRepository(true);
-        for (IndexModel index : repositoryModel.indexes()) {
-            TransactionResult<Boolean> indexResult = queryExecutor.executeRawQuery(engine.parseIndex(IndexOptions.builder(repository)
-                .indexName(index.name())
-                .rawFields(index.fields())
-                .type(index.type())
-                .build()));
-            if (indexResult.isError()) {
-                Logging.error("Failed to create index: " + index.name() + " for repository: " + repositoryModel.tableName());
+        if (this.autoCreate) {
+            engine.parseRepository(true);
+            for (IndexModel index : repositoryModel.indexes()) {
+                TransactionResult<Boolean> indexResult = queryExecutor.executeRawQuery(engine.parseIndex(IndexOptions.builder(repository)
+                    .indexName(index.name())
+                    .rawFields(index.fields())
+                    .type(index.type())
+                    .build()));
+                if (indexResult.isError()) {
+                    Logging.error("Failed to create index: " + index.name() + " for repository: " + repositoryModel.tableName());
+                }
             }
         }
 
@@ -635,5 +642,10 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         @NotNull String fieldName,
         @NotNull Class<R> type) {
         return aggregationImpl.aggregateScalar(query, fieldName, type);
+    }
+
+    @Override
+    public RelationshipHandler<T, ID> getRelationshipHandler() {
+        return relationshipHandler;
     }
 }

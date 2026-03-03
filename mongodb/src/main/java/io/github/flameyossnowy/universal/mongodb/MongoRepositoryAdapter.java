@@ -42,7 +42,7 @@ import io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodecProvider;
 import io.github.flameyossnowy.universal.mongodb.params.MongoDatabaseParameters;
 import io.github.flameyossnowy.universal.mongodb.query.MongoQueryValidator;
 import io.github.flameyossnowy.universal.mongodb.result.MongoDatabaseResult;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import me.flame.uniform.json.JsonAdapter;
 import org.bson.*;
 import org.bson.codecs.*;
 import org.bson.codecs.configuration.*;
@@ -77,6 +77,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     private final OperationExecutor<T, ID, ClientSession> operationExecutor;
     private final Class<ID> idType;
     private final MongoCollectionHandler collectionHandler;
+    private final RelationshipHandler<T, ID> relationshipHandler;
 
     @Nullable
     private final DefaultResultCache<Bson, T, ID> resultCache;
@@ -113,7 +114,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     private final TypeResolverRegistry typeResolverRegistry = new TypeResolverRegistry();
     private final QueryValidator queryValidator;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonAdapter objectMapper;
+
+    private final boolean autoCreate;
 
     private static String mongoPrimaryKeyName(@NotNull FieldModel<?> primaryKey) {
         // MongoDB reserves the document primary key field name as "_id".
@@ -134,11 +137,15 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         @Nullable SessionCache<ID, T> sessionCache,
         LongFunction<SessionCache<ID, T>> sessionCacheSupplier,
         CacheWarmer<T, ID> cacheWarmer,
-        MongoClient client
+        MongoClient client,
+        boolean autoCreate
     ) {
+        this.objectMapper = new JsonAdapter(JsonAdapter.configBuilder().build());
         this.repositoryModel = GeneratedMetadata.getByEntityClass(repo);
         if (repositoryModel == null)
             throw new IllegalArgumentException("Unable to find repository information for " + repo.getSimpleName());
+
+        this.autoCreate = autoCreate;
 
         FieldModel<T> primaryKey = repositoryModel.getPrimaryKey();
         if (primaryKey != null && (NUMBERS.contains(primaryKey.type()) || primaryKey.autoIncrement()))
@@ -153,7 +160,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         this.exceptionHandler = uncheckedHandler == null ? new DefaultExceptionHandler<>() : uncheckedHandler;
 
         // Enable DefaultJsonCodec usage (JsonCodec instantiation may require ObjectMapper)
-        this.typeResolverRegistry.setObjectMapperSupplier(() -> objectMapper);
+        this.typeResolverRegistry.setJsonAdapterSupplier(() -> objectMapper);
         this.queryValidator = new MongoQueryValidator(repositoryModel);
 
         this.operationExecutor = new MongoOperationExecutor<>(this);
@@ -190,7 +197,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         DelegatingMongoCodecProvider delegatingProvider = new DelegatingMongoCodecProvider();
         this.client = Objects.requireNonNullElseGet(client, () -> {
             CodecRegistry registry = CodecRegistries.fromRegistries(
-                CodecRegistries.fromProviders(
+                fromProviders(
                     delegatingProvider,
                     PojoCodecProvider.builder().automatic(true).build()
                 ),
@@ -211,7 +218,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         );
         delegatingProvider.bind(runtimeContext);
 
-        RelationshipHandler<T, ID> relationshipHandler = new MongoRelationshipHandler<>(repositoryModel, idType, typeResolverRegistry);
+        this.relationshipHandler = new MongoRelationshipHandler<>(repositoryModel, idType, typeResolverRegistry);
         this.relationshipLoader = GeneratedRelationshipLoaders.get(
             repositoryModel.tableName(),
             relationshipHandler,
@@ -240,7 +247,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     private static <T, ID> @NotNull List<IndexOptions> initializeIndexes(RepositoryModel<T, ID> repositoryModel) {
         List<IndexOptions> queued = new ArrayList<>();
         for (FieldModel<T> field : repositoryModel.fields()) {
-            if (field.hasUniqueAnnotation()) {
+            if (field.indexed()) {
                 queued.add(IndexOptions.builder(repositoryModel.getEntityClass())
                     .type(IndexType.UNIQUE)
                     .field(field)
@@ -1353,5 +1360,10 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         @NotNull String fieldName,
         @NotNull Class<R> type) {
         return aggregationImpl.aggregateScalar(query, fieldName, type);
+    }
+
+    @Override
+    public RelationshipHandler<T, ID> getRelationshipHandler() {
+        return relationshipHandler;
     }
 }

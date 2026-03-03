@@ -36,6 +36,8 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
     private final Class<ID> idClass;
     private CacheWarmer<T, ID> cacheWarmer;
 
+    private boolean autoCreate = true;
+
     private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
 
     public PostgreSQLRepositoryAdapterBuilder(Class<T> repository, Class<ID> idClass) {
@@ -73,6 +75,11 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    public PostgreSQLRepositoryAdapterBuilder<T, ID> setAutoCreate(boolean autoCreate) {
+        this.autoCreate = autoCreate;
+        return this;
+    }
+
     @SuppressWarnings("unchecked")
     public PostgreSQLRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
@@ -104,7 +111,8 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
                 sessionCacheSupplier,
                 cacheWarmer,
                 cacheEnabled,
-                maxSize
+                maxSize,
+                autoCreate
             );
         }
 
@@ -119,7 +127,8 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
                 sessionCacheSupplier,
                 cacheWarmer,
                 cacheEnabled,
-                maxSize
+                maxSize,
+                autoCreate
         );
     }
 }
