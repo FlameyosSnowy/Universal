@@ -17,6 +17,10 @@ public final class DefaultGraphCoordinator<ID, T> implements GraphCoordinator<ID
         this.model = model;
     }
 
+    public static <ID, T> DefaultGraphCoordinator<ID, T> of(RepositoryModel<T, ID> model) {
+        return new DefaultGraphCoordinator<>(model);
+    }
+
     @Override
     public void cascadeInsert(T root, DatabaseSession<ID, T, ?> session) {
         walkInsert(root, session);

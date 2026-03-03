@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.api.cache;
 
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.cache.graph.DefaultGraphCoordinator;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 
@@ -18,6 +19,58 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
     private final List<Runnable> pendingOperations = new ArrayList<>(5);
     private final List<Runnable> rollbackCallbacks = new ArrayList<>(5);
     private final List<TransactionResult<?>> results = new ArrayList<>(5);
+
+    private final DatabaseSession<ID, T, C> nonCascadingView = new DatabaseSession<>() {
+        @Override
+        public SessionCache<ID, T> getCache() {
+            return DefaultSession.this.getCache();
+        }
+
+        @Override
+        public long getId() {
+            return DefaultSession.this.getId();
+        }
+
+        @Override
+        public void rollback() {
+            DefaultSession.this.rollback();
+        }
+
+        @Override
+        public boolean insert(T entity) {
+            return DefaultSession.this.insertDirect(entity);
+        }
+
+        @Override
+        public boolean delete(T entity) {
+            return DefaultSession.this.deleteDirect(entity);
+        }
+
+        @Override
+        public boolean update(T entity) {
+            return DefaultSession.this.updateDirect(entity);
+        }
+
+        @Override
+        public void close() {
+            DefaultSession.this.close();
+        }
+
+        @Override
+        public T findById(ID key) {
+            return DefaultSession.this.findById(key);
+        }
+
+        @Override
+        public TransactionResult<Boolean> commit() {
+            return DefaultSession.this.commit();
+        }
+
+        @Override
+        public C connection() {
+            return DefaultSession.this.connection();
+        }
+    };
 
     public DefaultSession(RepositoryAdapter<T, ID, C> repository, SessionCache<ID, T> cache, long id, EnumSet<SessionOption> options) {
         this.repository = repository;
@@ -98,6 +151,15 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
 
     @Override
     public boolean insert(T entity) {
+        if (options.contains(SessionOption.CASCADE) && information.hasRelationships()) {
+            DefaultGraphCoordinator.of(information).cascadeInsert(entity, nonCascadingView);
+            return true;
+        }
+
+        return insertDirect(entity);
+    }
+
+    private boolean insertDirect(T entity) {
         ID entityId = information.getPrimaryKeyValue(entity);
 
         Runnable operation = () -> {
@@ -123,6 +185,15 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
 
     @Override
     public boolean delete(T entity) {
+        if (options.contains(SessionOption.CASCADE) && information.hasRelationships()) {
+            DefaultGraphCoordinator.of(information).cascadeDelete(entity, nonCascadingView);
+            return true;
+        }
+
+        return deleteDirect(entity);
+    }
+
+    private boolean deleteDirect(T entity) {
         ID entityId = information.getPrimaryKeyValue(entity);
         T previous = findById(entityId);
 
@@ -151,6 +222,15 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
 
     @Override
     public boolean update(T entity) {
+        if (options.contains(SessionOption.CASCADE) && information.hasRelationships()) {
+            DefaultGraphCoordinator.of(information).cascadeUpdate(entity, nonCascadingView);
+            return true;
+        }
+
+        return updateDirect(entity);
+    }
+
+    private boolean updateDirect(T entity) {
         ID entityId = information.getPrimaryKeyValue(entity);
         T previous = findById(entityId);
 
