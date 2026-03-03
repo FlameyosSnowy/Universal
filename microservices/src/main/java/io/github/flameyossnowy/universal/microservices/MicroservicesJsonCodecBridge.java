@@ -1,14 +1,16 @@
 package io.github.flameyossnowy.universal.microservices;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.github.flameyossnowy.universal.api.exceptions.json.JsonProcessException;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import me.flame.uniform.json.JsonAdapter;
+import me.flame.uniform.json.dom.JsonObject;
+import me.flame.uniform.json.dom.JsonValue;
+import me.flame.uniform.json.exceptions.JsonException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("unchecked")
 public final class MicroservicesJsonCodecBridge {
@@ -17,59 +19,56 @@ public final class MicroservicesJsonCodecBridge {
         throw new AssertionError("No instances");
     }
 
-    public static <T, ID> @NotNull JsonNode toStorageJson(
-        @NotNull ObjectMapper objectMapper,
+    public static <T, ID> @NotNull JsonObject toStorageJson(
+        @NotNull JsonAdapter objectMapper,
         @NotNull TypeResolverRegistry resolverRegistry,
         @NotNull RepositoryModel<T, ID> repositoryModel,
         @NotNull T entity
     ) {
-        JsonNode node = objectMapper.valueToTree(entity);
-        if (!(node instanceof ObjectNode obj)) {
-            return node;
-        }
+        JsonObject obj = objectMapper.valueToTree(entity);
 
         for (FieldModel<T> field : repositoryModel.fields()) {
             if (!field.isJson()) continue;
 
-            JsonNode fieldNode = obj.get(field.name());
+            @Nullable JsonValue fieldNode = obj.getRaw(field.name());
             if (fieldNode == null || fieldNode.isNull()) continue;
 
-            Object typedValue = objectMapper.convertValue(fieldNode, field.type());
+            Object typedValue = objectMapper.treeToValue(fieldNode, field.type());
             JsonCodec<Object> codec = resolverRegistry.getJsonCodec(field.jsonCodec());
 
             String json = codec.serialize(typedValue, (Class<Object>) field.type());
             try {
-                obj.set(field.name(), objectMapper.readTree(json));
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException("Failed to serialize json field '" + field.name() + "'", e);
+                obj.put(field.name(), objectMapper.readValue(json));
+            } catch (JsonException e) {
+                throw new JsonProcessException("Failed to serialize json field '" + field.name() + "'", e);
             }
         }
 
         return obj;
     }
 
-    public static <T, ID> @NotNull JsonNode fromStorageJson(
-        @NotNull ObjectMapper objectMapper,
+    public static <T, ID> @NotNull JsonObject fromStorageJson(
+        @NotNull JsonAdapter objectMapper,
         @NotNull TypeResolverRegistry resolverRegistry,
         @NotNull RepositoryModel<T, ID> repositoryModel,
-        @NotNull JsonNode storedNode
+        @NotNull JsonValue value
     ) {
-        if (!(storedNode instanceof ObjectNode obj)) {
-            return storedNode;
+        if (!(value instanceof JsonObject obj)) {
+            throw new JsonProcessException("Expected JSON object response for getAll");
         }
 
         for (FieldModel<T> field : repositoryModel.fields()) {
             if (!field.isJson()) continue;
 
-            JsonNode fieldNode = obj.get(field.name());
+            JsonValue fieldNode = obj.getRaw(field.name());
             if (fieldNode == null || fieldNode.isNull()) continue;
 
             try {
-                String json = objectMapper.writeValueAsString(fieldNode);
+                String json = objectMapper.writeValue(fieldNode);
                 JsonCodec<Object> codec = resolverRegistry.getJsonCodec(field.jsonCodec());
                 Object typedValue = codec.deserialize(json, (Class<Object>) field.type());
-                obj.set(field.name(), objectMapper.valueToTree(typedValue));
-            } catch (JsonProcessingException e) {
+                obj.put(field.name(), objectMapper.valueToTree(typedValue));
+            } catch (JsonException e) {
                 throw new RuntimeException("Failed to deserialize json field '" + field.name() + "'", e);
             }
         }
@@ -77,14 +76,14 @@ public final class MicroservicesJsonCodecBridge {
         return obj;
     }
 
-    public static <T, ID> @NotNull T readEntityFromStorageJson(
-        @NotNull ObjectMapper objectMapper,
+    public static <T, ID> @Nullable T readEntityFromStorageJson(
+        @NotNull JsonAdapter objectMapper,
         @NotNull TypeResolverRegistry resolverRegistry,
         @NotNull RepositoryModel<T, ID> repositoryModel,
         @NotNull Class<T> entityType,
-        @NotNull JsonNode storedNode
+        @NotNull JsonValue storedNode
     ) {
-        JsonNode converted = fromStorageJson(objectMapper, resolverRegistry, repositoryModel, storedNode);
-        return objectMapper.convertValue(converted, entityType);
+        JsonObject converted = fromStorageJson(objectMapper, resolverRegistry, repositoryModel, storedNode);
+        return objectMapper.treeToValue(converted, entityType);
     }
 }

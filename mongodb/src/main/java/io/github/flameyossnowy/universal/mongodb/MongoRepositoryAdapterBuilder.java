@@ -28,6 +28,8 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
     private CacheWarmer<T, ID> cacheWarmer;
     private MongoClient client;
 
+    private boolean autoCreate = true;
+
     MongoRepositoryAdapterBuilder(Class<T> repository, Class<ID> idType) {
         this.repository = repository;
         this.idType = idType;
@@ -116,6 +118,11 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    public MongoRepositoryAdapterBuilder<T, ID> setAutoCreate(boolean autoCreate) {
+        this.autoCreate = autoCreate;
+        return this;
+    }
+
     /**
      * Builds the {@link MongoRepositoryAdapter} instance
      *
@@ -126,7 +133,8 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
 
         return new MongoRepositoryAdapter<>(
             this.credentialsBuilder, database, repository, idType,
-            information.createGlobalSessionCache(), sessionCacheSupplier, cacheWarmer, client
+            information.createGlobalSessionCache(), sessionCacheSupplier, cacheWarmer, client,
+            autoCreate
         );
     }
 

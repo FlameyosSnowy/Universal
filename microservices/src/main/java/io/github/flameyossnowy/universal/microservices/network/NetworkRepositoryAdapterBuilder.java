@@ -1,8 +1,5 @@
 package io.github.flameyossnowy.universal.microservices.network;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.annotations.NetworkRepository;
 import io.github.flameyossnowy.universal.api.annotations.RemoteEndpoint;
@@ -10,6 +7,7 @@ import io.github.flameyossnowy.universal.api.annotations.builder.EndpointConfig;
 import io.github.flameyossnowy.universal.api.annotations.enums.AuthType;
 import io.github.flameyossnowy.universal.api.annotations.enums.HttpMethod;
 import io.github.flameyossnowy.universal.api.annotations.enums.NetworkProtocol;
+import me.flame.uniform.json.JsonAdapter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -47,8 +45,10 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
             "/{id}",
             HttpMethod.PUT
     );
-    private ObjectMapper customObjectMapper;
+    private JsonAdapter customObjectMapper;
     private NetworkRepositoryAdapter.NetworkAggregationProviderFactory<T, ID> aggregationProviderFactory;
+
+    private boolean autoCreate = true;
 
     /**
      * Creates a new builder for the given entity and ID types.
@@ -152,7 +152,7 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
-    public NetworkRepositoryAdapterBuilder<T, ID> objectMapper(ObjectMapper objectMapper) {
+    public NetworkRepositoryAdapterBuilder<T, ID> objectMapper(JsonAdapter objectMapper) {
         this.customObjectMapper = objectMapper;
         return this;
     }
@@ -164,6 +164,11 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    public NetworkRepositoryAdapterBuilder<T, ID> setAutoCreate(boolean autoCreate) {
+        this.autoCreate = autoCreate;
+        return this;
+    }
+
     /**
      * Builds and returns a new {@link NetworkRepositoryAdapter} instance.
      */
@@ -172,7 +177,7 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
             throw new IllegalStateException("baseUrl must be specified");
         }
         
-        ObjectMapper objectMapper = customObjectMapper != null ? customObjectMapper : createDefaultObjectMapper();
+        JsonAdapter objectMapper = customObjectMapper != null ? customObjectMapper : createDefaultObjectMapper();
         
         return new NetworkRepositoryAdapter<>(
                 entityType,
@@ -188,15 +193,14 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
                 cacheTtl,
                 new HashMap<>(customHeaders),
                 endpointConfig,
-                createDefaultObjectMapper(),
-                aggregationProviderFactory
+                objectMapper,
+                aggregationProviderFactory,
+                autoCreate
         );
     }
     
-    public static ObjectMapper createDefaultObjectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new JavaTimeModule());
-        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        return mapper;
+    public static JsonAdapter createDefaultObjectMapper() {
+        return new JsonAdapter(JsonAdapter.configBuilder()
+            .build());
     }
 }

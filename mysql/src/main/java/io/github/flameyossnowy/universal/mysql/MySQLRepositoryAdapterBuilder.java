@@ -32,6 +32,8 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
     private final Class<T> repository;
     private final Class<ID> idClass;
 
+    private boolean autoCreate = true;
+
     private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
     private CacheWarmer<T, ID> cacheWarmer;
 
@@ -70,6 +72,11 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    public MySQLRepositoryAdapterBuilder<T, ID> setAutoCreate(boolean autoCreate) {
+        this.autoCreate = autoCreate;
+        return this;
+    }
+
     @SuppressWarnings("unchecked")
     public MySQLRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
@@ -97,7 +104,8 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
             sessionCacheSupplier,
             cacheWarmer,
             cacheEnabled,
-            maxSize
+            maxSize,
+            autoCreate
         );
     }
 }

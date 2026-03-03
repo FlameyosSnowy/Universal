@@ -1,9 +1,8 @@
 package io.github.flameyossnowy.universal.microservices.network;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.flameyossnowy.universal.api.CloseableIterator;
 import io.github.flameyossnowy.universal.api.IndexOptions;
-import io.github.flameyossnowy.universal.api.ModelsBootstrap;
+import io.github.flameyossnowy.universal.api.ReadPolicy;
 import io.github.flameyossnowy.universal.api.RepositoryAdapter;
 import io.github.flameyossnowy.universal.api.RepositoryRegistry;
 import io.github.flameyossnowy.universal.api.annotations.NetworkRepository;
@@ -15,6 +14,7 @@ import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
@@ -35,6 +35,10 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.microservices.MicroservicesJsonCodecBridge;
 import io.github.flameyossnowy.universal.microservices.relationship.MicroserviceRelationshipHandler;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
+import me.flame.uniform.json.JsonAdapter;
+import me.flame.uniform.json.dom.JsonArray;
+import me.flame.uniform.json.dom.JsonObject;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -90,7 +94,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private final OperationExecutor<T, ID, HttpClient> operationExecutor;
     private final OperationContext<T, ID, HttpClient> operationContext;
     private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
+    private final JsonAdapter objectMapper;
     private final String baseUrl;
     private final AuthType authType;
     private final Supplier<String> credentialsProvider;
@@ -98,6 +102,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private final EndpointConfig endpointConfig;
     private final RelationshipResolver<T, ID> relationshipResolver;
     private final @Nullable NetworkAggregationProvider<T, ID> aggregationProvider;
+
+    private final RelationshipHandler<T, ID> relationshipHandler;
     
     // Response cache
     private final Map<String, CompletableFuture<CachedResponse>> responseCache;
@@ -105,21 +111,22 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private final long cacheTtlMillis;
 
     public NetworkRepositoryAdapter(
-            @NotNull Class<T> entityType,
-            @NotNull Class<ID> idType,
-            @NotNull String baseUrl,
-            NetworkProtocol protocol,
-            AuthType authType,
-            Supplier<String> credentialsProvider,
-            int connectTimeout,
-            int readTimeout,
-            int maxRetries,
-            boolean cacheEnabled,
-            int cacheTtl,
-            Map<String, String> customHeaders,
-            EndpointConfig endpointConfig,
-            ObjectMapper objectMapper,
-            @Nullable NetworkAggregationProviderFactory<T, ID> aggregationProviderFactory) {
+        @NotNull Class<T> entityType,
+        @NotNull Class<ID> idType,
+        @NotNull String baseUrl,
+        NetworkProtocol protocol,
+        AuthType authType,
+        Supplier<String> credentialsProvider,
+        int connectTimeout,
+        int readTimeout,
+        int maxRetries,
+        boolean cacheEnabled,
+        int cacheTtl,
+        Map<String, String> customHeaders,
+        EndpointConfig endpointConfig,
+        JsonAdapter objectMapper,
+        @Nullable NetworkAggregationProviderFactory<T, ID> aggregationProviderFactory,
+        boolean autoCreate) {
         this.entityType = entityType;
         this.idType = idType;
         this.baseUrl = baseUrl.endsWith(FileSystems.getDefault().getSeparator()) ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
@@ -138,7 +145,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         this.objectMapper = objectMapper;
 
         // Enable DefaultJsonCodec usage in microservices/network layer
-        this.resolverRegistry.setObjectMapperSupplier(() -> this.objectMapper);
+        this.resolverRegistry.setJsonAdapterSupplier(() -> this.objectMapper);
 
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeout))
@@ -153,7 +160,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
         this.responseCache = cacheEnabled ? new ConcurrentHashMap<>(3) : null;
 
-        this.relationshipResolver = new RelationshipResolver<>(new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry));
+        this.relationshipHandler = new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry);
+        this.relationshipResolver = new RelationshipResolver<>(relationshipHandler);
         RepositoryRegistry.register(this.repositoryInformation.tableName(), this);
 
         this.aggregationProvider = aggregationProviderFactory != null ? aggregationProviderFactory.create(this) : null;
@@ -197,7 +205,13 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         return getAggregationProviderOrThrow().aggregateScalar(query, fieldName, type);
     }
 
-    public static <T, ID> NetworkRepositoryAdapter<T, ID> from(
+    @Override
+    public RelationshipHandler<T, ID> getRelationshipHandler() {
+        return relationshipHandler;
+    }
+
+    @Contract("_, _ -> new")
+    public static <T, ID> @NotNull NetworkRepositoryAdapter<T, ID> from(
             @NotNull Class<T> entityType,
             @NotNull Class<ID> idType) {
         NetworkRepository annotation = entityType.getAnnotation(NetworkRepository.class);
@@ -244,8 +258,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 headers,
                 endpointConfig,
                 NetworkRepositoryAdapterBuilder.createDefaultObjectMapper(),
-                null
-        );
+                null,
+                true);
     }
 
     private static <T> @NotNull EndpointConfig getEndpointConfig(@NotNull Class<T> entityType) {
@@ -384,7 +398,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                     if (response.statusCode() >= 200 && response.statusCode() < 300) {
                         R result;
                         if (responseType == entityType) {
-                            var storedNode = objectMapper.readTree(response.body());
+                            var storedNode = objectMapper.readValue(response.body());
                             @SuppressWarnings("unchecked")
                             R entity = (R) MicroservicesJsonCodecBridge.readEntityFromStorageJson(
                                 objectMapper,
@@ -413,7 +427,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 if (responseType == entityType) {
-                    var storedNode = objectMapper.readTree(response.body());
+                    var storedNode = objectMapper.readValue(response.body());
                     @SuppressWarnings("unchecked")
                     R entity = (R) MicroservicesJsonCodecBridge.readEntityFromStorageJson(
                         objectMapper,
@@ -449,12 +463,12 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
-            var root = objectMapper.readTree(response.body());
-            if (!root.isArray()) {
+            var root = objectMapper.readValue(response.body());
+            if (!(root instanceof JsonArray array)) {
                 throw new IOException("Expected JSON array response for getAll");
             }
-            List<T> entities = new ArrayList<>(root.size());
-            for (var node : root) {
+            List<T> entities = new ArrayList<>(array.size());
+            for (var node : array) {
                 entities.add(MicroservicesJsonCodecBridge.readEntityFromStorageJson(
                     objectMapper,
                     resolverRegistry,
@@ -471,7 +485,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     }
 
     public void create(T entity) throws IOException, InterruptedException {
-        String json = objectMapper.writeValueAsString(
+        String json = objectMapper.writeValue(
             MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryInformation, entity)
         );
         HttpRequest request = createRequestBuilder(endpointConfig.create())
@@ -488,7 +502,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     public void update(ID id, T entity) throws IOException, InterruptedException {
         String endpoint = endpointConfig.update().replace("{id}", id.toString());
-        String json = objectMapper.writeValueAsString(
+        String json = objectMapper.writeValue(
             MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryInformation, entity)
         );
         
@@ -526,7 +540,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         return httpClient;
     }
 
-    public ObjectMapper getObjectMapper() {
+    public JsonAdapter getObjectMapper() {
         return objectMapper;
     }
 
