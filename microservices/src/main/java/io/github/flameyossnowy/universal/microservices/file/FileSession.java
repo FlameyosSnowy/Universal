@@ -378,7 +378,7 @@ public class FileSession<T, ID> implements DatabaseSession<ID, T, FileContext> {
     @Override
     public FileContext connection() {
         checkClosed();
-        return new FileContext(adapter.getBasePath(), true);
+        return new FileContext(adapter.getEntityStore().basePath(), true);
     }
     
     /**

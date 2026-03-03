@@ -31,7 +31,10 @@ public class FileRepositoryBuilder<T, ID> {
     private boolean sharding = false;
     private int shardCount = 10;
 
+    private boolean autoCreate = true;
+
     private IndexPathStrategy indexPathStrategy = IndexPathStrategies.underBase();
+    private boolean parallelReads;
 
     /**
      * Creates a new builder for the given entity and ID types.
@@ -95,6 +98,16 @@ public class FileRepositoryBuilder<T, ID> {
         return this;
     }
 
+    public FileRepositoryBuilder<T, ID> setAutoCreate(boolean autoCreate) {
+        this.autoCreate = autoCreate;
+        return this;
+    }
+
+    public FileRepositoryBuilder<T, ID> setParallelReads(boolean parallelReads) {
+        this.parallelReads = parallelReads;
+        return this;
+    }
+
     /**
      * Builds and returns a new {@link FileRepositoryAdapter} instance.
      */
@@ -112,7 +125,9 @@ public class FileRepositoryBuilder<T, ID> {
                 compressionType,
                 sharding,
                 shardCount,
-                indexPathStrategy
+                indexPathStrategy,
+                autoCreate,
+                parallelReads
         );
     }
 }
