@@ -20,6 +20,7 @@ import java.util.function.Supplier;
  * @param <T> The entity type
  * @param <ID> The ID type
  */
+@SuppressWarnings({ "unused", "UnusedReturnValue" })
 public class NetworkRepositoryAdapterBuilder<T, ID> {
     static {
         ModelsBootstrap.init();
@@ -36,7 +37,7 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
     private int maxRetries = 3;
     private boolean cacheEnabled = false;
     private int cacheTtl = 300; // 5 minutes in seconds
-    private final Map<String, String> customHeaders = new HashMap<>();
+    private final Map<String, String> customHeaders = new HashMap<>(8);
     private EndpointConfig endpointConfig = new EndpointConfig(
             "", 
             "/{id}", 

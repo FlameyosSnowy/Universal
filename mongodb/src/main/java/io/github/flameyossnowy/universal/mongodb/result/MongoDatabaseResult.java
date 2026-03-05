@@ -10,7 +10,7 @@ import org.jetbrains.annotations.Nullable;
  * MongoDB implementation of DatabaseResult that wraps a BSON Document.
  */
 public class MongoDatabaseResult implements DatabaseResult {
-    private final Document document;
+    private Document document;
     private final CollectionHandler collectionHandler;
     private final RepositoryModel<?, ?> repositoryModel;
     private String[] columnNames;
@@ -77,5 +77,13 @@ public class MongoDatabaseResult implements DatabaseResult {
     @Override
     public @Nullable String getColumnName(int columnIndex) {
         return document != null ? this.getColumnNamesLazy()[columnIndex] : null;
+    }
+
+    public void setDocument(Document document) {
+        this.document = document;
+    }
+
+    public void clear() {
+        document.clear();
     }
 }

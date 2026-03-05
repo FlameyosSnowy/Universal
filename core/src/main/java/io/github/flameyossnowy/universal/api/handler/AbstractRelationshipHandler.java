@@ -118,7 +118,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
                     return t;
                 }
             }
-        );;
+        );
     }
 
     // ========== Configuration Methods ==========
@@ -527,6 +527,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
      * Resolves the appropriate adapter for a field, supporting both local and external repositories.
      * Results are cached to avoid repeated lookups.
      */
+    @SuppressWarnings("RedundantCast")
     @Nullable
     private RepositoryAdapter<Object, Object, ?> resolveAdapterCached(
         @NotNull FieldModel<?> field,
@@ -964,6 +965,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         String relationName = findManyToOneFieldName(relatedRepoInfo, repositoryModel.getEntityClass());
 
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, relatedRepoInfo);
+        Objects.requireNonNull(adapter);
 
         // Use count instead of fetching all records
         return (int) adapter.count(

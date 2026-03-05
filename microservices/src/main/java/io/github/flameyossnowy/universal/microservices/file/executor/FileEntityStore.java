@@ -63,7 +63,7 @@ public class FileEntityStore<T, ID> {
     private final int             shardCount;
     private final boolean         parallelReads;
 
-    /** Cached once at construction — never changes. */
+    /** Cached once at construction - never changes. */
     private final String fileExtension;
 
     private final Map<ID, T>                cache   = new ConcurrentHashMap<>(128);
@@ -158,7 +158,7 @@ public class FileEntityStore<T, ID> {
         ReentrantReadWriteLock lock = lockForId(id);
         lock.readLock().lock();
         try {
-            // Re-check after acquiring lock — another thread may have populated the cache.
+            // Re-check after acquiring lock - another thread may have populated the cache.
             T rechecked = cache.get(id);
             if (rechecked != null) return rechecked;
 
@@ -193,7 +193,7 @@ public class FileEntityStore<T, ID> {
     /**
      * Reads and deserializes an entity directly from a {@link Path}.
      * Called during directory scans where the ID is not known in advance.
-     * Does NOT consult or populate the cache — scan results are short-lived
+     * Does NOT consult or populate the cache - scan results are short-lived
      * and caching every scanned entity would thrash the cache on large reads.
      */
     public T readFromPath(Path path) throws IOException {
@@ -231,7 +231,7 @@ public class FileEntityStore<T, ID> {
      * active, each shard directory is submitted to {@link ForkJoinPool#commonPool()}
      * as an independent task; results are joined and merged after all tasks complete.
      *
-     * <p>Single-directory (non-sharded) reads are always sequential — the overhead
+     * <p>Single-directory (non-sharded) reads are always sequential - the overhead
      * of task submission outweighs the gain for a single directory.
      */
     public List<T> readAll() throws IOException {
@@ -270,7 +270,7 @@ public class FileEntityStore<T, ID> {
             });
         }
 
-        // Collect — propagate the first IOException if any task failed.
+        // Collect - propagate the first IOException if any task failed.
         List<T> results = new ArrayList<>(shardCount * 16);
         for (ForkJoinTask<List<T>> task : tasks) {
             try {
@@ -321,7 +321,7 @@ public class FileEntityStore<T, ID> {
                     BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
                     if (attrs.isRegularFile()) count++;
                 } catch (NoSuchFileException ignored) {
-                    // File disappeared between listing and stat — safe to skip.
+                    // File disappeared between listing and stat - safe to skip.
                 }
             }
         }
@@ -345,7 +345,7 @@ public class FileEntityStore<T, ID> {
     // -------------------------------------------------------------------------
 
     public Path entityPath(@NotNull ID id) {
-        String fileName = id.toString() + fileExtension;
+        String fileName = id + fileExtension;
         if (sharding) {
             int shard = Math.abs(id.hashCode() % shardCount);
             return basePath.resolve(String.valueOf(shard)).resolve(fileName);
@@ -386,7 +386,7 @@ public class FileEntityStore<T, ID> {
 
         List<T> results = new ArrayList<>(32);
 
-        // Use BasicFileAttributes glob — one stat() per entry, OS-level extension filter.
+        // Use BasicFileAttributes glob - one stat() per entry, OS-level extension filter.
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(directory, "*" + fileExtension)) {
             for (Path path : ds) {
                 BasicFileAttributes attrs;

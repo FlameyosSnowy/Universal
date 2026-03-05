@@ -22,22 +22,27 @@ public final class UuidTypeResolver implements TypeResolver<UUID> {
     @Override
     public @Nullable UUID resolve(@NotNull DatabaseResult result, String columnName) {
         Object raw = result.get(columnName, Object.class);
-        if (raw == null) return null;
-
-        if (raw instanceof UUID uuid) {
-            return uuid;
-        }
-        if (raw instanceof String s) {
-            return UUID.fromString(s);
-        }
-        if (raw instanceof byte[] bytes) {
-            if (bytes.length != 16) {
-                throw new IllegalArgumentException(
-                    "Invalid UUID byte[] length for column '" + columnName + "': " + bytes.length
-                );
+        switch (raw) {
+            case null -> {
+                return null;
             }
-            ByteBuffer buf = ByteBuffer.wrap(bytes);
-            return new UUID(buf.getLong(), buf.getLong());
+            case UUID uuid -> {
+                return uuid;
+            }
+            case String s -> {
+                return UUID.fromString(s);
+            }
+            case byte[] bytes -> {
+                if (bytes.length != 16) {
+                    throw new IllegalArgumentException(
+                        "Invalid UUID byte[] length for column '" + columnName + "': " + bytes.length
+                    );
+                }
+                ByteBuffer buf = ByteBuffer.wrap(bytes);
+                return new UUID(buf.getLong(), buf.getLong());
+            }
+            default -> {
+            }
         }
 
         if ("org.bson.types.Binary".equals(raw.getClass().getName())) {

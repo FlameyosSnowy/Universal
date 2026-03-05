@@ -81,7 +81,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     private final boolean supportsArrays;
     private final QueryParseEngine.SQLType sqlType;
 
-    private final boolean autoCreate;
     private final RelationshipHandler<T, ID> relationshipHandler;
 
     protected long openedSessions = 1;
@@ -121,7 +120,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         this.globalCache = globalCache;
         this.supportsArrays = sqlType.supportsArrays();
         this.sqlType = sqlType;
-        this.autoCreate = autoCreate;
         this.repositoryModel = GeneratedMetadata.getByEntityClass(repository);
 
         Objects.requireNonNull(repositoryModel);
@@ -209,7 +207,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             objectModel, idClass, parameterBinder, sqlType, resultMapper, engine, relationshipLoader
         );
 
-        if (this.autoCreate) {
+        if (autoCreate) {
             engine.parseRepository(true);
             for (IndexModel index : repositoryModel.indexes()) {
                 TransactionResult<Boolean> indexResult = queryExecutor.executeRawQuery(engine.parseIndex(IndexOptions.builder(repository)

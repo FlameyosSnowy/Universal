@@ -1,22 +1,17 @@
 package io.github.flameyossnowy.universal.checker;
 
 import com.squareup.javapoet.*;
-import io.github.flameyossnowy.universal.checker.FieldModel;
-import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Single Responsibility: generate the {@code insertCollectionEntities} method body.
  *
  * <p>Array fields call {@code handler.insertArray(…)} only when
- * {@code !params.supportsArraysNatively()} — the complementary branch is
+ * {@code !params.supportsArraysNatively()} - the complementary branch is
  * emitted by {@link InsertEntityGenerator} inside {@code insertEntity}.
  */
 public final class InsertCollectionEntitiesGenerator {

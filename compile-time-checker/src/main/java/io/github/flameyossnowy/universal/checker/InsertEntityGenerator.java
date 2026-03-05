@@ -2,11 +2,7 @@ package io.github.flameyossnowy.universal.checker;
 
 import com.squareup.javapoet.*;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
-import io.github.flameyossnowy.universal.checker.FieldModel;
-import io.github.flameyossnowy.universal.checker.RelationshipModel;
-import io.github.flameyossnowy.universal.checker.RepositoryModel;
 import io.github.flameyossnowy.universal.checker.generator.RepositoryFieldModelGenerator;
-import io.github.flameyossnowy.universal.checker.processor.TypeMirrorUtils;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.ElementKind;

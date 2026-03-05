@@ -28,11 +28,11 @@ import java.util.*;
 import java.util.HashSet;
 
 /**
- * Bridges {@link TypeResolver} instances from the Universal ORM into
+ * Bridges {@link TypeResolver} instances from the Universal RDOR into
  * {@link CoreTypeResolver} instances usable by {@code JsonAdapter}.
  *
  * <p>Resolvers whose type is already natively handled by
- * {@link CoreTypeResolverRegistry} are silently skipped — there is no point
+ * {@link CoreTypeResolverRegistry} are silently skipped - there is no point
  * wrapping them since the built-in implementation is already optimal.
  *
  * <h3>Usage</h3>
@@ -58,7 +58,7 @@ public final class TypeResolverBridge {
     private TypeResolverBridge() {}
 
     // -------------------------------------------------------------------------
-    // Types already covered by CoreTypeResolverRegistry — skip these
+    // Types already covered by CoreTypeResolverRegistry - skip these
     // -------------------------------------------------------------------------
 
     private static final Set<Class<?>> BUILT_IN = Set.of(
@@ -140,7 +140,7 @@ public final class TypeResolverBridge {
         // Skip anything CoreTypeResolverRegistry already handles natively
         if (BUILT_IN.contains(type)) return false;
 
-        // Skip enums — CoreTypeResolverRegistry handles them via assignable scan
+        // Skip enums - CoreTypeResolverRegistry handles them via assignable scan
         if (type.isEnum()) return false;
 
         // Skip if already explicitly registered (don't override user-registered resolvers)
@@ -212,7 +212,7 @@ public final class TypeResolverBridge {
             if (dbType == byte[].class)
                 return v instanceof JsonString(String value) ? Base64.getDecoder().decode(value) : null;
 
-            // Fallback — pass the raw toString and let the TypeResolver sort it out
+            // Fallback - pass the raw toString and let the TypeResolver sort it out
             return v.toString();
         }
 
@@ -229,13 +229,13 @@ public final class TypeResolverBridge {
             if (dbType == Boolean.class || dbType == boolean.class)  return JsonBoolean.of((Boolean) dbValue);
             if (dbType == byte[].class)                              return new JsonString(Base64.getEncoder().encodeToString((byte[]) dbValue));
 
-            // Fallback — toString serialization for unknown DB types
+            // Fallback - toString serialization for unknown DB types
             return new JsonString(dbValue.toString());
         }
     }
 
     // -------------------------------------------------------------------------
-    // MockDatabaseParameters — captures what TypeResolver.insert() writes
+    // MockDatabaseParameters - captures what TypeResolver.insert() writes
     // -------------------------------------------------------------------------
 
     private static final class MockDatabaseParameters implements DatabaseParameters {
@@ -273,7 +273,7 @@ public final class TypeResolverBridge {
     }
 
     // -------------------------------------------------------------------------
-    // MockDatabaseResult — feeds a raw DB value to TypeResolver.resolve()
+    // MockDatabaseResult - feeds a raw DB value to TypeResolver.resolve()
     // -------------------------------------------------------------------------
 
     private static final class MockDatabaseResult implements DatabaseResult {

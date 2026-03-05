@@ -13,7 +13,6 @@ import io.github.flameyossnowy.universal.api.annotations.Condition;
 import io.github.flameyossnowy.universal.api.annotations.OnDelete;
 import io.github.flameyossnowy.universal.api.annotations.OnUpdate;
 import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
-import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;

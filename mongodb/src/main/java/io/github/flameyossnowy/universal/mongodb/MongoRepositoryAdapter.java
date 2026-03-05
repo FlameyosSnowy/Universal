@@ -16,7 +16,6 @@ import io.github.flameyossnowy.universal.api.exceptions.handler.DefaultException
 import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler;
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.factory.RelationshipLoader;
-import io.github.flameyossnowy.universal.api.handler.AbstractRelationshipHandler;
 import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
@@ -52,7 +51,6 @@ import org.jetbrains.annotations.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.print.Doc;
 import java.util.*;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
@@ -377,9 +375,10 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
         try (MongoCursor<Document> iterable = collection.find().iterator()) {
             List<T> results = new ArrayList<>(iterable.available());
+            MongoDatabaseResult databaseResult = new MongoDatabaseResult(null, collectionHandler, repositoryModel);
             while (iterable.hasNext()) {
                 Document doc = iterable.next();
-                MongoDatabaseResult databaseResult = new MongoDatabaseResult(doc, collectionHandler, repositoryModel);
+                databaseResult.setDocument(doc);
                 FieldModel<T> pkField = repositoryModel.getPrimaryKey();
                 if (pkField == null) {
                     throw new IllegalArgumentException("Primary key not found for " + repositoryModel.tableName());
@@ -389,6 +388,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                 T construct = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id));
                 objectModel.populateRelationships(construct, id, relationshipLoader);
                 results.add(construct);
+                databaseResult.clear();
             }
 
             if (resultCache != null) resultCache.insert(EMPTY, results, objectModel::getId);

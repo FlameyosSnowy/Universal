@@ -6,8 +6,6 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import org.bson.codecs.Codec;
 import org.bson.codecs.configuration.CodecProvider;
 import org.bson.codecs.configuration.CodecRegistry;
-import org.jetbrains.annotations.Contract;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -20,16 +18,5 @@ public record MongoTypeCodecProvider(TypeResolverRegistry typeResolverRegistry, 
             return new MongoTypeCodec<>(clazz, typeResolverRegistry, collectionHandler, information);
         }
         return null;
-    }
-
-    /**
-     * Create a new instance with a custom TypeResolverRegistry.
-     *
-     * @param typeResolverRegistry the type resolver registry to use
-     * @return a new instance
-     */
-    @Contract("_, _, _ -> new")
-    public static @NotNull MongoTypeCodecProvider create(TypeResolverRegistry typeResolverRegistry, CollectionHandler collectionHandler, RepositoryModel<?, ?> information) {
-        return new MongoTypeCodecProvider(typeResolverRegistry, collectionHandler, information);
     }
 }

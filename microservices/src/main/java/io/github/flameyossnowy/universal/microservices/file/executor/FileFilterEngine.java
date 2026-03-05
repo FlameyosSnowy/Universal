@@ -160,7 +160,7 @@ public class FileFilterEngine<T, ID> {
     }
 
     private static boolean evaluateExistsSubQuery(@NotNull SubQuery subQuery, boolean negate) {
-        return negate != !executeSubQuerySingleField(subQuery).isEmpty();
+        return negate == executeSubQuerySingleField(subQuery).isEmpty();
     }
 
     public static @NotNull List<Object> executeSubQuerySingleField(@NotNull SubQuery subQuery) {

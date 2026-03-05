@@ -94,7 +94,7 @@ public class FileAggregationEngine<T, ID> {
     // -------------------------------------------------------------------------
 
     private Map<List<Object>, List<T>> groupEntities(List<T> base, List<String> groupBy) {
-        Map<List<Object>, List<T>> groups = new LinkedHashMap<>();
+        Map<List<Object>, List<T>> groups = new LinkedHashMap<>(32);
         List<Object> key = new ArrayList<>(groupBy.size());
 
         for (T entity : base) {
@@ -102,7 +102,7 @@ public class FileAggregationEngine<T, ID> {
                 var fm = repositoryModel.fieldByName(field);
                 key.add(fm != null ? fm.getValue(entity) : null);
             }
-            groups.computeIfAbsent(new ArrayList<>(key), ignored -> new ArrayList<>()).add(entity);
+            groups.computeIfAbsent(new ArrayList<>(key), ignored -> new ArrayList<>(16)).add(entity);
             key.clear();
         }
         return groups;
@@ -120,22 +120,22 @@ public class FileAggregationEngine<T, ID> {
         T first = group.getFirst();
 
         for (FieldDefinition fd : fields) {
-            if (fd instanceof SimpleFieldDefinition s) {
-                var fm = repositoryModel.fieldByName(s.field());
-                row.put(s.getFieldName(), fm != null ? fm.getValue(first) : null);
-            } else if (fd instanceof QueryField<?> q) {
-                var fm = repositoryModel.fieldByName(q.getFieldName());
-                row.put(q.getFieldName(), fm != null ? fm.getValue(first) : null);
-            } else if (fd instanceof AggregateFieldDefinition a) {
-                row.put(a.alias(), computeAggregate(a, group));
-            } else if (fd instanceof SubQuery.SubQueryFieldDefinition) {
-                throw new UnsupportedOperationException(
-                    "Scalar subqueries in SELECT are not supported by file aggregation yet");
-            } else if (fd instanceof WindowFieldDefinition w) {
-                throw new UnsupportedOperationException(
+            switch (fd) {
+                case SimpleFieldDefinition s -> {
+                    var fm = repositoryModel.fieldByName(s.field());
+                    row.put(s.getFieldName(), fm != null ? fm.getValue(first) : null);
+                }
+                case QueryField<?> q -> {
+                    var fm = repositoryModel.fieldByName(q.getFieldName());
+                    row.put(q.getFieldName(), fm != null ? fm.getValue(first) : null);
+                }
+                case AggregateFieldDefinition a -> row.put(a.alias(), computeAggregate(a, group));
+                case SubQuery.SubQueryFieldDefinition ignored ->
+                    throw new UnsupportedOperationException(
+                        "Scalar subqueries in SELECT are not supported by file aggregation yet");
+                case WindowFieldDefinition w -> throw new UnsupportedOperationException(
                     "Window fields are not valid in AggregationQuery: " + w.alias());
-            } else {
-                throw new UnsupportedOperationException(
+                default -> throw new UnsupportedOperationException(
                     "Unsupported field definition: " + fd.getClass().getName());
             }
         }
@@ -262,7 +262,7 @@ public class FileAggregationEngine<T, ID> {
      * option field, meaning "apply this operator to the field from the surrounding context".
      * We rewrite such anonymous filters to attach the correct field name.
      */
-    private FilterOption resolveEffectiveFilter(String contextField, FilterOption condition) {
+    private static FilterOption resolveEffectiveFilter(String contextField, FilterOption condition) {
         if (condition instanceof SelectOption(String option, String operator, Object value)
                 && (option == null || option.isBlank())) {
             return new SelectOption(contextField, operator, value);
@@ -413,14 +413,14 @@ public class FileAggregationEngine<T, ID> {
                 case RANK -> {
                     long rank = 1;
                     for (int i = 0; i < part.size(); i++) {
-                        if (i > 0 && !sameOrdering(part.get(i - 1), part.get(i), w.orderBy())) rank = i + 1L;
+                        if (i > 0 && differentOrdering(part.get(i - 1), part.get(i), w.orderBy())) rank = i + 1L;
                         part.get(i).put(w.alias(), rank);
                     }
                 }
                 case DENSE_RANK -> {
                     long rank = 1;
                     for (int i = 0; i < part.size(); i++) {
-                        if (i > 0 && !sameOrdering(part.get(i - 1), part.get(i), w.orderBy())) rank++;
+                        if (i > 0 && differentOrdering(part.get(i - 1), part.get(i), w.orderBy())) rank++;
                         part.get(i).put(w.alias(), rank);
                     }
                 }
@@ -482,22 +482,22 @@ public class FileAggregationEngine<T, ID> {
         return cmp;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private boolean sameOrdering(
+    @SuppressWarnings({"unchecked"})
+    private boolean differentOrdering(
             @NotNull Map<String, Object> a,
             @NotNull Map<String, Object> b,
             @Nullable List<SortOption> order
     ) {
-        if (order == null || order.isEmpty()) return true;
+        if (order == null || order.isEmpty()) return false;
         T ea = (T) a.get("__entity");
         T eb = (T) b.get("__entity");
         for (SortOption s : order) {
             var fm = repositoryModel.fieldByName(s.field());
             Object va = fm != null ? fm.getValue(ea) : null;
             Object vb = fm != null ? fm.getValue(eb) : null;
-            if (!Objects.equals(va, vb)) return false;
+            if (!Objects.equals(va, vb)) return true;
         }
-        return true;
+        return false;
     }
 
     // -------------------------------------------------------------------------

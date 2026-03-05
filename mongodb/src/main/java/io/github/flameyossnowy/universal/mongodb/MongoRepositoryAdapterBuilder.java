@@ -14,6 +14,7 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import java.util.Objects;
 import java.util.function.LongFunction;
 
+@SuppressWarnings("unused")
 public class MongoRepositoryAdapterBuilder<T, ID> {
     static {
         ModelsBootstrap.init();

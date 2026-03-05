@@ -17,6 +17,7 @@ import java.nio.file.Paths;
  * @param <T> The entity type
  * @param <ID> The ID type
  */
+@SuppressWarnings("unused")
 public class FileRepositoryBuilder<T, ID> {
     static {
         ModelsBootstrap.init();

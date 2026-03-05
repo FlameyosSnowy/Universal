@@ -2,8 +2,6 @@ package io.github.flameyossnowy.universal.postgresql;
 
 import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.Optimizations;
-import io.github.flameyossnowy.universal.api.annotations.Cacheable;
-import io.github.flameyossnowy.universal.api.annotations.GlobalCacheable;
 import io.github.flameyossnowy.universal.api.cache.CacheConfig;
 import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
 import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
@@ -15,7 +13,6 @@ import io.github.flameyossnowy.universal.postgresql.connections.PostgreSQLSimple
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -80,7 +77,6 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
     public PostgreSQLRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
         RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(this.repository));

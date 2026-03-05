@@ -77,7 +77,6 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
     public MySQLRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
         RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(this.repository));

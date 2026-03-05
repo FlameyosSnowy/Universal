@@ -141,13 +141,14 @@ public class FileIndexManager<T, ID> {
     // Private helpers
     // -------------------------------------------------------------------------
 
+    @SuppressWarnings("ObjectAllocationInLoop")
     private Map<Object, Set<ID>> collectValueToIds(Collection<T> entities, FieldModel<T> field) {
         Map<Object, Set<ID>> map = new HashMap<>(entities.size());
         for (T entity : entities) {
             try {
                 Object value = field.getValue(entity);
                 ID id        = repositoryModel.getPrimaryKeyValue(entity);
-                map.computeIfAbsent(value, k -> new HashSet<>()).add(id);
+                map.computeIfAbsent(value, k -> new HashSet<>(32)).add(id);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

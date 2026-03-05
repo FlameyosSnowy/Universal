@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Many optimizations and fixes&#10;&#10;L1 cache, query result cache, adapter cache, cache key pooling, MANY_TO_ONE prefetch, parallel batch loading, deep/recursive prefetch, cache warming by ID, auto-behaviours, metrics, getRelationshipSize, and proper clear/shutdown lifecycle.">
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Add benchmarks">
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/md5-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/sha1-checksums.bin" afterDir="false" />
@@ -20,22 +20,37 @@
       <change afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/vcs-1/gc.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.jmh.iml" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/OptimizationReport.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/AggregationBenchmark.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/BenchmarkChild.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/BenchmarkEntity.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/BenchmarkParent.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/BenchmarkState.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/InsertBenchmark.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/RelationshipBenchmark.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/SelectBenchmark.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/ModelsBootstrap.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/ModelsBootstrap.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedMetadata.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedMetadata.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/InsertCollectionEntitiesGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/InsertCollectionEntitiesGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/InsertEntityGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/InsertEntityGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryFieldModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryFieldModelGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DatabaseSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DatabaseSession.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DefaultSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DefaultSession.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/ResolverKey.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/ResolverKey.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TypeResolverBridge.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TypeResolverBridge.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/UuidTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/UuidTypeResolver.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileSession.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileAggregationEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileAggregationEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileEntityStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileEntityStore.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileFilterEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileFilterEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileIndexManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileIndexManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileQueryExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileQueryExecutor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapterBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapterBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkSession.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapterBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapterBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/codec/MongoTypeCodecProvider.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/codec/MongoTypeCodecProvider.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/result/MongoDatabaseResult.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/result/MongoDatabaseResult.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mysql/src/main/java/io/github/flameyossnowy/universal/mysql/MySQLRepositoryAdapterBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/mysql/src/main/java/io/github/flameyossnowy/universal/mysql/MySQLRepositoryAdapterBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/postgresql/src/main/java/io/github/flameyossnowy/universal/postgresql/PostgreSQLRepositoryAdapterBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/main/java/io/github/flameyossnowy/universal/postgresql/PostgreSQLRepositoryAdapterBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/AbstractRelationalRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/AbstractRelationalRepositoryAdapter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sqlite/src/main/java/io/github/flameyossnowy/universal/sqlite/SQLiteRepositoryAdapterBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/sqlite/src/main/java/io/github/flameyossnowy/universal/sqlite/SQLiteRepositoryAdapterBuilder.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -592,15 +607,7 @@
       <workItem from="1772170820428" duration="1877000" />
       <workItem from="1772196442309" duration="2313000" />
       <workItem from="1772307535461" duration="11398000" />
-      <workItem from="1772390053986" duration="24227000" />
-    </task>
-    <task id="LOCAL-00129" summary="Codegen system, new Query API, new JSON system and split into many files">
-      <option name="closed" value="true" />
-      <created>1770391576861</created>
-      <option name="number" value="00129" />
-      <option name="presentableId" value="LOCAL-00129" />
-      <option name="project" value="LOCAL" />
-      <updated>1770391576861</updated>
+      <workItem from="1772390053986" duration="25964000" />
     </task>
     <task id="LOCAL-00130" summary="Codegen system, new Query API, fixes and other misc changes/optimizations">
       <option name="closed" value="true" />
@@ -986,14 +993,21 @@
       <option name="project" value="LOCAL" />
       <updated>1772544258794</updated>
     </task>
-    <option name="localTasksCounter" value="178" />
+    <task id="LOCAL-00178" summary="Add benchmarks">
+      <option name="closed" value="true" />
+      <created>1772697814983</created>
+      <option name="number" value="00178" />
+      <option name="presentableId" value="LOCAL-00178" />
+      <option name="project" value="LOCAL" />
+      <updated>1772697814983</updated>
+    </task>
+    <option name="localTasksCounter" value="179" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Use SQLRelationshipHandler and micro optimize with lambdas" />
     <MESSAGE value="Micro optimize with lambdas and few fixes" />
     <MESSAGE value="Micro-optimizations that really add up" />
     <MESSAGE value="Update tests" />
@@ -1018,7 +1032,8 @@
     <MESSAGE value="Convert to Uniform" />
     <MESSAGE value="Split files into many, fix a few bugs and update tests" />
     <MESSAGE value="Many optimizations and fixes&#10;&#10;L1 cache, query result cache, adapter cache, cache key pooling, MANY_TO_ONE prefetch, parallel batch loading, deep/recursive prefetch, cache warming by ID, auto-behaviours, metrics, getRelationshipSize, and proper clear/shutdown lifecycle." />
-    <option name="LAST_COMMIT_MESSAGE" value="Many optimizations and fixes&#10;&#10;L1 cache, query result cache, adapter cache, cache key pooling, MANY_TO_ONE prefetch, parallel batch loading, deep/recursive prefetch, cache warming by ID, auto-behaviours, metrics, getRelationshipSize, and proper clear/shutdown lifecycle." />
+    <MESSAGE value="Add benchmarks" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add benchmarks" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

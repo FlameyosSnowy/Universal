@@ -1,7 +1,6 @@
 package io.github.flameyossnowy.universal.microservices.file.executor;
 
 import io.github.flameyossnowy.universal.api.CloseableIterator;
-import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.*;
 import org.jetbrains.annotations.NotNull;
@@ -22,7 +21,7 @@ import java.util.stream.Stream;
  * <p>When the underlying {@link FileEntityStore} is configured for parallel reads
  * and sharding is active, {@link #find(SelectQuery)} and {@link #count(SelectQuery)}
  * scan shards concurrently via {@link ForkJoinPool#commonPool()}. Limit-based early
- * termination is best-effort under parallel execution — results may slightly exceed
+ * termination is best-effort under parallel execution - results may slightly exceed
  * the limit before being trimmed, which is consistent with the semantics of unordered
  * parallel scans.
  */

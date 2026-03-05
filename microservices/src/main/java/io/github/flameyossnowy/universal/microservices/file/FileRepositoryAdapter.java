@@ -37,7 +37,6 @@ import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStr
 import io.github.flameyossnowy.universal.microservices.relationship.MicroserviceRelationshipHandler;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
 import me.flame.uniform.json.JsonAdapter;
-import me.flame.uniform.json.JsonConfig;
 import me.flame.uniform.json.JsonConfigBuilder;
 import me.flame.uniform.json.features.JsonReadFeature;
 import me.flame.uniform.json.features.JsonWriteFeature;
@@ -66,6 +65,7 @@ import java.util.stream.Stream;
  * @param <T>  entity type
  * @param <ID> primary-key type
  */
+@SuppressWarnings("unused")
 public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, FileContext> {
 
     private final Class<T> entityType;

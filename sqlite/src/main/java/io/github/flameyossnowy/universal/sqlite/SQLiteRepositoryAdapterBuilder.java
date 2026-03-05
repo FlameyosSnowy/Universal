@@ -14,7 +14,6 @@ import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.connections.SQLiteSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -159,7 +158,6 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
      *
      * @return a new instance of the {@link SQLiteRepositoryAdapter}
      */
-    @SuppressWarnings("unchecked")
     public SQLiteRepositoryAdapter<T, ID> build() {
         RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(this.repository));
         boolean cacheable = information.isCacheable();
