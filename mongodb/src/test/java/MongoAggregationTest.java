@@ -33,7 +33,7 @@ class MongoAggregationTest {
 
         mongoClient = MongoClients.create(MongoClientSettings.builder()
             .applyConnectionString(new ConnectionString(
-                "mongodb+srv://flameyosflow:87654321@testingjava.vmol6.mongodb.net/?retryWrites=true&w=majority&appName=TestingJava"
+                "..."
             ))
             .uuidRepresentation(UuidRepresentation.STANDARD)
             .build());
