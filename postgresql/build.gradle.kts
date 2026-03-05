@@ -13,7 +13,6 @@ repositories {
 }
 
 dependencies {
-    // hikaricp
     compileOnly("com.zaxxer:HikariCP:6.2.1")
 
     compileOnly(project(":core"))
@@ -21,11 +20,7 @@ dependencies {
 
     compileOnly("org.jetbrains:annotations:24.0.1")
 
-    // postgresql
     compileOnly("org.postgresql:postgresql:42.7.2")
-
-    jmh("org.openjdk.jmh:jmh-core:1.37")
-    jmhAnnotationProcessor("org.openjdk.jmh:jmh-generator-annprocess:1.35")
 
     testImplementation("org.postgresql:postgresql:42.7.2")
     testImplementation(project(":core"))
@@ -38,16 +33,68 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.junit.platform:junit-platform-launcher")
+
+    jmh(project(":core"))
+    jmh(project(":sql-common"))
+    jmhAnnotationProcessor(project(":compile-time-checker"))
+    jmh("com.zaxxer:HikariCP:6.2.1")
+    jmh("org.postgresql:postgresql:42.7.2")
+    jmh("org.jetbrains:annotations:24.0.1")
+
+    jmh("org.hibernate.orm:hibernate-core:6.6.3.Final")
+    jmh("jakarta.persistence:jakarta.persistence-api:3.2.0")
+
+    jmh("org.jooq:jooq:3.19.9")
+
+    jmh("org.openjdk.jmh:jmh-core:1.37")
+    jmhAnnotationProcessor("org.openjdk.jmh:jmh-generator-annprocess:1.37")
+
+    // Silence Hibernate's logging during benchmarks
+    jmh("org.slf4j:slf4j-nop:2.0.12")
 }
 
 sourceSets {
     named("jmh") {
-        java {
-            setSrcDirs(listOf("src/jmh/java"))
-        }
+        java { setSrcDirs(listOf("src/jmh/java")) }
         compileClasspath += sourceSets.main.get().output
         runtimeClasspath += sourceSets.main.get().output
     }
+}
+
+jmh {
+    warmupIterations  = 3
+    iterations        = 5
+    fork              = 1
+    timeUnit          = "ms"
+    benchmarkMode     = listOf("thrpt", "avgt")
+    resultsFile       = project.file("${project.buildDir}/reports/jmh/results.json")
+    resultFormat      = "JSON"
+    jmhVersion        = "1.37"
+    jvmArgsAppend     = listOf(
+        "-cp", "${layout.buildDirectory.get()}/classes/java/jmh",
+        "-Dbenchmark.host=${project.findProperty("benchmark.host") ?: "localhost"}",
+        "-Dbenchmark.port=${project.findProperty("benchmark.port") ?: "5432"}",
+        "-Dbenchmark.db=${project.findProperty("benchmark.db")     ?: "test"}",
+        "-Dbenchmark.user=${project.findProperty("benchmark.user") ?: "postgres"}",
+        "-Dbenchmark.password=${project.findProperty("benchmark.password") ?: "secret"}"
+    )
+}
+
+// Find where jmhAnnotationProcessor puts its generated files and add them to runtime
+val jmhApGenDir = layout.buildDirectory.dir("generated/sources/annotationProcessor/java/jmh")
+
+sourceSets {
+    named("jmh") {
+        java { setSrcDirs(listOf("src/jmh/java")) }
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+        resources.srcDir(layout.buildDirectory.dir("classes/java/jmh"))
+    }
+}
+
+// Tell Gradle that processJmhResources depends on compileJmhJava
+tasks.named("processJmhResources") {
+    dependsOn("compileJmhJava")
 }
 
 tasks.withType<Test>().configureEach {

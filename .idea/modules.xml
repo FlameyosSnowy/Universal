@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.jmh.iml" filepath="$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.jmh.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" filepath="$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" />
     </modules>
   </component>
