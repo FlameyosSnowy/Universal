@@ -37,7 +37,6 @@ import io.github.flameyossnowy.universal.microservices.relationship.Microservice
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
 import me.flame.uniform.json.JsonAdapter;
 import me.flame.uniform.json.dom.JsonArray;
-import me.flame.uniform.json.dom.JsonObject;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

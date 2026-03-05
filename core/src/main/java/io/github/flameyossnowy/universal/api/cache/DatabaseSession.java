@@ -3,6 +3,8 @@ package io.github.flameyossnowy.universal.api.cache;
 import com.google.errorprone.annotations.CheckReturnValue;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -11,162 +13,263 @@ import java.util.function.Function;
 public interface DatabaseSession<ID, T, C> extends TransactionContext<C>, AutoCloseable {
     /**
      * Retrieves the cache associated with this session.
-     * @return the cache associated with this session.
+     *
+     * @return the cache associated with this session
      */
     SessionCache<ID, T> getCache();
 
     /**
      * Gets the unique identifier for this session.
-     * This identifier is used to distinguish between different sessions, and
-     * is unique for each session instance.
+     *
      * @return the unique identifier for this session
      */
     long getId();
 
     /**
+     * Enables or disables automatic flushing of pending operations when an
+     * internal batch size threshold is reached.
+     * <p>
+     * Not all implementations support batching; the default is a no-op.
+     *
+     * @param autoFlush {@code true} to enable auto-flush, {@code false} to disable
+     */
+    default void setAutoFlush(boolean autoFlush) {}
+
+    /**
+     * Returns the batch size used by this session for auto-flush decisions.
+     * <p>
+     * Returns {@code -1} for implementations that do not support batching
+     * (e.g. {@link io.github.flameyossnowy.universal.api.cache.DefaultSession}).
+     *
+     * @return the batch size, or {@code -1} if not applicable
+     */
+    default int getBatchSize() { return -1; }
+
+    /**
+     * Returns the number of operations that are currently staged but not yet
+     * committed or flushed to the underlying storage.
+     * <p>
+     * For {@link io.github.flameyossnowy.universal.api.cache.DefaultSession} this
+     * reflects only the {@code pendingOperations} list (buffered-write mode).
+     * For batch-aware sessions ({@code FileSession}, {@code NetworkSession}) it
+     * also includes the insert / update / delete staging maps.
+     *
+     * @return the number of pending operations
+     */
+    default int getPendingOperationCount() { return 0; }
+
+    /**
      * Rollbacks the current transaction, discarding all modifications made
      * since the start of the transaction.
-     * <p>
-     * This method may throw exceptions if a transaction is not currently
-     * active (i.e., if {@link #commit()} has already been called).
      */
     void rollback();
 
     /**
-     * Inserts the specified entity into the repository.
-     * This method is used to persist a single entity into the underlying storage.
-     * If the entity is already present in the repository, this method will do nothing.
-     *
-     * @param entity The entity to insert into the repository.
-     * @return {@code true} if the insertion was successful, {@code false} otherwise.
-     */
-    boolean insert(T entity);
-
-    /**
-     * Deletes the specified entity from the repository.
-     * <p>
-     * This method is used to remove a single entity from the underlying storage.
-     * It will perform the necessary operations to ensure the entity is
-     * no longer present in the repository. If the entity does not exist,
-     * this method will do nothing.
-     *
-     * @param entity The entity to be deleted from the repository.
-     * @return {@code true} if the entity was successfully deleted, {@code false} otherwise.
-     */
-    boolean delete(T entity);
-
-    /**
-     * Updates the specified entity in the repository.
-     * <p>
-     * This method is used to modify an existing entity in the underlying storage.
-     * The entity must already exist in the repository for the update to be successful.
-     *
-     * @param entity The entity to update in the repository.
-     * @return {@code true} if the update was successful, {@code false} otherwise.
-     */
-    boolean update(T entity);
-
-    /**
-     * Inserts the specified entity into the repository asynchronously.
-     * This method is used to persist a single entity into the underlying storage.
-     * If the entity is already present in the repository, this method will do nothing.
-     *
-     * @param entity The entity to insert into the repository.
-     * @return a future that completes with {@code true} if the insertion was successful, {@code false} otherwise.
-     */
-    default CompletableFuture<Boolean> insertAsync(T entity) {
-        return CompletableFuture.supplyAsync(() -> insert(entity));
-    }
-
-    /**
-     * Deletes the specified entity from the repository asynchronously.
-     * <p>
-     * This method is used to remove a single entity from the underlying storage.
-     * It will perform the necessary operations to ensure the entity is
-     * no longer present in the repository. If the entity does not exist,
-     * this method will do nothing.
-     *
-     * @param entity The entity to be deleted from the repository.
-     * @return a future that completes with {@code true} if the entity was successfully deleted, {@code false} otherwise.
-     */
-    default CompletableFuture<Boolean> deleteAsync(T entity) {
-        return CompletableFuture.supplyAsync(() -> delete(entity));
-    }
-
-    /**
-     * Updates the specified entity in the repository asynchronously.
-     * <p>
-     * This method is used to modify an existing entity in the underlying storage.
-     * The entity must already exist in the repository for the update to be successful.
-     *
-     * @param entity The entity to update in the repository.
-     * @return a future that completes with {@code true} if the update was successful, {@code false} otherwise.
-     */
-    default CompletableFuture<Boolean> updateAsync(T entity) {
-        return CompletableFuture.supplyAsync(() -> update(entity));
-    }
-
-    /**
-     * Finds and returns an item with the specified primary key from the repository asynchronously.
-     * <p>
-     * This method fetches the item that matches the provided key. If no item
-     * matches the key, it will return null.
-     *
-     * @param key The primary key of the item to find.
-     * @return a future that completes with the item with the specified key, or null if no such item exists.
-     */
-    default CompletableFuture<T> findByIdAsync(ID key) {
-        return CompletableFuture.supplyAsync(() -> findById(key));
-    }
-
-    /**
-     * Closes the current session, releasing any resources associated with it.
-     * <p>
-     * This method is typically called to clean up resources when the session
-     * is no longer needed. Implementations should ensure that any open
-     * transactions are properly rolled back if not committed before closing.
-     * <p>
-     * After this method is called, the session should not be used for any
-     * further operations.
-     */
-    void close();
-
-    /**
-     * Finds and returns an item with the specified primary key from the repository.
-     * <p>
-     * This method fetches the item that matches the provided key. If no item
-     * matches the key, it will return null.
-     *
-     * @param key The primary key of the item to find.
-     * @return The item with the specified key, or null if no such item exists, may be cached.
-     */
-    T findById(ID key);
-
-    /**
      * Commits all changes in the current session.
-     * <p>
-     * This method should be called when all operations in the session are complete
-     * and the results should be persisted. If the commit is successful, all
-     * changes will be persisted.
      *
-     * @return a result object that can be used to find out if the commit was
-     * successful or not.
+     * @return a result object indicating success or failure
      */
     @CheckReturnValue
     TransactionResult<Boolean> commit();
 
     /**
      * Commits all changes in the current session asynchronously.
-     * <p>
-     * This method should be called when all operations in the session are complete
-     * and the results should be persisted. If the commit is successful, all
-     * changes will be persisted.
      *
-     * @return a result object that can be used to find out if the commit was
-     * successful or not.
+     * @return a future that resolves to the commit result
      */
     default CompletableFuture<TransactionResult<Boolean>> commitAsync() {
         return CompletableFuture.supplyAsync(this::commit);
+    }
+
+    /**
+     * Closes the current session, releasing any resources associated with it.
+     */
+    void close();
+
+    /**
+     * Returns the underlying connection for this session.
+     */
+    C connection();
+
+    /**
+     * Finds and returns the entity with the specified primary key.
+     * The result may be served from cache depending on session options.
+     *
+     * @param key the primary key to look up
+     * @return the entity, or {@code null} if not found
+     */
+    T findById(ID key);
+
+    /**
+     * Async variant of {@link #findById(Object)}.
+     */
+    default CompletableFuture<T> findByIdAsync(ID key) {
+        return CompletableFuture.supplyAsync(() -> findById(key));
+    }
+
+    /**
+     * Finds multiple entities by their primary keys.
+     * <p>
+     * Implementations should minimise round-trips: cache hits are returned
+     * immediately and remaining IDs are fetched from storage in one batch call.
+     * IDs that cannot be found are absent from the returned map.
+     *
+     * @param ids the primary keys to look up
+     * @return a map of ID → entity for every ID that was found
+     */
+    default Map<ID, T> findAllById(Collection<ID> ids) {
+        Map<ID, T> result = new java.util.LinkedHashMap<>(ids.size());
+        for (ID key : ids) {
+            T entity = findById(key);
+            if (entity != null) result.put(key, entity);
+        }
+        return result;
+    }
+
+    /**
+     * Async variant of {@link #findAllById(Collection)}.
+     */
+    default CompletableFuture<Map<ID, T>> findAllByIdAsync(Collection<ID> ids) {
+        return CompletableFuture.supplyAsync(() -> findAllById(ids));
+    }
+
+    /**
+     * Inserts the specified entity into the repository.
+     *
+     * @param entity the entity to insert
+     * @return {@code true} if the insertion was successful
+     */
+    boolean insert(T entity);
+
+    /**
+     * Async variant of {@link #insert(Object)}.
+     */
+    default CompletableFuture<Boolean> insertAsync(T entity) {
+        return CompletableFuture.supplyAsync(() -> insert(entity));
+    }
+
+    /**
+     * Updates the specified entity in the repository.
+     *
+     * @param entity the entity to update
+     * @return {@code true} if the update was successful
+     */
+    boolean update(T entity);
+
+    /**
+     * Async variant of {@link #update(Object)}.
+     */
+    default CompletableFuture<Boolean> updateAsync(T entity) {
+        return CompletableFuture.supplyAsync(() -> update(entity));
+    }
+
+    /**
+     * Deletes the specified entity from the repository.
+     *
+     * @param entity the entity to delete
+     * @return {@code true} if the deletion was successful
+     */
+    boolean delete(T entity);
+
+    /**
+     * Async variant of {@link #delete(Object)}.
+     */
+    default CompletableFuture<Boolean> deleteAsync(T entity) {
+        return CompletableFuture.supplyAsync(() -> delete(entity));
+    }
+
+    /**
+     * Inserts all entities in the supplied iterable.
+     * <p>
+     * The default implementation delegates to {@link #insert(Object)} for each
+     * entity so that cascade, buffering, logging and rollback semantics are
+     * preserved. Implementations may override this with a more efficient
+     * batched path.
+     *
+     * @param entities the entities to insert
+     * @return {@code true} if every insertion was successful
+     */
+    default boolean insertAll(Iterable<T> entities) {
+        boolean ok = true;
+        for (T entity : entities) ok &= insert(entity);
+        return ok;
+    }
+
+    /**
+     * Async variant of {@link #insertAll(Iterable)}.
+     */
+    default CompletableFuture<Boolean> insertAllAsync(Iterable<T> entities) {
+        return CompletableFuture.supplyAsync(() -> insertAll(entities));
+    }
+
+    /**
+     * Updates all entities in the supplied iterable.
+     * <p>
+     * The default implementation delegates to {@link #update(Object)} for each
+     * entity so that all session semantics are preserved.
+     *
+     * @param entities the entities to update
+     * @return {@code true} if every update was successful
+     */
+    default boolean updateAll(Iterable<T> entities) {
+        boolean ok = true;
+        for (T entity : entities) ok &= update(entity);
+        return ok;
+    }
+
+    /**
+     * Async variant of {@link #updateAll(Iterable)}.
+     */
+    default CompletableFuture<Boolean> updateAllAsync(Iterable<T> entities) {
+        return CompletableFuture.supplyAsync(() -> updateAll(entities));
+    }
+
+    /**
+     * Deletes all entities in the supplied iterable.
+     * <p>
+     * The default implementation delegates to {@link #delete(Object)} for each
+     * entity so that all session semantics are preserved.
+     *
+     * @param entities the entities to delete
+     * @return {@code true} if every deletion was successful
+     */
+    default boolean deleteAll(Iterable<T> entities) {
+        boolean ok = true;
+        for (T entity : entities) ok &= delete(entity);
+        return ok;
+    }
+
+    /**
+     * Async variant of {@link #deleteAll(Iterable)}.
+     */
+    default CompletableFuture<Boolean> deleteAllAsync(Iterable<T> entities) {
+        return CompletableFuture.supplyAsync(() -> deleteAll(entities));
+    }
+
+    /**
+     * Deletes all entities whose primary keys are in the supplied collection.
+     * <p>
+     * Each ID is resolved via {@link #findById(Object)} before deletion so that
+     * cascade and rollback semantics work correctly. IDs that resolve to
+     * {@code null} are silently skipped.
+     *
+     * @param ids the primary keys to delete
+     * @return {@code true} if every deletion was successful
+     */
+    default boolean deleteAllById(Iterable<ID> ids) {
+        boolean ok = true;
+        for (ID key : ids) {
+            T entity = findById(key);
+            if (entity != null) ok &= delete(entity);
+        }
+        return ok;
+    }
+
+    /**
+     * Async variant of {@link #deleteAllById(Iterable)}.
+     */
+    default CompletableFuture<Boolean> deleteAllByIdAsync(Iterable<ID> ids) {
+        return CompletableFuture.supplyAsync(() -> deleteAllById(ids));
     }
 
     @CheckReturnValue
