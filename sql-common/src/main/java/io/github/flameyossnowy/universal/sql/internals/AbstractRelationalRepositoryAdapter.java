@@ -25,6 +25,7 @@ import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
 
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
+import io.github.flameyossnowy.universal.api.resolver.TypeResolverBridge;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.SimpleTransactionContext;
@@ -39,6 +40,8 @@ import io.github.flameyossnowy.universal.sql.internals.repository.SqlWriteExecut
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.query.SQLQueryValidator;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
+import me.flame.uniform.json.JsonAdapter;
+import me.flame.uniform.json.resolvers.CoreTypeResolverRegistry;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -140,6 +143,11 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
                 throw new RuntimeException("Failed to instantiate TypeResolver: " + resolverClass, e);
             }
         }
+
+        // Enable DefaultJsonCodec usage for @JsonField (serialize/deserialize arbitrary POJOs supported by Uniform).
+        TypeResolverBridge.registerAll(resolverRegistry, CoreTypeResolverRegistry.INSTANCE);
+        JsonAdapter objectMapper = new JsonAdapter(JsonAdapter.configBuilder().build());
+        this.resolverRegistry.setJsonAdapterSupplier(() -> objectMapper);
 
         Logging.info(() -> "Creating QueryParseEngine for query generation for table " + repositoryModel.tableName() + " with sqlType: " + sqlType.name() + '.');
         this.engine = new QueryParseEngine<>(sqlType, repositoryModel, resolverRegistry, dataSource);
