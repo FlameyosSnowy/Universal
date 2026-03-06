@@ -139,29 +139,24 @@ public final class RepositoryDdlBuilder<T, ID> {
         return joiner.toString();
     }
 
-    @Contract(pure = true)
-    private void generateColumns(final StringJoiner joiner, Set<FieldModel<T>> childTableQueue) {
+    private void generateColumns(StringJoiner joiner, Set<FieldModel<T>> childTableQueue) {
         Logging.deepInfo(() -> "Generating columns for repository: " + repositoryInformation.tableName());
 
         StringJoiner primaryKeysJoiner = new StringJoiner(", ");
         StringJoiner relationshipsJoiner = new StringJoiner(", ");
 
+        StringBuilder fieldBuilder = new StringBuilder(128);
         for (FieldModel<T> data : repositoryInformation.fields()) {
             Logging.deepInfo(() -> "----");
             Logging.deepInfo(() -> "Processing field: " + data.name());
 
-            generateColumn(
-                joiner,
-                data,
-                data.type(),
-                new StringBuilder(32),
-                data.name(),
-                data.hasUniqueAnnotation(),
-                data.id(),
-                primaryKeysJoiner,
-                relationshipsJoiner,
-                childTableQueue
-            );
+            Class<?> type = data.type();
+            String name = data.columnName();
+            boolean unique = data.hasUniqueAnnotation();
+            boolean primaryKey = data.id();
+
+            generateColumn(joiner, data, type, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, childTableQueue);
+            fieldBuilder.setLength(0);
         }
 
         if (primaryKeysJoiner.length() > 0) {
@@ -188,6 +183,12 @@ public final class RepositoryDdlBuilder<T, ID> {
         StringJoiner relationshipsJoiner,
         Set<FieldModel<T>> childTableQueue
     ) {
+        if (data.isJson()) {
+            String resolvedType = resolveJsonColumnType(data);
+            appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
+            return;
+        }
+
         if (data.relationshipKind() == RelationshipKind.ONE_TO_MANY) {
             return;
         }
@@ -231,6 +232,19 @@ public final class RepositoryDdlBuilder<T, ID> {
         Objects.requireNonNull(resolvedType, "Unsupported type: " + type);
 
         appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
+    }
+
+    private String resolveJsonColumnType(FieldModel<T> data) {
+        String override = data.jsonColumnDefinition();
+        if (override != null && !override.isBlank()) {
+            return override;
+        }
+
+        return switch (sqlType) {
+            case POSTGRESQL -> "jsonb";
+            case MYSQL -> "JSON";
+            case SQLITE -> "TEXT";
+        };
     }
 
     private void appendColumn(

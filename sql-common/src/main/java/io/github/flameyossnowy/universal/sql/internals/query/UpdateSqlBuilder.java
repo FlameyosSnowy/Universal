@@ -50,7 +50,7 @@ public final class UpdateSqlBuilder<T, ID> {
             return "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + whereClause + ";";
         }
 
-        return "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + primaryKey.name() + " = ?;";
+        return "UPDATE " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + " SET " + setClause + " WHERE " + primaryKey.columnName() + " = ?;";
     }
 
     private static String generateSetClause(UpdateQuery query) {
@@ -68,7 +68,7 @@ public final class UpdateSqlBuilder<T, ID> {
             if (Map.class.isAssignableFrom(data.type())) continue;
             if (data.autoIncrement()) continue;
             if (data.id()) continue;
-            joiner.add(data.name() + " = ?");
+            joiner.add(data.columnName() + " = ?");
         }
         return joiner.toString();
     }

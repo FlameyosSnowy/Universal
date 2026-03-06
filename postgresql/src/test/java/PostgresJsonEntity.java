@@ -1,5 +1,6 @@
 import io.github.flameyossnowy.universal.api.annotations.Id;
 import io.github.flameyossnowy.universal.api.annotations.JsonField;
+import io.github.flameyossnowy.universal.api.annotations.JsonIndex;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
 
 @Repository(name = "postgres-json-entity")
@@ -7,7 +8,8 @@ public class PostgresJsonEntity {
     @Id
     private String id;
 
-    @JsonField(codec = PostgresPayloadCodec.class)
+    @JsonField(codec = PostgresPayloadCodec.class, queryable = true)
+    @JsonIndex(path = "$.n", unique = false)
     private Payload payload;
 
     public PostgresJsonEntity() {}

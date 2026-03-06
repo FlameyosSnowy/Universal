@@ -9,11 +9,11 @@ import io.github.flameyossnowy.universal.sql.internals.repository.SqlParameterBi
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
 import java.sql.PreparedStatement;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 class PostgresJsonFilterTest {
 
@@ -43,7 +43,11 @@ class PostgresJsonFilterTest {
         String sql = "SELECT * FROM postgres_json_entity WHERE payload #>> '{profile}' = ?";
 
         CapturingParameters params = new CapturingParameters(
-            mock(PreparedStatement.class),
+            (PreparedStatement) Proxy.newProxyInstance(
+                PreparedStatement.class.getClassLoader(),
+                new Class<?>[] { PreparedStatement.class },
+                (proxy, method, args) -> defaultValue(method.getReturnType())
+            ),
             registry,
             sql,
             model
@@ -76,7 +80,14 @@ class PostgresJsonFilterTest {
             String sql,
             RepositoryModel<?, ?> model
         ) {
-            super(statement, registry, sql, model, mock(io.github.flameyossnowy.universal.api.handler.CollectionHandler.class), false);
+            super(statement, registry, sql, model,
+                (io.github.flameyossnowy.universal.api.handler.CollectionHandler) Proxy.newProxyInstance(
+                    io.github.flameyossnowy.universal.api.handler.CollectionHandler.class.getClassLoader(),
+                    new Class<?>[] { io.github.flameyossnowy.universal.api.handler.CollectionHandler.class },
+                    (proxy, method, args) -> defaultValue(method.getReturnType())
+                ),
+                false
+            );
         }
 
         @Override
@@ -95,5 +106,18 @@ class PostgresJsonFilterTest {
             this.lastName = name;
             this.lastValue = null;
         }
+    }
+
+    private static Object defaultValue(Class<?> returnType) {
+        if (returnType == void.class) return null;
+        if (returnType == boolean.class) return false;
+        if (returnType == byte.class) return (byte) 0;
+        if (returnType == short.class) return (short) 0;
+        if (returnType == int.class) return 0;
+        if (returnType == long.class) return 0L;
+        if (returnType == float.class) return 0f;
+        if (returnType == double.class) return 0d;
+        if (returnType == char.class) return (char) 0;
+        return null;
     }
 }

@@ -178,12 +178,12 @@ public final class SqlParameterBinder<T, ID> {
         // Must match QueryParseEngine's generated SQL LHS exactly, because SQLDatabaseParameters
         // parses the WHERE clause and uses the raw LHS string as the parameter name.
         return switch (sqlType) {
-            case POSTGRESQL -> field.name()
+            case POSTGRESQL -> field.columnName()
                 + " #>> '{"
                 + filter.jsonPath().replace("$.", "").replace(".", ",")
                 + "}'";
             case MYSQL -> "JSON_UNQUOTE(JSON_EXTRACT("
-                + field.name()
+                + field.columnName()
                 + ", '"
                 + filter.jsonPath()
                 + "'))";

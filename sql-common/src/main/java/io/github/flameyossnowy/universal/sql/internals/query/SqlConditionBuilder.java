@@ -40,17 +40,30 @@ public final class SqlConditionBuilder<T, ID> {
         return joiner.toString();
     }
 
-    private static String buildColumnCondition(SelectOption filter) {
+    private String buildColumnCondition(SelectOption filter) {
+        FieldModel<T> field = repositoryInformation.fieldByName(filter.option());
+        if (field == null) {
+            throw new IllegalArgumentException(
+                "Unknown field in filter: " + filter.option()
+            );
+        }
+
+        String column = field.columnName();
         if ("IN".equalsIgnoreCase(filter.operator())) {
             Object value = filter.value();
             if (value instanceof Collection<?> list) {
                 String placeholders = String.join(", ", Collections.nCopies(list.size(), "?"));
-                return filter.option() + " IN (" + placeholders + ")";
+                return column + " IN (" + placeholders + ")";
             }
-            return filter.option() + " IN (?)";
+            return column + " IN (?)";
         }
 
-        return filter.option() + " " + filter.operator() + " ?";
+        // Operators like IS NULL / IS NOT NULL don't take a bind value.
+        if (filter.value() == null && ("IS NULL".equalsIgnoreCase(filter.operator()) || "IS NOT NULL".equalsIgnoreCase(filter.operator()))) {
+            return column + " " + filter.operator();
+        }
+
+        return column + " " + filter.operator() + " ?";
     }
 
     private String buildJsonCondition(JsonSelectOption filter) {
@@ -80,7 +93,7 @@ public final class SqlConditionBuilder<T, ID> {
         FieldModel<T> field,
         JsonSelectOption filter
     ) {
-        return field.name()
+        return field.columnName()
             + " #>> '{"
             + filter.jsonPath().replace("$.", "").replace(".", ",")
             + "}' "
@@ -93,7 +106,7 @@ public final class SqlConditionBuilder<T, ID> {
         JsonSelectOption filter
     ) {
         return "JSON_UNQUOTE(JSON_EXTRACT("
-            + field.name()
+            + field.columnName()
             + ", '"
             + filter.jsonPath()
             + "')) "

@@ -29,9 +29,13 @@ public final class InsertSqlBuilder<T, ID> {
             if (data.autoIncrement()) {
                 joiner.add("default");
             } else {
-                joiner.add("?");
+                if (sqlType == QueryParseEngine.SQLType.POSTGRESQL && data.isJson()) {
+                    joiner.add("?::jsonb");
+                } else {
+                    joiner.add("?");
+                }
             }
-            columnJoiner.add(data.name());
+            columnJoiner.add(data.columnName());
         }
 
         queryBuilder.append(columnJoiner).append(") VALUES (");

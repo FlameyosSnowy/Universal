@@ -43,6 +43,6 @@ public final class DeleteSqlBuilder<T, ID> {
             return "DELETE FROM " + repositoryInformation.tableName() + " WHERE " + whereClause;
         }
 
-        return "DELETE FROM " + repositoryInformation.tableName() + " WHERE " + repositoryInformation.getPrimaryKey().name() + " = ?";
+        return "DELETE FROM " + repositoryInformation.tableName() + " WHERE " + repositoryInformation.getPrimaryKey().columnName() + " = ?";
     }
 }

@@ -20,30 +20,30 @@ public class PostgresPayloadCodec implements JsonCodec<PostgresJsonEntity.Payloa
     }
 
     private static String extractString(String json, String key) {
-        String needle = "\"" + key + "\":\"";
-        int start = json.indexOf(needle);
-        if (start < 0) {
-            return null;
-        }
-        start += needle.length();
-        int end = json.indexOf('"', start);
-        if (end < 0) {
-            return null;
-        }
+        int keyPos = json.indexOf('"' + key + '"');
+        if (keyPos < 0) return null;
+        int colon = json.indexOf(':', keyPos);
+        if (colon < 0) return null;
+        int start = colon + 1;
+        while (start < json.length() && Character.isWhitespace(json.charAt(start))) start++;
+        if (start >= json.length() || json.charAt(start) != '"') return null;
+        start++;
+        int end = start;
+        while (end < json.length() && json.charAt(end) != '"') end++;
+        if (end >= json.length()) return null;
         return json.substring(start, end);
     }
 
     private static int extractInt(String json, String key) {
-        String needle = "\"" + key + "\":";
-        int start = json.indexOf(needle);
-        if (start < 0) {
-            return 0;
-        }
-        start += needle.length();
+        int keyPos = json.indexOf('"' + key + '"');
+        if (keyPos < 0) return 0;
+        int colon = json.indexOf(':', keyPos);
+        if (colon < 0) return 0;
+        int start = colon + 1;
+        while (start < json.length() && Character.isWhitespace(json.charAt(start))) start++;
         int end = start;
-        while (end < json.length() && Character.isDigit(json.charAt(end))) {
-            end++;
-        }
+        while (end < json.length() && Character.isDigit(json.charAt(end))) end++;
+        if (end <= start) return 0;
         try {
             return Integer.parseInt(json.substring(start, end));
         } catch (NumberFormatException e) {

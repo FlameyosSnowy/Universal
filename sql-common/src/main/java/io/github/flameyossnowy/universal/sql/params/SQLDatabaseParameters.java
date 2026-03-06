@@ -4,6 +4,7 @@ import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
 import io.github.flameyossnowy.universal.api.handler.DataHandler;
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
@@ -27,6 +28,7 @@ public class SQLDatabaseParameters implements DatabaseParameters {
     private final PreparedStatement statement;
     private final TypeResolverRegistry typeRegistry;
     private final CollectionHandler collectionHandler;
+    private final RepositoryModel<?, ?> repositoryInformation;
 
     private int parameterIndex = 1;
     private final boolean supportsArrays;
@@ -50,6 +52,7 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         this.typeRegistry = typeRegistry;
         this.collectionHandler = collectionHandler;
         this.supportsArrays = supportsArrays;
+        this.repositoryInformation = information;
 
         parseSql(sql, information);
     }
@@ -87,6 +90,21 @@ public class SQLDatabaseParameters implements DatabaseParameters {
             Token t = tokens.get(i);
 
             if (t.type() != TokenType.IDENT) continue;
+
+            // IDENT OP STRING OP ?  (e.g. payload #>> '{n}' = ?)
+            if (i + 4 < tokens.size()) {
+                Token op1 = tokens.get(i + 1);
+                Token mid = tokens.get(i + 2);
+                Token op2 = tokens.get(i + 3);
+                Token rhs = tokens.get(i + 4);
+
+                if (op1.type() == TokenType.OPERATOR && mid.type() == TokenType.STRING
+                    && op2.type() == TokenType.OPERATOR && rhs.type() == TokenType.QUESTION) {
+                    String lhs = t.text() + " " + op1.text() + " " + mid.text();
+                    mapping.put(lhs, pos++);
+                    continue;
+                }
+            }
 
             // IDENT OP ?
             if (i + 2 < tokens.size()) {
@@ -134,7 +152,7 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         int pos = 1;
         for (String raw : columns) {
             String col = raw.trim();
-            if (autoIncrement != null && col.equalsIgnoreCase(autoIncrement.name())) continue;
+            if (autoIncrement != null && col.equalsIgnoreCase(autoIncrement.columnName())) continue;
             nameToIndexMap.put(col, pos++);
         }
 
@@ -177,9 +195,23 @@ public class SQLDatabaseParameters implements DatabaseParameters {
                 }
             }
         }
-        Integer mapped = nameToIndexMap.get(index.toString());
-        if (mapped == null) throw new IllegalArgumentException("Unknown parameter: " + index);
-        return mapped;
+
+        String key = index.toString();
+        Integer mapped = nameToIndexMap.get(key);
+        if (mapped != null) return mapped;
+
+        // Allow binding by entity field name when SQL uses physical column name.
+        // Needed for @Named because generated ObjectModels bind using the field name.
+        FieldModel<?> field = repositoryInformation != null ? repositoryInformation.fieldByName(key) : null;
+        if (field != null) {
+            String column = field.columnName();
+            if (column != null) {
+                mapped = nameToIndexMap.get(column);
+                if (mapped != null) return mapped;
+            }
+        }
+
+        throw new IllegalArgumentException("Unknown parameter: " + index);
     }
 
     @Override
@@ -226,6 +258,18 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         }
 
         try {
+            FieldModel<?> field = findFieldByColumnName(name);
+            if (field != null && field.isJson()) {
+                Object toBind = value;
+                // If we were given the JSON object type, serialize it.
+                if (value != null && field.type().isInstance(value)) {
+                    JsonCodec<Object> codec = (JsonCodec<Object>) typeRegistry.getJsonCodec(field.jsonCodec());
+                    toBind = codec.serialize(value, (Class<Object>) field.type());
+                }
+                statement.setString(idx, String.valueOf(toBind));
+                return;
+            }
+
             if (type == byte.class || type == Byte.class)             statement.setByte(idx, ((Number)value).byteValue());
             else if (type == short.class || type == Short.class)      statement.setShort(idx, ((Number)value).shortValue());
             else if (type == int.class || type == Integer.class)      statement.setInt(idx, ((Number)value).intValue());
@@ -240,6 +284,20 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private @Nullable FieldModel<?> findFieldByColumnName(@NotNull String name) {
+        if (repositoryInformation == null) {
+            return null;
+        }
+        for (FieldModel<?> field : repositoryInformation.fields()) {
+            if (field == null) continue;
+            String column = field.columnName();
+            if (column != null && column.equalsIgnoreCase(name)) {
+                return field;
+            }
+        }
+        return null;
     }
 
     private void setNull(int index, @NotNull Class<?> type) {

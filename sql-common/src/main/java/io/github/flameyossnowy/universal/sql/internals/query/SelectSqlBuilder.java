@@ -63,7 +63,7 @@ public final class SelectSqlBuilder<T, ID> {
             throw new IllegalArgumentException("Cannot find Id because it doesn't exist.");
         }
 
-        String idName = primaryKey.name();
+        String idName = primaryKey.columnName();
 
         if (query == null) {
             return "SELECT " + idName + " FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + (first ? " LIMIT 1" : "");

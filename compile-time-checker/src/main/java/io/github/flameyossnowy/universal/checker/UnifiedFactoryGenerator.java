@@ -58,7 +58,7 @@ public final class UnifiedFactoryGenerator {
 
     // ------------------------------------------------------------------
 
-    /** Generate all artefacts for one repository and record their qualified names. */
+    /** Generate all artifacts for one repository and record their qualified names. */
     public void generate(RepositoryModel repo) {
         repositoryModelGen.generate(repo, qualifiedNames);
         objectModelGen.generate(repo, qualifiedNames);
