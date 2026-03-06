@@ -285,7 +285,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
 
     @Override
     public TransactionResult<Boolean> commit() {
-        if (!buffered()) {
+        if (buffered()) {
             for (Runnable action : pendingOperations) action.run();
         }
 
