@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.checker;
 
 import com.squareup.javapoet.*;
+import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
 import io.github.flameyossnowy.universal.api.cache.CacheConfig;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
@@ -43,6 +44,7 @@ public final class RepositoryModelGenerator {
         TypeSpec.Builder type = TypeSpec.classBuilder(implName)
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .addSuperinterface(repoType)
+            .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
             .addAnnotation(AnnotationSpec.builder(Generated.class)
                 .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator")
                 .build());
@@ -64,7 +66,7 @@ public final class RepositoryModelGenerator {
         RepositoryServicesGenerator.generateLifecycleListener(type, repo);
 
         // Private constructor
-        type.addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PRIVATE).build());
+        type.addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC).build());
 
         // Static initializer – register in GeneratedMetadata
         type.addStaticBlock(CodeBlock.builder()

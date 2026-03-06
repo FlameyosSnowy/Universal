@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.checker;
 
 import com.squareup.javapoet.*;
+import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
 import io.github.flameyossnowy.universal.checker.FieldModel;
 import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
@@ -52,6 +53,7 @@ public final class RelationshipLoaderGenerator {
             .addAnnotation(AnnotationSpec.builder(Generated.class)
                 .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator")
                 .build())
+            .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
             .addSuperinterface(ParameterizedTypeName.get(
                 ClassName.get("io.github.flameyossnowy.universal.api.factory", "RelationshipLoader"),
                 entityType, idType.box()));
@@ -76,6 +78,11 @@ public final class RelationshipLoaderGenerator {
             .addStatement("this.handler           = handler")
             .addStatement("this.collectionHandler = collectionHandler")
             .addStatement("this.repositoryModel   = repositoryModel")
+            .build());
+
+        // for ServiceLoader
+        builder.addMethod(MethodSpec.constructorBuilder()
+            .addModifiers(Modifier.PUBLIC)
             .build());
 
         // ---- Relationship methods ------------------------------------------
@@ -104,12 +111,12 @@ public final class RelationshipLoaderGenerator {
     private static void addHandlerFields(TypeSpec.Builder b, TypeName repoModelType) {
         b.addField(FieldSpec.builder(
                 ClassName.get("io.github.flameyossnowy.universal.api.handler", "RelationshipHandler"),
-                "handler", Modifier.PRIVATE, Modifier.FINAL).build());
+                "handler", Modifier.PRIVATE).build());
         b.addField(FieldSpec.builder(
                 ClassName.get("io.github.flameyossnowy.universal.api.handler", "CollectionHandler"),
-                "collectionHandler", Modifier.PRIVATE, Modifier.FINAL).build());
+                "collectionHandler", Modifier.PRIVATE).build());
         b.addField(FieldSpec.builder(repoModelType,
-                "repositoryModel", Modifier.PRIVATE, Modifier.FINAL).build());
+                "repositoryModel", Modifier.PRIVATE).build());
     }
 
     private static void addCacheFields(TypeSpec.Builder b, TypeName idType) {

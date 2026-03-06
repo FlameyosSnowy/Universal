@@ -1,11 +1,9 @@
 package io.github.flameyossnowy.universal.checker;
 
 import com.squareup.javapoet.*;
+import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
-import io.github.flameyossnowy.universal.checker.FieldModel;
-import io.github.flameyossnowy.universal.checker.RelationshipModel;
-import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
@@ -72,11 +70,17 @@ public final class ObjectModelGenerator {
             .addAnnotation(AnnotationSpec.builder(Generated.class)
                 .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator")
                 .build())
-            .addField(FieldSpec.builder(repoModelType, "repositoryModel", Modifier.PRIVATE, Modifier.FINAL).build())
+            .addField(FieldSpec.builder(repoModelType, "repositoryModel", Modifier.PRIVATE).build())
             .addSuperinterface(ParameterizedTypeName.get(ClassName.get(ObjectModel.class), entityType, idType.box()))
+            .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
             .addMethod(MethodSpec.constructorBuilder()
                 .addParameter(ParameterSpec.builder(repoModelType, "repositoryModel").build())
                 .addStatement("this.repositoryModel = repositoryModel")
+                .addModifiers(Modifier.PUBLIC)
+                .build())
+            // for ServiceLoader
+            .addMethod(MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PUBLIC)
                 .build())
             .addMethod(generateConstruct(repo, entityType))
             .addMethod(generatePopulateRelationships(repo, entityType, idType))

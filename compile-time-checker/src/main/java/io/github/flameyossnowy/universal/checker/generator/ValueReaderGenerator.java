@@ -11,7 +11,9 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
 import com.squareup.javapoet.WildcardTypeName;
+import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
+import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.checker.FieldModel;
 import io.github.flameyossnowy.universal.checker.RepositoryModel;
 import io.github.flameyossnowy.universal.checker.processor.TypeMirrorUtils;
@@ -58,6 +60,7 @@ public class ValueReaderGenerator {
         );
         ClassName dbResult = ClassName.get("io.github.flameyossnowy.universal.api.result", "DatabaseResult");
         ClassName typeResolverRegistry = ClassName.get("io.github.flameyossnowy.universal.api.resolver", "TypeResolverRegistry");
+        ClassName jsonCodec = ClassName.get(JsonCodec.class);
 
         // Handle null ID type - use Void as placeholder for entities without IDs
         TypeName idTypeName;
@@ -74,6 +77,7 @@ public class ValueReaderGenerator {
                 .build())
             .addTypeVariable(TypeVariableName.get("ID"))
             .addSuperinterface(readerInterface)
+            .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
             .addStaticBlock(CodeBlock.builder()
                 .addStatement(
                     "io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders.<$T>register($S, (result, registry, id) -> new $L(result, registry, id))",
@@ -83,9 +87,9 @@ public class ValueReaderGenerator {
                 )
                 .build());
 
-        builder.addField(FieldSpec.builder(dbResult, "result", Modifier.PRIVATE, Modifier.FINAL).build());
-        builder.addField(FieldSpec.builder(typeResolverRegistry, "registry", Modifier.PRIVATE, Modifier.FINAL).build());
-        builder.addField(FieldSpec.builder(TypeVariableName.get("ID"), "id", Modifier.PRIVATE, Modifier.FINAL).build());
+        builder.addField(FieldSpec.builder(dbResult, "result", Modifier.PRIVATE).build());
+        builder.addField(FieldSpec.builder(typeResolverRegistry, "registry", Modifier.PRIVATE).build());
+        builder.addField(FieldSpec.builder(TypeVariableName.get("ID"), "id", Modifier.PRIVATE).build());
 
         CodeBlock.Builder columnNamesInit = CodeBlock.builder().add("{\n");
         for (FieldModel field : repo.fields()) {
@@ -110,6 +114,11 @@ public class ValueReaderGenerator {
             .addStatement("this.result = result")
             .addStatement("this.registry = registry")
             .addStatement("this.id = id")
+            .build());
+
+        // for ServiceLoader
+        builder.addMethod(MethodSpec.constructorBuilder()
+            .addModifiers(Modifier.PUBLIC)
             .build());
 
         MethodSpec getDatabaseResultMethod = MethodSpec.methodBuilder("getDatabaseResult")
@@ -155,6 +164,35 @@ public class ValueReaderGenerator {
                 helperMethodIndex++;
             } else {
                 TypeMirror rawType = getRawType(fieldType);
+
+                // JSON fields: deserialize via JsonCodec instead of TypeResolver
+                if (field.isJson() && !field.relationship()) {
+                    TypeName typeName = ClassName.get(rawType);
+                    ClassName codecClass = ClassName.bestGuess(field.jsonCodecClass());
+
+                    readMethod.beginControlFlow("case $L:", index);
+                    readMethod.addCode(CodeBlock.builder()
+                        .beginControlFlow("try")
+                        .addStatement("Object __raw = result.get($S, Object.class)", columnName)
+                        .addStatement("String __json = __raw == null ? null : __raw.toString()")
+                        .beginControlFlow("if (__json == null)")
+                        .addStatement("return null")
+                        .endControlFlow()
+                        .addStatement("$T __codec = registry.getJsonCodec($T.class)",
+                            ParameterizedTypeName.get(jsonCodec, WildcardTypeName.subtypeOf(TypeName.OBJECT)),
+                            codecClass)
+                        .addStatement("return (T) (($T) __codec).deserialize(__json, (Class) $T.class)",
+                            jsonCodec,
+                            typeName)
+                        .nextControlFlow("catch ($T e)", Exception.class)
+                        .addStatement("return null")
+                        .endControlFlow()
+                        .build());
+                    readMethod.endControlFlow();
+
+                    index++;
+                    continue;
+                }
 
                 // Handle ID field
                 if (field.id()) {

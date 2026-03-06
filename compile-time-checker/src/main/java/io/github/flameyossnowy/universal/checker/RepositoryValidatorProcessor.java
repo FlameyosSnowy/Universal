@@ -91,7 +91,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     private Filer filer;
 
     private static final String RESOURCE =
-        "META-INF/universal/models.list";
+        "META-INF/services/io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory";
 
     private final List<String> qualifiedNames = new ArrayList<>(16);
 

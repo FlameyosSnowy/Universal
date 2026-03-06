@@ -1,6 +1,7 @@
 package io.github.flameyossnowy.universal.checker;
 
 import com.squareup.javapoet.*;
+import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
 import io.github.flameyossnowy.universal.api.cache.BatchLoaderRegistry;
 import io.github.flameyossnowy.universal.api.factory.RelationshipLoader;
 import io.github.flameyossnowy.universal.api.handler.LazyBatchContext;
@@ -46,6 +47,7 @@ public final class LazyProxyGenerator {
         TypeSpec.Builder type = TypeSpec.classBuilder(proxyName)
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .superclass(target)
+            .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
             .addAnnotation(generatedAnnotation("Lazy loading proxy for " + rel.fieldName()));
 
         type.addField(idType,      "ownerId", Modifier.PRIVATE, Modifier.FINAL);
@@ -131,8 +133,8 @@ public final class LazyProxyGenerator {
             .superclass(abstractType)
             .addAnnotation(generatedAnnotation("Lazy collection loading proxy for " + rel.fieldName()));
 
-        type.addField(idType,          "ownerId", Modifier.PRIVATE, Modifier.FINAL);
-        type.addField(loaderType,      "loader",  Modifier.PRIVATE, Modifier.FINAL);
+        type.addField(idType,          "ownerId", Modifier.PRIVATE);
+        type.addField(loaderType,      "loader",  Modifier.PRIVATE);
         type.addField(collectionType,  "value",   Modifier.PRIVATE);
         type.addField(boolean.class,   "loaded",  Modifier.PRIVATE);
 
@@ -142,6 +144,11 @@ public final class LazyProxyGenerator {
             .addParameter(loaderType, "loader")
             .addStatement("this.ownerId = ownerId")
             .addStatement("this.loader  = loader")
+            .build());
+
+        // for ServiceLoader
+        type.addMethod(MethodSpec.constructorBuilder()
+            .addModifiers(Modifier.PUBLIC)
             .build());
 
         type.addMethod(MethodSpec.methodBuilder("load")

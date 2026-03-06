@@ -156,7 +156,7 @@ public final class InsertEntityGenerator {
             m.addStatement("$T pkField = relatedRepo.fieldByName($S)", relatedFieldModelType, relatedId.name());
             m.beginControlFlow("if (pkField != null)");
             m.addStatement("Object pkValue = pkField.getValue($L)", valueVar);
-            m.addStatement("stmt.set($S, pkValue, pkField.type())", fieldName);
+            m.addStatement("stmt.set($S, pkValue, pkField.type())", field.columnName());
             m.nextControlFlow("else");
             m.addStatement("throw new $T($S + $S)", IllegalArgumentException.class,
                 "Primary key not found for relationship field: ", fieldName);
