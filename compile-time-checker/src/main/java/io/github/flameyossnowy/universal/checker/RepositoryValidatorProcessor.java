@@ -54,6 +54,7 @@ import java.util.*;
 
 import static io.github.flameyossnowy.universal.api.meta.RelationshipKind.*;
 
+@SuppressWarnings("ObjectAllocationInLoop")
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 @SupportedAnnotationTypes({
     "io.github.flameyossnowy.universal.api.annotations.Repository",
@@ -140,7 +141,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         this.deque = TypeMirrorUtils.typeOf(Deque.class, elements);
     }
 
-    private final Map<String, ResolverInfo> globalTypeResolvers = new HashMap<>();
+    private final Map<String, ResolverInfo> globalTypeResolvers = new HashMap<>(16);
 
     private record ResolverInfo(String resolverClassName, int priority) {
     }
@@ -169,7 +170,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             if (resolvesMirror == null) continue;
 
             // Extract types and priority
-            List<TypeMirror> handledTypes = new ArrayList<>();
+            List<TypeMirror> handledTypes = new ArrayList<>(16);
             int priority = 0;
 
             for (var entry : resolvesMirror.getElementValues().entrySet()) {
@@ -673,8 +674,11 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             String jsonCodecClass = null;
             boolean jsonQueryable = false;
             boolean jsonPartialUpdate = false;
+            boolean jsonVersioned = false;
 
             if (isJson) {
+                jsonVersioned = field.getAnnotation(io.github.flameyossnowy.universal.api.annotations.JsonVersioned.class) != null;
+
                 String storageName = AnnotationUtils.getEnumValueName(jsonField, "storage");
                 if ("TABLE".equals(storageName)) {
                     jsonStorageKind = JsonStorageKind.TABLE;
@@ -745,6 +749,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 jsonCodecClass,
                 jsonQueryable,
                 jsonPartialUpdate,
+                jsonVersioned,
                 jsonIndexes
             );
 
@@ -790,7 +795,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         );
     }
 
-    private boolean checkIfIndexed(Collection<io.github.flameyossnowy.universal.checker.IndexModel> indexes, String fieldName) {
+    private static boolean checkIfIndexed(Collection<io.github.flameyossnowy.universal.checker.IndexModel> indexes, String fieldName) {
         for (io.github.flameyossnowy.universal.checker.IndexModel index : indexes) {
             if (index.fields().contains(fieldName)) {
                 return true;
@@ -800,7 +805,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return false;
     }
 
-    private TypeMirror resolveElementTypeMirror(TypeMirror type) {
+    private static TypeMirror resolveElementTypeMirror(TypeMirror type) {
         if (type instanceof DeclaredType dt) {
             List<? extends TypeMirror> args = dt.getTypeArguments();
             if (!args.isEmpty()) {
@@ -816,7 +821,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return null;
     }
 
-    private TypeMirror resolveMapKeyTypeMirror(TypeMirror type) {
+    private static TypeMirror resolveMapKeyTypeMirror(TypeMirror type) {
         if (type instanceof DeclaredType dt) {
             List<? extends TypeMirror> args = dt.getTypeArguments();
             if (!args.isEmpty() && dt.asElement().toString().equals("java.util.Map")) {
@@ -840,6 +845,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         AnnotationMirror otm = AnnotationUtils.getAnnotationMirror(field, OneToMany.class.getCanonicalName());
         AnnotationMirror mto = AnnotationUtils.getAnnotationMirror(field, ManyToOne.class.getCanonicalName());
         AnnotationMirror oto = AnnotationUtils.getAnnotationMirror(field, OneToOne.class.getCanonicalName());
+        AnnotationMirror named = AnnotationUtils.getAnnotationMirror(field, Named.class.getCanonicalName());
 
         int count = (otm != null ? 1 : 0)
             + (mto != null ? 1 : 0)
@@ -852,15 +858,16 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             return null;
         }
 
-        if (otm != null) return extractOneToMany(field, otm);
-        if (mto != null) return extractManyToOne(field, mto);
-        return extractOneToOne(field, oto);
+        String columnName = AnnotationUtils.getStringValue(named, "value");
+        if (otm != null) return extractOneToMany(field, otm, columnName);
+        if (mto != null) return extractManyToOne(field, mto, columnName);
+        return extractOneToOne(field, oto, columnName);
     }
 
     private RelationshipModel extractManyToOne(
         VariableElement field,
-        AnnotationMirror mto
-    ) {
+        AnnotationMirror mto,
+        String columnName) {
         TypeMirror target = field.asType();
 
         if (!(target instanceof DeclaredType dt)) {
@@ -878,6 +885,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return RelationshipModel.create(
             MANY_TO_ONE,
             field.getSimpleName().toString(),
+            columnName,
             target,
             target,
             null,
@@ -919,8 +927,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
     private RelationshipModel extractOneToOne(
         VariableElement field,
-        AnnotationMirror oto
-    ) {
+        AnnotationMirror oto,
+        String columnName) {
         TypeMirror target = field.asType();
 
         if (!(target instanceof DeclaredType dt)) {
@@ -972,6 +980,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return RelationshipModel.create(
             ONE_TO_ONE,
             field.getSimpleName().toString(),
+            columnName,
             target,
             target,
             mappedBy,
@@ -983,8 +992,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
     private RelationshipModel extractOneToMany(
         VariableElement field,
-        AnnotationMirror otm
-    ) {
+        AnnotationMirror otm,
+        String columnName) {
         // Must be a parameterized collection
         if (!(field.asType() instanceof DeclaredType dt)
             || dt.getTypeArguments().size() != 1) {
@@ -1045,6 +1054,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return RelationshipModel.create(
             ONE_TO_MANY,
             field.getSimpleName().toString(),
+            columnName,
             field.asType(),   // ← List<Faction>
             elementType,      // ← Faction
             mappedByQN,
@@ -1065,7 +1075,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             || types.isAssignable(eb, ea);
     }
 
-    private List<ConstraintModel> extractConstraints(TypeElement entity) {
+    private static List<ConstraintModel> extractConstraints(TypeElement entity) {
         List<ConstraintModel> out = new ArrayList<>(4);
 
         for (AnnotationMirror am : AnnotationUtils.getAnnotations(entity, Constraint.class.getCanonicalName())) {
@@ -1094,7 +1104,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             } else if (k.equals("fields")) {
                 @SuppressWarnings("unchecked")
                 List<AnnotationValue> vals = (List<AnnotationValue>) v;
-                List<String> result = new ArrayList<>();
+                List<String> result = new ArrayList<>(16);
                 for (AnnotationValue x : vals) {
                     result.add(x.getValue().toString());
                 }
@@ -1110,7 +1120,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         Set<String> validFields,
         Element target
     ) {
-        Set<String> names = new HashSet<>();
+        Set<String> names = new HashSet<>(16);
 
         for (ConstraintModel c : constraints) {
             if (!names.add(c.name())) {
@@ -1130,7 +1140,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         Set<String> validFields,
         Element target
     ) {
-        Set<String> names = new HashSet<>();
+        Set<String> names = new HashSet<>(16);
 
         for (io.github.flameyossnowy.universal.checker.IndexModel idx : indexes) {
             if (!names.add(idx.name())) {
@@ -1162,7 +1172,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                     case "fields" -> {
                         @SuppressWarnings("unchecked")
                         List<AnnotationValue> vals = (List<AnnotationValue>) v;
-                        List<String> result = new ArrayList<>();
+                        List<String> result = new ArrayList<>(16);
                         for (AnnotationValue x : vals) {
                             String string = x.getValue().toString();
                             result.add(string);

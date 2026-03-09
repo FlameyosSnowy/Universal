@@ -156,13 +156,21 @@ public class TypeResolverRegistry {
         this.objectMapperSupplier = objectMapperSupplier;
     }
 
+    /**
+     * @return a JsonAdapter instance if a supplier was configured; otherwise null.
+     */
+    public @Nullable JsonAdapter getJsonAdapter() {
+        Supplier<JsonAdapter> supplier = this.objectMapperSupplier;
+        return supplier != null ? supplier.get() : null;
+    }
+
     @SuppressWarnings("unchecked")
-    public <T> @NotNull JsonCodec<T> getJsonCodec(Class<? extends JsonCodec<?>> codecClass) {
+    public <T> @NotNull JsonCodec<T> getJsonCodec(Class<? extends JsonCodec> codecClass) {
         if (codecClass == null) {
             throw new IllegalArgumentException("codecClass cannot be null");
         }
 
-        return (JsonCodec<T>) jsonCodecs.computeIfAbsent(codecClass, c -> {
+        return (JsonCodec<T>) jsonCodecs.computeIfAbsent((Class<? extends JsonCodec<?>>) codecClass, c -> {
             try {
                 // Special-case DefaultJsonCodec(JsonAdapter)
                 if (DefaultJsonCodec.class.equals(c)) {

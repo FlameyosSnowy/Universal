@@ -1,3 +1,5 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.annotations.*;
 
 import java.util.Objects;
@@ -42,7 +44,7 @@ public class Faction {
 
     @Override
     public String toString() {
-        return "Faction{" +
+        return "testapp.Faction{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
                 ", level='" + level.name() + '\'' +

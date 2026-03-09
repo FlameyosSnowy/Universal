@@ -31,7 +31,7 @@ dependencies {
     testImplementation "org.mockito:mockito-core:5.11.0"
     testImplementation "org.mockito:mockito-junit-jupiter:5.11.0"
 
-    compileOnly "com.github.FlameyosSnowy:Uniform:1.5.2"
+    compileOnly "com.github.FlameyosSnowy:Uniform:1.5.4"
 
     // Mongo driver interfaces (already present at runtime, but safe for tests)
     testImplementation "org.mongodb:mongodb-driver-sync:4.11.1"

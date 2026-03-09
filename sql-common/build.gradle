@@ -23,7 +23,7 @@ dependencies {
 
     compileOnly 'org.jetbrains:annotations:24.0.1'
 
-    compileOnly "com.github.FlameyosSnowy:Uniform:1.5.2"
+    compileOnly "com.github.FlameyosSnowy:Uniform:1.5.4"
 }
 
 subprojects {

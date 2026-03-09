@@ -38,6 +38,20 @@ public interface RepositoryModel<T, ID> {
 
     FieldModel<T> fieldByName(String name);
 
+    default FieldModel<T> columnFieldByName(String columnName) {
+        if (columnName == null) {
+            return null;
+        }
+        for (FieldModel<T> field : fields()) {
+            if (field == null) continue;
+            String col = field.columnName();
+            if (col != null && col.equalsIgnoreCase(columnName)) {
+                return field;
+            }
+        }
+        return null;
+    }
+
     FieldModel<T> getPrimaryKey();
 
     ID getPrimaryKeyValue(T entity);

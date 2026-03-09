@@ -1,3 +1,5 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.annotations.Id;
 import io.github.flameyossnowy.universal.api.annotations.JsonField;
 import io.github.flameyossnowy.universal.api.annotations.JsonIndex;
@@ -12,11 +14,20 @@ public class PostgresJsonEntity {
     @JsonIndex(path = "$.n", unique = false)
     private Payload payload;
 
+    @JsonField
+    private PayloadWithNulls payloadWithNulls;
+
     public PostgresJsonEntity() {}
 
     public PostgresJsonEntity(String id, Payload payload) {
         this.id = id;
         this.payload = payload;
+    }
+
+    public PostgresJsonEntity(String id, Payload payload, PayloadWithNulls payloadWithNulls) {
+        this.id = id;
+        this.payload = payload;
+        this.payloadWithNulls = payloadWithNulls;
     }
 
     public String getId() {
@@ -27,6 +38,10 @@ public class PostgresJsonEntity {
         return payload;
     }
 
+    public PayloadWithNulls getPayloadWithNulls() {
+        return payloadWithNulls;
+    }
+
     public void setId(String id) {
         this.id = id;
     }
@@ -35,23 +50,7 @@ public class PostgresJsonEntity {
         this.payload = payload;
     }
 
-    public static class Payload {
-        private String name;
-        private int age;
-
-        public Payload() {}
-
-        public Payload(String name, int age) {
-            this.name = name;
-            this.age = age;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public int getAge() {
-            return age;
-        }
+    public void setPayloadWithNulls(PayloadWithNulls payloadWithNulls) {
+        this.payloadWithNulls = payloadWithNulls;
     }
 }

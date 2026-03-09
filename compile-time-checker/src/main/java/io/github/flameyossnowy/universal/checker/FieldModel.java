@@ -55,6 +55,7 @@ public record FieldModel(
     String jsonCodecClass,
     boolean jsonQueryable,
     boolean jsonPartialUpdate,
+    boolean jsonVersioned,
     List<JsonIndexModel> jsonIndexes
 ) {
     /**

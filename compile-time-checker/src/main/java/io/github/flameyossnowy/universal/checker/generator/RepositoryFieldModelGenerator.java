@@ -134,6 +134,7 @@ public class RepositoryFieldModelGenerator {
         classBuilder.addMethod(createJsonCodecMethod(field.jsonCodecClass()));
         classBuilder.addMethod(createBooleanMethod("jsonQueryable", field.jsonQueryable()));
         classBuilder.addMethod(createBooleanMethod("jsonPartialUpdate", field.jsonPartialUpdate()));
+		classBuilder.addMethod(createBooleanMethod("jsonVersioned", field.jsonVersioned()));
         classBuilder.addMethod(createJsonIndexesMethod(field.jsonIndexes()));
 
 

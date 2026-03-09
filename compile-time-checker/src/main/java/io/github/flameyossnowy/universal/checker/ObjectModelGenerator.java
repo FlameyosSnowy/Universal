@@ -200,7 +200,7 @@ public final class ObjectModelGenerator {
         };
 
         if (!rel.lazy()) {
-            return "loader." + loaderMethod + "(\"" + rel.fieldName() + "\", id, $T.class)";
+            return "loader." + loaderMethod + "(\"" + rel.columnName() + "\", id, $T.class)";
         }
         return rel.relationshipKind() == RelationshipKind.ONE_TO_MANY
             ? "new " + LazyProxyGenerator.collectionProxyName(repo, rel) + "(id, loader)"

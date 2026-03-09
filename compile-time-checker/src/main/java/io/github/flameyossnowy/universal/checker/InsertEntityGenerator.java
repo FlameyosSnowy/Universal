@@ -63,9 +63,8 @@ public final class InsertEntityGenerator {
             if (!field.insertable())   continue;
 
             TypeMirror fieldMirror = field.type();
-            String     fieldName   = field.name();
+            String     fieldName   = field.columnName();
 
-            // ---- Collections and Maps are always deferred -------------------
             if (GeneratorUtils.isCollectionOrMapType(types, elements, fieldMirror)) {
                 continue;
             }

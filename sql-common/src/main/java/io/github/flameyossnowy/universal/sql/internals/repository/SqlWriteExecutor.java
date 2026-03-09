@@ -103,6 +103,7 @@ public final class SqlWriteExecutor<T, ID> {
             try {
                 int i = 0;
                 for (T entity : collection) {
+                    initializeJsonVersions(entity);
                     objectModel.insertEntity(parameters, entity);
                     statement.addBatch();
 
@@ -167,7 +168,8 @@ public final class SqlWriteExecutor<T, ID> {
         try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
             if (setter != null) setter.set(statement);
             if (cache != null) cache.clear();
-            return TransactionResult.success(statement.execute());
+            int updated = statement.executeUpdate();
+            return TransactionResult.success(updated > 0);
         } catch (Exception e) {
             return this.exceptionHandler.handleUpdate(e, repositoryModel, adapter);
         }
@@ -190,7 +192,18 @@ public final class SqlWriteExecutor<T, ID> {
             T oldEntity = null;
             if (auditLogger != null) oldEntity = findById.apply(id);
 
-            TransactionResult<Boolean> success = TransactionResult.success(statement.execute());
+            int updated = statement.executeUpdate();
+            if (updated == 0 && usesJsonVersioning()) {
+                return TransactionResult.failure(new IllegalStateException(
+                    "Optimistic lock failed for " + repositoryModel.tableName() + " (no rows updated)"
+                ));
+            }
+
+            TransactionResult<Boolean> success = TransactionResult.success(updated > 0);
+
+            if (updated > 0) {
+                bumpJsonVersions(entity);
+            }
             if (auditLogger != null) auditLogger.onUpdate(oldEntity, entity);
             if (entityLifecycleListener != null) entityLifecycleListener.onPostUpdate(entity);
             invalidateRelationships(id);
@@ -242,7 +255,8 @@ public final class SqlWriteExecutor<T, ID> {
         if (cache != null) cache.clear();
         if (globalCache != null) globalCache.remove(id);
 
-        TransactionResult<Boolean> success = TransactionResult.success(statement.execute());
+        int updated = statement.executeUpdate();
+        TransactionResult<Boolean> success = TransactionResult.success(updated > 0);
         if (auditLogger != null) auditLogger.onDelete(entity);
         if (entityLifecycleListener != null) entityLifecycleListener.onPostDelete(entity);
         invalidateRelationships(id);
@@ -255,6 +269,8 @@ public final class SqlWriteExecutor<T, ID> {
              PreparedStatement statement = prepareStatementWithGeneratedKeys(connection, sql)) {
 
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryModel, collectionHandler, supportsArrays);
+
+            initializeJsonVersions(value);
 
             this.objectModel.insertEntity(parameters, value);
 
@@ -313,6 +329,64 @@ public final class SqlWriteExecutor<T, ID> {
         }
 
         return connection.prepareStatement(sql);
+    }
+
+    private boolean usesJsonVersioning() {
+        for (FieldModel<T> field : repositoryModel.fields()) {
+            if (field != null && field.isJson() && field.jsonVersioned()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void initializeJsonVersions(T entity) {
+        for (FieldModel<T> jsonField : repositoryModel.fields()) {
+            if (jsonField == null || !jsonField.isJson() || !jsonField.jsonVersioned()) continue;
+
+            String versionColumn = jsonField.columnName() + "_version";
+            FieldModel<T> companion = findFieldByColumnName(versionColumn);
+            if (companion == null) {
+                continue;
+            }
+
+            Object current = companion.getValue(entity);
+            if (current == null) {
+                companion.setValue(entity, 1);
+                continue;
+            }
+
+            if (current instanceof Number n && n.longValue() == 0L) {
+                companion.setValue(entity, 1);
+            }
+        }
+    }
+
+    private void bumpJsonVersions(T entity) {
+        for (FieldModel<T> jsonField : repositoryModel.fields()) {
+            if (jsonField == null || !jsonField.isJson() || !jsonField.jsonVersioned()) continue;
+
+            String versionColumn = jsonField.columnName() + "_version";
+            FieldModel<T> companion = findFieldByColumnName(versionColumn);
+            if (companion == null) {
+                continue;
+            }
+
+            Object current = companion.getValue(entity);
+            switch (current) {
+                case Integer i -> companion.setValue(entity, i + 1);
+                case Long l -> companion.setValue(entity, l + 1L);
+                case Short s -> companion.setValue(entity, (short) (s + 1));
+                case Byte b -> companion.setValue(entity, (byte) (b + 1));
+                case null, default -> {
+                    // Unknown numeric type; don't mutate.
+                }
+            }
+        }
+    }
+
+    private FieldModel<T> findFieldByColumnName(String columnName) {
+        return repositoryModel.columnFieldByName(columnName);
     }
 
     @SuppressWarnings("unchecked")

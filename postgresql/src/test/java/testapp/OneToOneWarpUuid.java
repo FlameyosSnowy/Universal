@@ -1,14 +1,23 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.annotations.Id;
+import io.github.flameyossnowy.universal.api.annotations.OneToOne;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
 
 import java.util.UUID;
 
-@Repository(name = "factionswithuuids")
-public class FactionWithUUIDS {
+@Repository(name = "one_to_one_warps")
+public class OneToOneWarpUuid {
     @Id
     private UUID id;
 
     private String name;
+
+    @OneToOne
+    private OneToOneFactionUuid faction;
+
+    public OneToOneWarpUuid() {
+    }
 
     public UUID getId() {
         return id;
@@ -26,11 +35,11 @@ public class FactionWithUUIDS {
         this.name = name;
     }
 
-    @Override
-    public String toString() {
-        return "FactionWithUUIDS{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                '}';
+    public OneToOneFactionUuid getFaction() {
+        return faction;
+    }
+
+    public void setFaction(OneToOneFactionUuid faction) {
+        this.faction = faction;
     }
 }
