@@ -1,3 +1,5 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.annotations.*;
 
 import java.util.Arrays;
@@ -47,7 +49,7 @@ public class FactionWArrays {
     }
 
     public String toString() {
-        return "FactionWArrays{" +
+        return "testapp.FactionWArrays{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
                 ", members=" + Arrays.toString(members) +

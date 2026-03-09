@@ -10,6 +10,7 @@ import javax.lang.model.type.TypeMirror;
 public record RelationshipModel(
     RelationshipKind relationshipKind,
     String fieldName,
+    String columnName,
     String targetEntityQualifiedName,
     String mappedBy,
     boolean lazy,
@@ -30,6 +31,7 @@ public record RelationshipModel(
     public static RelationshipModel create(
         RelationshipKind kind,
         String fieldName,
+        String columnName,
         TypeMirror fieldType,
         TypeMirror targetType,
         String mappedBy,
@@ -52,6 +54,7 @@ public record RelationshipModel(
         return new RelationshipModel(
             kind,
             fieldName,
+            columnName,
             TypeMirrorUtils.qualifiedName(targetType),
             mappedBy,
             lazy,

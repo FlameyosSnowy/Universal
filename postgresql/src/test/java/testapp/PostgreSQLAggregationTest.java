@@ -1,3 +1,5 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.options.SortOrder;
@@ -47,7 +49,7 @@ class PostgreSQLAggregationTest {
 
         // Drop in reverse order (child first, then parent)
         factionAdapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS \"Factions\" CASCADE;");
-        factionAdapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS \"Something\" CASCADE;");
+        factionAdapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS \"testapp.Something\" CASCADE;");
 
         somethingAdapter.createRepository(true)
             .expect("Should have been able to create repository.");

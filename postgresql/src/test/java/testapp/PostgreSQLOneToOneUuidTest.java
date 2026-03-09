@@ -1,5 +1,6 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.Optimizations;
-import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.postgresql.PostgreSQLRepositoryAdapter;
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
@@ -65,11 +66,11 @@ class PostgreSQLOneToOneUuidTest {
     void oneToOne_insert_and_findById_loads_both_directions() {
         OneToOneFactionUuid faction = new OneToOneFactionUuid();
         faction.setId(UUID.randomUUID());
-        faction.setName("Faction-1");
+        faction.setName("testapp.Faction-1");
 
         OneToOneWarpUuid warp = new OneToOneWarpUuid();
         warp.setId(UUID.randomUUID());
-        warp.setName("Warp-1");
+        warp.setName("testapp.Warp-1");
 
         warp.setFaction(faction);
         faction.setWarp(warp);
@@ -97,11 +98,11 @@ class PostgreSQLOneToOneUuidTest {
         for (int i = 0; i < count; i++) {
             OneToOneFactionUuid faction = new OneToOneFactionUuid();
             faction.setId(UUID.randomUUID());
-            faction.setName("Faction-" + i);
+            faction.setName("testapp.Faction-" + i);
 
             OneToOneWarpUuid warp = new OneToOneWarpUuid();
             warp.setId(UUID.randomUUID());
-            warp.setName("Warp-" + i);
+            warp.setName("testapp.Warp-" + i);
 
             warp.setFaction(faction);
             faction.setWarp(warp);

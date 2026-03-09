@@ -61,7 +61,10 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         String lower = sql.toLowerCase(Locale.ROOT).trim();
 
         if (lower.startsWith("insert")) parseInsert(sql, information);
-        else if (lower.startsWith("update")) parseUpdate(sql);
+        else if (lower.startsWith("update")) {
+            parseUpdate(sql);
+            parseWhereClause(sql);
+        }
         else if (lower.startsWith("select")) parseWhereClause(sql);
         else if (lower.startsWith("delete")) parseWhereClause(sql);
     }
@@ -75,7 +78,8 @@ public class SQLDatabaseParameters implements DatabaseParameters {
     }
 
     private void parseWhere(String where) {
-        Map<String, Integer> cached = whereCache.get(where);
+        String cacheKey = where + "|start=" + parameterIndex;
+        Map<String, Integer> cached = whereCache.get(cacheKey);
         if (cached != null) {
             nameToIndexMap.putAll(cached);
             return;
@@ -84,7 +88,7 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         Map<String, Integer> mapping = new LinkedHashMap<>(32);
         List<Token> tokens = SqlTokenizer.tokenize(where);
 
-        int pos = 1;
+        int pos = parameterIndex;
 
         for (int i = 0; i < tokens.size(); i++) {
             Token t = tokens.get(i);
@@ -132,11 +136,11 @@ public class SQLDatabaseParameters implements DatabaseParameters {
             }
         }
 
-        whereCache.put(where, mapping);
+        whereCache.put(cacheKey, mapping);
         nameToIndexMap.putAll(mapping);
-    }
 
-    // ───────── existing insert/update parsing unchanged ─────────
+        parameterIndex = pos;
+    }
 
     private void parseInsert(String sql, RepositoryModel<?, ?> information) {
         int openParen = sql.indexOf('(');
@@ -163,15 +167,25 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         int setIndex = sql.toLowerCase(Locale.ROOT).indexOf("set");
         if (setIndex < 0) return;
 
-        String[] assigns = sql.substring(setIndex + 3).split(",");
+        String afterSet = sql.substring(setIndex + 3);
+        int whereIndex = afterSet.toLowerCase(Locale.ROOT).indexOf("where");
+        String setOnly = whereIndex >= 0 ? afterSet.substring(0, whereIndex) : afterSet;
+
+        String[] assigns = setOnly.split(",");
         int pos = 1;
 
         for (String a : assigns) {
             int eq = a.indexOf('=');
             if (eq < 0) continue;
             String col = a.substring(0, eq).trim();
-            if (!col.isEmpty()) nameToIndexMap.put(col, pos++);
+            String rhs = a.substring(eq + 1);
+            boolean hasPlaceholder = rhs.indexOf('?') >= 0;
+            if (!col.isEmpty() && hasPlaceholder) {
+                nameToIndexMap.put(col, pos++);
+            }
         }
+
+        parameterIndex = pos;
     }
 
     private int getIndexForName(Object index) {
@@ -202,7 +216,7 @@ public class SQLDatabaseParameters implements DatabaseParameters {
 
         // Allow binding by entity field name when SQL uses physical column name.
         // Needed for @Named because generated ObjectModels bind using the field name.
-        FieldModel<?> field = repositoryInformation != null ? repositoryInformation.fieldByName(key) : null;
+        FieldModel<?> field = repositoryInformation != null ? repositoryInformation.columnFieldByName(key) : null;
         if (field != null) {
             String column = field.columnName();
             if (column != null) {
@@ -258,7 +272,8 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         }
 
         try {
-            FieldModel<?> field = findFieldByColumnName(name);
+            FieldModel<?> field = findFieldByNameOrColumnName(name);
+
             if (field != null && field.isJson()) {
                 Object toBind = value;
                 // If we were given the JSON object type, serialize it.
@@ -266,7 +281,11 @@ public class SQLDatabaseParameters implements DatabaseParameters {
                     JsonCodec<Object> codec = (JsonCodec<Object>) typeRegistry.getJsonCodec(field.jsonCodec());
                     toBind = codec.serialize(value, (Class<Object>) field.type());
                 }
-                statement.setString(idx, String.valueOf(toBind));
+                try {
+                    statement.setObject(idx, String.valueOf(toBind), Types.OTHER);
+                } catch (SQLException e) {
+                    statement.setString(idx, String.valueOf(toBind));
+                }
                 return;
             }
 
@@ -286,18 +305,23 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         }
     }
 
-    private @Nullable FieldModel<?> findFieldByColumnName(@NotNull String name) {
+    private @Nullable FieldModel<?> findFieldByNameOrColumnName(@NotNull String name) {
         if (repositoryInformation == null) {
             return null;
         }
-        for (FieldModel<?> field : repositoryInformation.fields()) {
-            if (field == null) continue;
-            String column = field.columnName();
-            if (column != null && column.equalsIgnoreCase(name)) {
-                return field;
-            }
+
+        FieldModel<?> byName = repositoryInformation.fieldByName(name);
+        if (byName != null) {
+            return byName;
         }
-        return null;
+
+        return repositoryInformation.columnFieldByName(name);
+    }
+
+    @Override
+    public void setNull(@NotNull String name, @NotNull Class<?> type) {
+        int index = nameToIndexMap.computeIfAbsent(name, n -> parameterIndex++);
+        setNull(index, type);
     }
 
     private void setNull(int index, @NotNull Class<?> type) {
@@ -309,14 +333,6 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         try { statement.setNull(index, sqlType); }
         catch (SQLException e) { throw new RuntimeException(e); }
     }
-
-    @Override
-    public void setNull(@NotNull String name, @NotNull Class<?> type) {
-        int index = nameToIndexMap.computeIfAbsent(name, n -> parameterIndex++);
-        setNull(index, type);
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────────
 
     @Override public int size() { return Math.max(parameterIndex - 1, nameToIndexMap.size()); }
     @Override public <T> @Nullable T get(int idx, @NotNull Class<T> type) { throw new UnsupportedOperationException(); }

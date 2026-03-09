@@ -1,3 +1,5 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.annotations.*;
 
 import java.util.Objects;
@@ -36,7 +38,7 @@ public class FactionRecord {
 
     @Override
     public String toString() {
-        return "FactionRecord{" +
+        return "testapp.FactionRecord{" +
             "id=" + id +
             ", name='" + name + '\'' +
             '}';

@@ -140,6 +140,7 @@ public final class RepositoryModelGenerator {
         addEntityClassMethods(type, repo, entityClass, idClass);
         addRelationshipGetters(type, repo, entityClass, idClass, fieldModelType);
         addFieldByName(type, repo, fieldModelType);
+        addColumnFieldByName(type, repo, fieldModelType);
         addGlobalCacheMethod(type, repo, entityClass, idClass);
     }
 
@@ -299,6 +300,36 @@ public final class RepositoryModelGenerator {
         for (FieldModel f : repo.fields()) {
             lookup.addStatement("case $S: return FIELDS[$L]", f.name(), i++);
         }
+        lookup.addStatement("default: return null");
+        lookup.endControlFlow();
+        type.addMethod(lookup.build());
+    }
+
+    private static void addColumnFieldByName(TypeSpec.Builder type, RepositoryModel repo,
+                                             TypeName fieldModelType) {
+        MethodSpec.Builder lookup = MethodSpec.methodBuilder("columnFieldByName")
+            .addAnnotation(Override.class).addModifiers(Modifier.PUBLIC)
+            .returns(fieldModelType)
+            .addParameter(String.class, "c");
+
+        lookup.beginControlFlow("if (c == null)");
+        lookup.addStatement("return null");
+        lookup.endControlFlow();
+
+        lookup.addStatement("String n = c.toLowerCase($T.ROOT)", ClassName.get("java.util", "Locale"));
+        lookup.beginControlFlow("switch (n)");
+
+        int i = 0;
+        for (FieldModel f : repo.fields()) {
+            String col = f.columnName();
+            if (col == null || col.isBlank()) {
+                i++;
+                continue;
+            }
+            lookup.addStatement("case $S: return FIELDS[$L]", col.toLowerCase(java.util.Locale.ROOT), i);
+            i++;
+        }
+
         lookup.addStatement("default: return null");
         lookup.endControlFlow();
         type.addMethod(lookup.build());

@@ -99,4 +99,9 @@ tasks.named("processJmhResources") {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    jvmArgs("--add-modules=jdk.incubator.vector")
+}
+
+tasks.withType<JavaExec>().configureEach {
+    jvmArgs("--add-modules=jdk.incubator.vector")
 }

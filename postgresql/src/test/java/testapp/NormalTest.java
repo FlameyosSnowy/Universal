@@ -1,9 +1,10 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.Optimizations;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.postgresql.PostgreSQLRepositoryAdapter;
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -67,13 +68,13 @@ public class NormalTest {
         // host, port, database, username, password
         PostgreSQLCredentials credentials = new PostgreSQLCredentials("localhost", 5432, "test", "postgres", "test");
 
-        // CREATE Something adapter FIRST (parent table)
+        // CREATE testapp.Something adapter FIRST (parent table)
         PostgreSQLRepositoryAdapter<Something, Long> somethingAdapter = PostgreSQLRepositoryAdapter.builder(Something.class, Long.class)
             .withCredentials(credentials)
             .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
             .build();
 
-        // THEN create Faction adapter (child table with foreign key)
+        // THEN create testapp.Faction adapter (child table with foreign key)
         PostgreSQLRepositoryAdapter<Faction, Long> adapter = PostgreSQLRepositoryAdapter.builder(Faction.class, Long.class)
             .withCredentials(credentials)
             .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
@@ -81,7 +82,7 @@ public class NormalTest {
 
         // Drop in reverse order (child first, then parent)
         adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS Factions CASCADE;");
-        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS Something CASCADE;");
+        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS testapp.Something CASCADE;");
 
         // Create in dependency order (parent first, then child)
         somethingAdapter.createRepository(true)

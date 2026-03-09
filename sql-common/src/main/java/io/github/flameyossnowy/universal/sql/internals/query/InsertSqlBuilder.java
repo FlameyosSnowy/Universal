@@ -26,6 +26,16 @@ public final class InsertSqlBuilder<T, ID> {
         StringJoiner joiner = new StringJoiner(", ");
         for (FieldModel<T> data : repositoryInformation.fields()) {
             if (Collection.class.isAssignableFrom(data.type()) || Map.class.isAssignableFrom(data.type())) continue;
+
+            // Add companion version column for @JsonVersioned fields.
+            if (data.isJson() && data.jsonVersioned()) {
+                String versionColumn = data.columnName() + "_version";
+                if (!hasPhysicalColumn(versionColumn)) {
+                    columnJoiner.add(versionColumn);
+                    joiner.add("?");
+                }
+            }
+
             if (data.autoIncrement()) {
                 joiner.add("default");
             } else {
@@ -38,8 +48,18 @@ public final class InsertSqlBuilder<T, ID> {
             columnJoiner.add(data.columnName());
         }
 
-        queryBuilder.append(columnJoiner).append(") VALUES (");
-        queryBuilder.append(joiner).append(')');
+        queryBuilder.append(columnJoiner).append(") VALUES (").append(joiner).append(");");
         return queryBuilder.toString();
+    }
+
+    private boolean hasPhysicalColumn(String columnName) {
+        for (FieldModel<T> field : repositoryInformation.fields()) {
+            if (field == null) continue;
+            String col = field.columnName();
+            if (col != null && col.equalsIgnoreCase(columnName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

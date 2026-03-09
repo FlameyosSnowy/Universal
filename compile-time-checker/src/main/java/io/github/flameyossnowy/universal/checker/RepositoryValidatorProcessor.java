@@ -673,8 +673,11 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             String jsonCodecClass = null;
             boolean jsonQueryable = false;
             boolean jsonPartialUpdate = false;
+            boolean jsonVersioned = false;
 
             if (isJson) {
+                jsonVersioned = field.getAnnotation(io.github.flameyossnowy.universal.api.annotations.JsonVersioned.class) != null;
+
                 String storageName = AnnotationUtils.getEnumValueName(jsonField, "storage");
                 if ("TABLE".equals(storageName)) {
                     jsonStorageKind = JsonStorageKind.TABLE;
@@ -745,6 +748,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 jsonCodecClass,
                 jsonQueryable,
                 jsonPartialUpdate,
+                jsonVersioned,
                 jsonIndexes
             );
 
@@ -840,6 +844,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         AnnotationMirror otm = AnnotationUtils.getAnnotationMirror(field, OneToMany.class.getCanonicalName());
         AnnotationMirror mto = AnnotationUtils.getAnnotationMirror(field, ManyToOne.class.getCanonicalName());
         AnnotationMirror oto = AnnotationUtils.getAnnotationMirror(field, OneToOne.class.getCanonicalName());
+        AnnotationMirror named = AnnotationUtils.getAnnotationMirror(field, Named.class.getCanonicalName());
 
         int count = (otm != null ? 1 : 0)
             + (mto != null ? 1 : 0)
@@ -852,15 +857,16 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             return null;
         }
 
-        if (otm != null) return extractOneToMany(field, otm);
-        if (mto != null) return extractManyToOne(field, mto);
-        return extractOneToOne(field, oto);
+        String columnName = AnnotationUtils.getStringValue(named, "value");
+        if (otm != null) return extractOneToMany(field, otm, columnName);
+        if (mto != null) return extractManyToOne(field, mto, columnName);
+        return extractOneToOne(field, oto, columnName);
     }
 
     private RelationshipModel extractManyToOne(
         VariableElement field,
-        AnnotationMirror mto
-    ) {
+        AnnotationMirror mto,
+        String columnName) {
         TypeMirror target = field.asType();
 
         if (!(target instanceof DeclaredType dt)) {
@@ -878,6 +884,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return RelationshipModel.create(
             MANY_TO_ONE,
             field.getSimpleName().toString(),
+            columnName,
             target,
             target,
             null,
@@ -919,8 +926,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
     private RelationshipModel extractOneToOne(
         VariableElement field,
-        AnnotationMirror oto
-    ) {
+        AnnotationMirror oto,
+        String columnName) {
         TypeMirror target = field.asType();
 
         if (!(target instanceof DeclaredType dt)) {
@@ -972,6 +979,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return RelationshipModel.create(
             ONE_TO_ONE,
             field.getSimpleName().toString(),
+            columnName,
             target,
             target,
             mappedBy,
@@ -983,8 +991,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
     private RelationshipModel extractOneToMany(
         VariableElement field,
-        AnnotationMirror otm
-    ) {
+        AnnotationMirror otm,
+        String columnName) {
         // Must be a parameterized collection
         if (!(field.asType() instanceof DeclaredType dt)
             || dt.getTypeArguments().size() != 1) {
@@ -1045,6 +1053,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return RelationshipModel.create(
             ONE_TO_MANY,
             field.getSimpleName().toString(),
+            columnName,
             field.asType(),   // ← List<Faction>
             elementType,      // ← Faction
             mappedByQN,

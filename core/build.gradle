@@ -29,7 +29,7 @@ dependencies {
     api "org.slf4j:slf4j-api:2.1.0-alpha1"
 
     api "com.github.FlameyosSnowy:Velocis:1.1.2"
-    implementation "com.github.FlameyosSnowy:Uniform:1.5.2"
+    api "com.github.FlameyosSnowy:Uniform:1.5.4"
 
     testImplementation platform("org.junit:junit-bom:5.10.2")
     testImplementation "org.junit.jupiter:junit-jupiter"

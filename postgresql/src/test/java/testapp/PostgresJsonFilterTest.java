@@ -1,3 +1,5 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.FilterOption;
@@ -60,7 +62,7 @@ class PostgresJsonFilterTest {
                 "payload",
                 "$.profile",
                 "=",
-                new PostgresJsonEntity.Payload("Flow", 21)
+                new Payload("Flow", 21)
             )
         );
 

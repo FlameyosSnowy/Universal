@@ -1,8 +1,10 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 
-public class PostgresPayloadCodec implements JsonCodec<PostgresJsonEntity.Payload> {
+public class PostgresPayloadCodec implements JsonCodec<Payload> {
     @Override
-    public String serialize(PostgresJsonEntity.Payload value, Class<PostgresJsonEntity.Payload> type) {
+    public String serialize(Payload value, Class<Payload> type) {
         if (value == null) {
             return "null";
         }
@@ -10,13 +12,13 @@ public class PostgresPayloadCodec implements JsonCodec<PostgresJsonEntity.Payloa
     }
 
     @Override
-    public PostgresJsonEntity.Payload deserialize(String json, Class<PostgresJsonEntity.Payload> type) {
+    public Payload deserialize(String json, Class<Payload> type) {
         if (json == null || json.isBlank() || "null".equals(json)) {
             return null;
         }
         String name = extractString(json, "n");
         int age = extractInt(json, "a");
-        return new PostgresJsonEntity.Payload(name, age);
+        return new Payload(name, age);
     }
 
     private static String extractString(String json, String key) {

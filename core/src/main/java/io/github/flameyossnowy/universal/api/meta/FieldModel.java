@@ -165,6 +165,13 @@ public interface FieldModel<T> {
 
     boolean jsonPartialUpdate();
 
+    /**
+     * Whether this JSON field is versioned with optimistic locking.
+     */
+    default boolean jsonVersioned() {
+        return false;
+    }
+
     List<JsonIndexModel> jsonIndexes();
 
     // ---- convenience ----

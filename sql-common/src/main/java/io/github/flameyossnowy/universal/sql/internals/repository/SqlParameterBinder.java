@@ -195,8 +195,16 @@ public final class SqlParameterBinder<T, ID> {
 
     @SuppressWarnings("unchecked")
     public void setUpdateParameters(SQLDatabaseParameters statement, @NotNull T entity, RepositoryModel<T, ID> repositoryModel, TypeResolverRegistry resolverRegistry) {
+        java.util.Set<String> versionColumns = resolveJsonVersionColumns(repositoryModel);
+
         for (FieldModel<T> fieldData : repositoryModel.fields()) {
             if (fieldData.autoIncrement() || fieldData.relationshipKind() == RelationshipKind.ONE_TO_MANY) {
+                continue;
+            }
+
+            // @JsonVersioned: UpdateSqlBuilder generates "<versionCol> = <versionCol> + 1" (no placeholder),
+            // so we must NOT bind that *version column* as a normal SET parameter.
+            if (versionColumns.contains(fieldData.columnName())) {
                 continue;
             }
 
@@ -249,6 +257,14 @@ public final class SqlParameterBinder<T, ID> {
             }
 
             if (resolver == null) {
+                // Some types (notably @JsonField payload objects) are intentionally not registered in the TypeResolverRegistry.
+                // In those cases we still need to bind the parameter so SQLDatabaseParameters can perform JSON serialization.
+                if (fieldData.isJson()) {
+                    Logging.deepInfo(() -> "No resolver for JSON field " + fieldData.type() + ", binding via SQLDatabaseParameters.set");
+                    statement.set(fieldData.name(), value, fieldData.type());
+                    continue;
+                }
+
                 Logging.deepInfo(() -> "No resolver for " + fieldData.type() + ", assuming it's a relationship handled elsewhere.");
                 continue;
             }
@@ -257,6 +273,66 @@ public final class SqlParameterBinder<T, ID> {
             Logging.deepInfo(() -> "Binding parameter " + fieldData.name() + ": " + finalValue2 + " (type: " + (finalValue2 != null ? finalValue2.getClass().getSimpleName() : "null") + ")");
             resolver.insert(statement, fieldData.name(), value);
         }
+
+        // Bind WHERE primary key (+ optimistic-lock version checks).
+        FieldModel<T> primaryKey = repositoryModel.getPrimaryKey();
+        if (primaryKey == null) {
+            throw new IllegalArgumentException("Primary key must not be null");
+        }
+
+        Object id = primaryKey.getValue(entity);
+        TypeResolver<Object> idResolver = (TypeResolver<Object>) resolverRegistry.resolve(primaryKey.type());
+        idResolver.insert(statement, primaryKey.columnName(), id);
+
+        for (FieldModel<T> jsonField : repositoryModel.fields()) {
+            if (jsonField == null || !jsonField.isJson() || !jsonField.jsonVersioned()) {
+                continue;
+            }
+
+            String versionColumn = jsonField.columnName() + "_version";
+            FieldModel<T> companion = findFieldByColumnName(repositoryModel, versionColumn);
+            if (companion == null) {
+                throw new IllegalStateException(
+                    "@JsonVersioned requires a companion field with column name '" + versionColumn + "' on entity "
+                        + repositoryModel.entitySimpleName()
+                );
+            }
+
+            Object expected = companion.getValue(entity);
+            if (expected == null) {
+                throw new IllegalStateException(
+                    "Optimistic-lock version value for column '" + versionColumn + "' is null on entity "
+                        + repositoryModel.entitySimpleName()
+                );
+            }
+
+            TypeResolver<Object> vResolver = (TypeResolver<Object>) resolverRegistry.resolve(companion.type());
+            vResolver.insert(statement, versionColumn, expected);
+        }
+    }
+
+    private static <T, ID> java.util.Set<String> resolveJsonVersionColumns(RepositoryModel<T, ID> repositoryModel) {
+        java.util.Set<String> cols = new java.util.HashSet<>(2);
+        for (FieldModel<T> field : repositoryModel.fields()) {
+            if (field == null || !field.isJson() || !field.jsonVersioned()) {
+                continue;
+            }
+            cols.add(field.columnName() + "_version");
+        }
+        return cols;
+    }
+
+    private static <T, ID> @Nullable FieldModel<T> findFieldByColumnName(
+        RepositoryModel<T, ID> repositoryModel,
+        String columnName
+    ) {
+        for (FieldModel<T> field : repositoryModel.fields()) {
+            if (field == null) continue;
+            if (field.columnName() != null && field.columnName().equalsIgnoreCase(columnName)) {
+                return field;
+            }
+        }
+        return null;
     }
 
     private static @Nullable Object nowValue(@NotNull Class<?> type) {

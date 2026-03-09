@@ -157,6 +157,14 @@ public final class RepositoryDdlBuilder<T, ID> {
 
             generateColumn(joiner, data, type, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, childTableQueue);
             fieldBuilder.setLength(0);
+
+            // Add companion version column for @JsonVersioned JSON fields (unless explicitly declared).
+            if (data.isJson() && data.jsonVersioned()) {
+                String versionColumn = data.columnName() + "_version";
+                if (!hasPhysicalColumn(versionColumn)) {
+                    joiner.add(versionColumn + " INT NOT NULL DEFAULT 1");
+                }
+            }
         }
 
         if (primaryKeysJoiner.length() > 0) {
@@ -329,5 +337,16 @@ public final class RepositoryDdlBuilder<T, ID> {
         if (data.onDelete() != null) fkBuilder.append(" ON DELETE ").append(onDelete);
         if (data.onUpdate() != null) fkBuilder.append(" ON UPDATE ").append(onUpdate);
         relationshipsJoiner.add(fkBuilder);
+    }
+
+    private boolean hasPhysicalColumn(String columnName) {
+        for (FieldModel<T> field : repositoryInformation.fields()) {
+            if (field == null) continue;
+            String col = field.columnName();
+            if (col != null && col.equalsIgnoreCase(columnName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
