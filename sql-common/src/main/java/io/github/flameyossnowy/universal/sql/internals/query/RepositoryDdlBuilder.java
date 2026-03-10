@@ -10,7 +10,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
-
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
@@ -23,7 +23,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 
-@SuppressWarnings("ObjectAllocationInLoop") // Used once per table
 public final class RepositoryDdlBuilder<T, ID> {
     private final QueryParseEngine.SQLType sqlType;
     private final RepositoryModel<T, ID> repositoryInformation;
@@ -42,6 +41,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         this.connectionProvider = connectionProvider;
     }
 
+    @SuppressWarnings({ "RedundantOperationOnEmptyContainer", "ConstantValue" })
     public @NotNull String parseRepository(boolean ifNotExists) {
         Logging.deepInfo(() -> "Starting repository parse: " + repositoryInformation.tableName());
         Logging.deepInfo(() -> "IF NOT EXISTS = " + ifNotExists);
@@ -231,7 +231,6 @@ public final class RepositoryDdlBuilder<T, ID> {
         String resolvedType = resolverRegistry.getType(type, data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
 
         RepositoryModel<T, ID> metadata;
-        //noinspection unchecked
         if (resolvedType == null && (metadata = (RepositoryModel<T, ID>) GeneratedMetadata.getByEntityClass(type)) != null) {
             FieldModel<T> metadataPrimaryKey = metadata.getPrimaryKey();
             Objects.requireNonNull(metadataPrimaryKey, "Primary key must not be null");
@@ -324,7 +323,6 @@ public final class RepositoryDdlBuilder<T, ID> {
 
     private void addPotentialManyToOne(@NotNull FieldModel<T> data, String name, StringJoiner relationshipsJoiner) {
         if (data.relationshipKind() != RelationshipKind.MANY_TO_ONE && data.relationshipKind() != RelationshipKind.ONE_TO_ONE) return;
-        @SuppressWarnings("unchecked")
         RepositoryModel<T, ID> parent = (RepositoryModel<T, ID>) GeneratedMetadata.getByEntityClass(data.type());
         Objects.requireNonNull(parent, "Parent should not be null");
 
@@ -342,6 +340,13 @@ public final class RepositoryDdlBuilder<T, ID> {
     }
 
     private boolean hasPhysicalColumn(String columnName) {
-        return repositoryInformation.columnFieldByName(columnName) != null;
+        for (FieldModel<T> field : repositoryInformation.fields()) {
+            if (field == null) continue;
+            String col = field.columnName();
+            if (col != null && col.equalsIgnoreCase(columnName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
