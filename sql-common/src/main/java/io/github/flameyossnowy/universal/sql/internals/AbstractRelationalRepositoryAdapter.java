@@ -376,11 +376,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         List<T> ts = queryExecutor.executeQueryWithParams(engine.parseSelect(query, false), query, false, query.filters());
 
         Map<ID, T> result = new HashMap<>(ts.size());
-        for (T t : ts) {
-            ID id = objectModel.getId(t);
-            result.put(id, t);
-        }
-        return result;
+        return this.cacheManager.addResultAndAddToCache(ts, result);
     }
 
     @Override
