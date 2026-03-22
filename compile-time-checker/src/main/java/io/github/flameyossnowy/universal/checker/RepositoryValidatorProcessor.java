@@ -36,6 +36,7 @@ import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
 import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
+import io.github.flameyossnowy.universal.checker.generator.UnifiedFactoryGenerator;
 import io.github.flameyossnowy.universal.checker.processor.AnnotationUtils;
 import io.github.flameyossnowy.universal.checker.processor.TypeMirrorUtils;
 
@@ -256,23 +257,18 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         if (!roundEnv.processingOver()) {
             scanResolverAnnotations(roundEnv);
         }
-
         for (Element element : roundEnv.getElementsAnnotatedWith(Repository.class)) {
             if (!(element instanceof TypeElement type)) continue;
-
             handleRepository(type, type.getKind());
-
             boolean hasNoArgCtor = false;
             boolean hasId = false;
             boolean hasRelationship = false;
-
             for (Element e : type.getEnclosedElements()) {
                 if (e.getKind() == ElementKind.CONSTRUCTOR) {
                     if (((ExecutableElement) e).getParameters().isEmpty()) {
                         hasNoArgCtor = true;
                     }
                 }
-
                 if (e.getKind() == ElementKind.FIELD) {
                     if (AnnotationUtils.hasAnnotation(e, Id.class.getCanonicalName())) hasId = true;
                     if (AnnotationUtils.hasAnnotation(e, OneToOne.class.getCanonicalName())
@@ -299,11 +295,9 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                     type);
             }
         }
-
         if (roundEnv.processingOver()) {
             writeResource();
         }
-
         return true;
     }
 
@@ -859,6 +853,9 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         }
 
         String columnName = AnnotationUtils.getStringValue(named, "value");
+        if (columnName == null) {
+            columnName = field.getSimpleName().toString();
+        }
         if (otm != null) return extractOneToMany(field, otm, columnName);
         if (mto != null) return extractManyToOne(field, mto, columnName);
         return extractOneToOne(field, oto, columnName);
@@ -981,7 +978,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             ONE_TO_ONE,
             field.getSimpleName().toString(),
             columnName,
-            target,
+            field.asType(),
             target,
             mappedBy,
             AnnotationUtils.getBooleanValue(oto, "lazy"),
@@ -1055,8 +1052,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             ONE_TO_MANY,
             field.getSimpleName().toString(),
             columnName,
-            field.asType(),   // ← List<Faction>
-            elementType,      // ← Faction
+            field.asType(),
+            elementType,
             mappedByQN,
             AnnotationUtils.getBooleanValue(otm, "lazy"),
             collectionKind,

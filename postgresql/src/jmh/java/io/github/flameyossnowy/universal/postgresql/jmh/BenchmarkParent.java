@@ -1,4 +1,3 @@
-// ─────────────────────────── BenchmarkParent.java ────────────────────────────
 package io.github.flameyossnowy.universal.postgresql.jmh;
 
 import io.github.flameyossnowy.universal.api.annotations.AutoIncrement;

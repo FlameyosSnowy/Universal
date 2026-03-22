@@ -11,11 +11,11 @@ public final class ModelsBootstrap {
             return;
         }
 
-        ClassLoader cl = Thread.currentThread().getContextClassLoader();
-        ServiceLoader.load(GeneratedRepositoryFactory.class, cl)
-            .forEach(provider -> {
-                // Nothing needed
-            });
-
+        // not much else to do
+        //noinspection ResultOfMethodCallIgnored
+        ServiceLoader.load(
+            GeneratedRepositoryFactory.class,
+            ModelsBootstrap.class.getClassLoader()
+        ).forEach(GeneratedRepositoryFactory::getClass);
     }
 }

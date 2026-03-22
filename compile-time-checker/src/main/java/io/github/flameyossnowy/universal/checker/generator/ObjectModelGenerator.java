@@ -1,9 +1,13 @@
-package io.github.flameyossnowy.universal.checker;
+package io.github.flameyossnowy.universal.checker.generator;
 
 import com.squareup.javapoet.*;
 import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
+import io.github.flameyossnowy.universal.checker.FieldModel;
+import io.github.flameyossnowy.universal.checker.GeneratorUtils;
+import io.github.flameyossnowy.universal.checker.RelationshipModel;
+import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
@@ -68,7 +72,7 @@ public final class ObjectModelGenerator {
         TypeSpec.Builder builder = TypeSpec.classBuilder(className)
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .addAnnotation(AnnotationSpec.builder(Generated.class)
-                .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator")
+                .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.generator.UnifiedFactoryGenerator")
                 .build())
             .addField(FieldSpec.builder(repoModelType, "repositoryModel", Modifier.PRIVATE).build())
             .addSuperinterface(ParameterizedTypeName.get(ClassName.get(ObjectModel.class), entityType, idType.box()))
@@ -84,8 +88,9 @@ public final class ObjectModelGenerator {
                 .build())
             .addMethod(generateConstruct(repo, entityType))
             .addMethod(generatePopulateRelationships(repo, entityType, idType))
-            .addMethod(insertEntity.generate(repo, entityType))
-            .addMethod(insertCollections.generate(repo, entityType, idType))
+            .addMethod(insertEntity.generate(repo, entityType));
+
+        builder.addMethod(insertCollections.generate(repo, entityType, idType))
             .addMethod(generateGetId(repo, entityType, idType))
             .addMethod(generateGetIdType(idType))
             .addMethod(generateGetEntityType(entityType))
@@ -170,24 +175,42 @@ public final class ObjectModelGenerator {
     }
 
     private static MethodSpec generatePopulateRelationships(RepositoryModel repo,
-                                                             ClassName entityType,
-                                                             TypeName idClass) {
+                                                            ClassName entityType,
+                                                            TypeName idClass) {
         MethodSpec.Builder m = MethodSpec.methodBuilder("populateRelationships")
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
             .addParameter(entityType, "entity")
-            .addParameter(idClass,    "id")
-            .addParameter(ClassName.get("io.github.flameyossnowy.universal.api.factory", "RelationshipLoader"), "loader");
+            .addParameter(idClass, "id")
+            .addParameter(ClassName.get("io.github.flameyossnowy.universal.api.factory", "RelationshipLoader"), "loader")
+            .addParameter(ClassName.get("io.github.flameyossnowy.universal.api.factory", "ValueReader"), "r");
 
+        // Count regular participating fields to find where owning FK indices start
+        int fkIndex = 0;
+        for (FieldModel field : repo.fields()) {
+            if (field.participatesInConstruction()) fkIndex++;
+        }
+
+        int owningFkIdx = fkIndex;
         for (RelationshipModel rel : repo.relationships()) {
-            String call = buildCallSyntax(rel, repo);
-            Object[] args = rel.relationshipKind() == RelationshipKind.ONE_TO_MANY
-                ? (rel.lazy()
+            if (rel.relationshipKind() == RelationshipKind.ONE_TO_ONE
+                && (rel.mappedBy() == null || rel.mappedBy().isBlank())) {
+                m.addStatement("entity.$L(($T) loader.oneToOneOwning($S, r.read($L), $T.class))",
+                    rel.setterName(),
+                    rel.targetTypeName(),
+                    rel.columnName(),
+                    owningFkIdx,
+                    rel.targetTypeName());
+                owningFkIdx++;
+            } else {
+                String call = buildCallSyntax(rel, repo);
+                Object[] args = rel.relationshipKind() == RelationshipKind.ONE_TO_MANY
+                    ? (rel.lazy()
                     ? new Object[]{ rel.setterName(), rel.fieldType() }
                     : new Object[]{ rel.setterName(), rel.fieldType(), rel.targetTypeName() })
-                : new Object[]{ rel.setterName(), rel.targetTypeName(), rel.targetTypeName() };
-
-            m.addStatement("entity.$L(($T) " + call + ")", args);
+                    : new Object[]{ rel.setterName(), rel.targetTypeName(), rel.targetTypeName() };
+                m.addStatement("entity.$L(($T) " + call + ")", args);
+            }
         }
         return m.build();
     }
@@ -200,7 +223,19 @@ public final class ObjectModelGenerator {
         };
 
         if (!rel.lazy()) {
-            return "loader." + loaderMethod + "(\"" + rel.columnName() + "\", id, $T.class)";
+            return switch (rel.relationshipKind()) {
+                case ONE_TO_MANY -> "loader.oneToMany(\"" + rel.columnName() + "\", id, $T.class)";
+                case MANY_TO_ONE -> "loader.manyToOne(\"" + rel.columnName() + "\", id, entity, $T.class)";
+                case ONE_TO_ONE -> {
+                    // If mappedBy is set, this is the inverse side -> use oneToOne (queries by back-reference)
+                    // If mappedBy is blank, this side holds the FK column -> use oneToOneOwning
+                    if (rel.mappedBy() == null || rel.mappedBy().isBlank()) {
+                        yield "loader.oneToOneOwning(\"" + rel.columnName() + "\", r.read(" + /* fkIdx */ "fkIdx" + "), $T.class)";
+                    } else {
+                        yield "loader.oneToOne(\"" + rel.columnName() + "\", id, entity, $T.class)";
+                    }
+                }
+            };
         }
         return rel.relationshipKind() == RelationshipKind.ONE_TO_MANY
             ? "new " + LazyProxyGenerator.collectionProxyName(repo, rel) + "(id, loader)"

@@ -45,8 +45,6 @@ public class AggregationBenchmark {
         state.teardown();
     }
 
-    // ── GROUP BY + COUNT + ORDER + LIMIT ──────────────────────────────────────
-
     @Benchmark
     public void universal_groupByCount(Blackhole bh) {
         List<Map<String, Object>> rows = state.entityAdapter.aggregate(
@@ -89,8 +87,6 @@ public class AggregationBenchmark {
         bh.consume(result);
     }
 
-    // ── SUM WHERE ─────────────────────────────────────────────────────────────
-
     @Benchmark
     public void universal_sumFiltered(Blackhole bh) {
         List<Map<String, Object>> rows = state.entityAdapter.aggregate(
@@ -122,8 +118,6 @@ public class AggregationBenchmark {
             .fetchOne(0, Long.class);
         bh.consume(total);
     }
-
-    // ── HAVING ────────────────────────────────────────────────────────────────
 
     @Benchmark
     public void universal_having(Blackhole bh) {

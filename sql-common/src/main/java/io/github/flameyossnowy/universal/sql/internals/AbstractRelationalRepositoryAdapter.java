@@ -29,6 +29,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverBridge;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.SimpleTransactionContext;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import io.github.flameyossnowy.universal.sql.internals.query.SqlAggregationImplementation;
 import io.github.flameyossnowy.universal.sql.internals.repository.SqlCacheManager;
 import io.github.flameyossnowy.universal.sql.internals.repository.SqlIteratorBuilder;
@@ -40,8 +41,8 @@ import io.github.flameyossnowy.universal.sql.internals.repository.SqlWriteExecut
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.query.SQLQueryValidator;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
-import me.flame.uniform.json.JsonAdapter;
-import me.flame.uniform.json.resolvers.CoreTypeResolverRegistry;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.resolvers.CoreTypeResolverRegistry;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -64,11 +65,12 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     protected final ExceptionHandler<T, ID, Connection> exceptionHandler;
     protected final Class<T> repository;
     protected final Class<ID> idClass;
-    protected final DefaultResultCache<String, T, ID> cache;
+    protected final DefaultResultCache<ParameterizedSql, T, ID> cache;
     protected final SessionCache<ID, T> globalCache;
     protected final LongFunction<SessionCache<ID, T>> sessionCacheSupplier;
     protected final QueryParseEngine<T, ID> engine;
     protected final TypeResolverRegistry resolverRegistry;
+    private final ParameterizedSql cachedSelectQuery;
 
     private final SqlAggregationImplementation<T, ID> aggregationImpl;
 
@@ -105,7 +107,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     protected AbstractRelationalRepositoryAdapter(
             SQLConnectionProvider dataSource,
-            DefaultResultCache<String, T, ID> cache,
+            DefaultResultCache<ParameterizedSql, T, ID> cache,
             @NotNull Class<T> repository,
             Class<ID> idClass,
             QueryParseEngine.SQLType sqlType,
@@ -144,7 +146,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             }
         }
 
-        // Enable DefaultJsonCodec usage for @JsonField (serialize/deserialize arbitrary POJOs supported by Uniform).
         TypeResolverBridge.registerAll(resolverRegistry, CoreTypeResolverRegistry.INSTANCE);
         JsonAdapter objectMapper = new JsonAdapter(JsonAdapter.configBuilder().build());
         this.resolverRegistry.setJsonAdapterSupplier(() -> objectMapper);
@@ -238,6 +239,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             collectionHandler,
             supportsArrays
         );
+
+        this.cachedSelectQuery = new ParameterizedSql("SELECT * FROM " + repositoryModel.tableName() + " WHERE " + repositoryModel.getPrimaryKey().name() + " = ?", List.of("id"));
     }
 
     @Override
@@ -249,7 +252,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     @Override
     public List<T> find(SelectQuery q, ReadPolicy policy) {
         ReadPolicy effective = policy == null ? ReadPolicy.NO_READ_POLICY : policy;
-        String query = engine.parseSelect(q, false);
+        ParameterizedSql query = engine.parseSelect(q, false);
         return queryExecutor.executeQueryWithParams(query, q, effective, false, q == null ? List.of() : q.filters());
     }
 
@@ -261,15 +264,15 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public long count(SelectQuery query, ReadPolicy policy) {
+        ParameterizedSql parameterizedSql = engine.parseCount(query);
         try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = dataSource.prepareStatement(engine.parseCount(query), connection)) {
+             PreparedStatement statement = dataSource.prepareStatement(parameterizedSql.sql(), connection)) {
 
             if (query != null && query.filters() != null && !query.filters().isEmpty()) {
-                String sql = engine.parseCount(query);
                 SQLDatabaseParameters parameters = new SQLDatabaseParameters(
                     statement,
                     resolverRegistry,
-                    sql,
+                    parameterizedSql,
                     repositoryModel,
                     collectionHandler,
                     supportsArrays
@@ -302,14 +305,18 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public T findById(ID key) {
-        FieldModel<T> primaryKey = this.repositoryModel.getPrimaryKey();
-        if (readThroughCache == null) return first(Query.select().where(primaryKey.name()).eq(key).build());
-        if (l2Cache == null) return first(Query.select().where(primaryKey.name()).eq(key).build());
+        if (l2Cache == null) {
+            return loadFromDatabase(key);
+        }
 
         T cached = l2Cache.get(key);
         if (cached != null) {
             Logging.deepInfo(() -> "L2 cache hit for ID: " + key);
             return cached;
+        }
+
+        if (readThroughCache == null) {
+            return loadFromDatabase(key);
         }
         
         T entity = readThroughCache.get(key);
@@ -360,7 +367,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         }
 
         SelectQuery query = Query.select().where(primaryKey.name()).eq(keys).build();
-
         List<T> ts = queryExecutor.executeQueryWithParams(engine.parseSelect(query, false), query, false, query.filters());
         Map<ID, T> result = new HashMap<>(ts.size());
         return this.cacheManager.addResultAndAddToCache(ts, result);
@@ -374,7 +380,6 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
         SelectQuery query = Query.select().where(primaryKey.name()).eq(keys).build();
         List<T> ts = queryExecutor.executeQueryWithParams(engine.parseSelect(query, false), query, false, query.filters());
-
         Map<ID, T> result = new HashMap<>(ts.size());
         return this.cacheManager.addResultAndAddToCache(ts, result);
     }
@@ -389,14 +394,18 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         return iteratorBuilder.findStream(q);
     }
 
+    /**
+     * A function that very specifically optimizes for finding by an ID
+     */
     private T loadFromDatabase(ID key) {
-        FieldModel<T> primaryKey = this.repositoryModel.getPrimaryKey();
-        return first(Query.select().where(primaryKey.name()).eq(key).build());
+        // Optimization: Inline queries
+        List<T> results = queryExecutor.loadFromDatabase(cachedSelectQuery, null);
+        return results.isEmpty() ? null : results.getFirst();
     }
 
     @Override
     public @Nullable T first(final SelectQuery q) {
-        String query = engine.parseSelect(q, true);
+        ParameterizedSql query = engine.parseSelect(q, true);
         List<T> results = queryExecutor.executeQueryWithParams(query, q, true, q.filters());
         return results.isEmpty() ? null : results.getFirst();
     }
@@ -421,7 +430,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull T entity, TransactionContext<Connection> transactionContext) {
         ID id = this.objectModel.getId(entity);
-        String sql = engine.parseUpdateFromEntity();
+        ParameterizedSql sql = engine.parseUpdateFromEntity();
         TransactionResult<Boolean> result = writeExecutor.executeUpdate(
             transactionContext, sql,
             statement -> {
@@ -483,9 +492,9 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public @NotNull List<ID> findIds(@NotNull SelectQuery query) {
-        String sql = engine.parseQueryIds(query, query.limit() == 1);
+        ParameterizedSql sql = engine.parseQueryIds(query, query.limit() == 1);
         try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = dataSource.prepareStatement(sql, connection)) {
+             PreparedStatement statement = dataSource.prepareStatement(sql.sql(), connection)) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryModel, collectionHandler, supportsArrays);
             this.parameterBinder.addFilterToPreparedStatement(query.filters(), parameters, resolverRegistry, repositoryModel, sqlType);
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -498,7 +507,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query, TransactionContext<Connection> transactionContext) {
-        String sql = engine.parseUpdate(query);
+        ParameterizedSql sql = engine.parseUpdate(query);
         return writeExecutor.executeUpdateQuery(transactionContext, sql, query);
     }
 
@@ -509,7 +518,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull UpdateQuery query) {
-        String sql = engine.parseUpdate(query);
+        @NotNull ParameterizedSql sql = engine.parseUpdate(query);
         return writeExecutor.executeUpdateQuery(null, sql, query);
     }
 
@@ -546,7 +555,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         T oldEntity = null;
         if (auditLogger != null) oldEntity = findById(this.objectModel.getId(entity));
 
-        String sql = engine.parseUpdateFromEntity();
+        @NotNull ParameterizedSql sql = engine.parseUpdateFromEntity();
         TransactionResult<Boolean> result = writeExecutor.executeUpdate(
             null, sql,
             statement -> {

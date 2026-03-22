@@ -1,4 +1,4 @@
-package io.github.flameyossnowy.universal.checker;
+package io.github.flameyossnowy.universal.checker.generator;
 
 import com.squareup.javapoet.*;
 import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
@@ -7,6 +7,10 @@ import io.github.flameyossnowy.universal.api.factory.RelationshipLoader;
 import io.github.flameyossnowy.universal.api.handler.LazyBatchContext;
 import io.github.flameyossnowy.universal.api.handler.LazyBatchKey;
 import io.github.flameyossnowy.universal.api.handler.LazyEntityRegistry;
+import io.github.flameyossnowy.universal.checker.CollectionKind;
+import io.github.flameyossnowy.universal.checker.GeneratorUtils;
+import io.github.flameyossnowy.universal.checker.RelationshipModel;
+import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
@@ -252,7 +256,7 @@ public final class LazyProxyGenerator {
 
     private static AnnotationSpec generatedAnnotation(String comment) {
         return AnnotationSpec.builder(Generated.class)
-            .addMember("value",    "$S", "io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator")
+            .addMember("value",    "$S", "io.github.flameyossnowy.universal.checker.generator.UnifiedFactoryGenerator")
             .addMember("comments", "$S", comment)
             .build();
     }

@@ -47,8 +47,6 @@ public class InsertBenchmark {
         state.teardown();
     }
 
-    // ── Universal ─────────────────────────────────────────────────────────────
-
     @Benchmark
     public void universal_insert(Blackhole bh) throws Throwable {
         List<BenchmarkEntity> batch = buildBatch(batchSize);
@@ -59,8 +57,6 @@ public class InsertBenchmark {
         }
         bh.consume(batch);
     }
-
-    // ── Hibernate ─────────────────────────────────────────────────────────────
 
     @Benchmark
     public void hibernate_insert(Blackhole bh) {
@@ -77,8 +73,6 @@ public class InsertBenchmark {
         }
         bh.consume(batch);
     }
-
-    // ── jOOQ ──────────────────────────────────────────────────────────────────
 
     @Benchmark
     public void jooq_insert(Blackhole bh) {
@@ -102,8 +96,6 @@ public class InsertBenchmark {
         }
         bh.consume(batch);
     }
-
-    // ── helper ────────────────────────────────────────────────────────────────
 
     private List<BenchmarkEntity> buildBatch(int n) {
         List<BenchmarkEntity> list = new ArrayList<>(n);

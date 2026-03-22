@@ -14,18 +14,18 @@ public record RelationshipModel(
     String targetEntityQualifiedName,
     String mappedBy,
     boolean lazy,
+    boolean owning,
     String setterName,
     String getterName,
     String loaderMethod,
 
-    TypeMirror fieldType,        // ← declared field type
-    TypeMirror targetType,       // ← entity type
+    TypeMirror fieldType,
+    TypeMirror targetType,
 
-    TypeName fieldTypeName,      // ← List<Faction>
-    TypeName targetTypeName,     // ← Faction
+    TypeName fieldTypeName,
+    TypeName targetTypeName,
 
     CollectionKind collectionKind,
-
     Consistency consistency
 ) {
     public static RelationshipModel create(
@@ -39,16 +39,18 @@ public record RelationshipModel(
         CollectionKind collectionKind,
         Consistency consistency
     ) {
-        String cap =
-            Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
-
-        String setter = "set" + cap;
-        String getter = "get" + cap;
+        String cap = Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
 
         String loader = switch (kind) {
-            case ONE_TO_ONE -> "oneToOne";
+            case ONE_TO_ONE  -> "oneToOne";
             case ONE_TO_MANY -> "oneToMany";
             case MANY_TO_ONE -> "manyToOne";
+        };
+
+        boolean owning = switch (kind) {
+            case MANY_TO_ONE -> true;
+            case ONE_TO_MANY -> false;
+            case ONE_TO_ONE  -> (mappedBy == null || mappedBy.isBlank());
         };
 
         return new RelationshipModel(
@@ -58,8 +60,9 @@ public record RelationshipModel(
             TypeMirrorUtils.qualifiedName(targetType),
             mappedBy,
             lazy,
-            setter,
-            getter,
+            owning,
+            "set" + cap,
+            "get" + cap,
             loader,
             fieldType,
             targetType,
@@ -68,5 +71,11 @@ public record RelationshipModel(
             collectionKind,
             consistency
         );
+    }
+
+    public boolean hasField(io.github.flameyossnowy.universal.checker.FieldModel field) {
+        return field != null
+            && fieldName.equals(field.name())
+            && columnName.equals(field.columnName());
     }
 }

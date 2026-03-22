@@ -6,6 +6,8 @@ import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import org.bson.Document;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
+
 /**
  * MongoDB implementation of DatabaseResult that wraps a BSON Document.
  */
@@ -85,5 +87,13 @@ public class MongoDatabaseResult implements DatabaseResult {
 
     public void clear() {
         document.clear();
+    }
+
+    @Override
+    public String toString() {
+        return "MongoDatabaseResult{" +
+            "document=" + document +
+            ", columnNames=" + Arrays.toString(columnNames) +
+            '}';
     }
 }

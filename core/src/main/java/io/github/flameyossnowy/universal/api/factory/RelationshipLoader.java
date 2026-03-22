@@ -8,12 +8,16 @@ public interface RelationshipLoader<T, ID> {
     <E> E oneToOne(
         String fieldName,
         ID id,
+        T entity,
         Class<E> elementType
     );
+
+    <E> E oneToOneOwning(String fieldName, ID fkValue, Class<E> elementType);
 
     <E> E manyToOne(
         String fieldName,
         ID id,
+        T entity,
         Class<E> elementType
     );
 

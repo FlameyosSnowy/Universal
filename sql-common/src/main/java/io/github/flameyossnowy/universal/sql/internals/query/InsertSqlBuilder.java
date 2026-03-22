@@ -4,7 +4,9 @@ import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 
@@ -17,48 +19,50 @@ public final class InsertSqlBuilder<T, ID> {
         this.repositoryInformation = repositoryInformation;
     }
 
-    public String parseInsert() {
+    public ParameterizedSql parseInsert() {
         StringJoiner columnJoiner = new StringJoiner(", ");
+        StringJoiner placeholderJoiner = new StringJoiner(", ");
+        List<String> paramNames = new ArrayList<>();
 
-        StringBuilder queryBuilder = new StringBuilder("INSERT INTO " + sqlType.quoteChar());
-        queryBuilder.append(repositoryInformation.tableName()).append(sqlType.quoteChar()).append(" (");
-
-        StringJoiner joiner = new StringJoiner(", ");
         for (FieldModel<T> data : repositoryInformation.fields()) {
             if (Collection.class.isAssignableFrom(data.type()) || Map.class.isAssignableFrom(data.type())) continue;
 
-            // Add companion version column for @JsonVersioned fields.
+            // Add companion version column for @JsonVersioned fields BEFORE the main column.
             if (data.isJson() && data.jsonVersioned()) {
                 String versionColumn = data.columnName() + "_version";
                 if (!hasPhysicalColumn(versionColumn)) {
                     columnJoiner.add(versionColumn);
-                    joiner.add("?");
+                    placeholderJoiner.add("?");
+                    paramNames.add(versionColumn);
                 }
             }
+
+            columnJoiner.add(data.columnName());
 
             if (data.autoIncrement()) {
-                joiner.add("default");
+                placeholderJoiner.add("default");
             } else {
                 if (sqlType == QueryParseEngine.SQLType.POSTGRESQL && data.isJson()) {
-                    joiner.add("?::jsonb");
+                    placeholderJoiner.add("?::jsonb");
                 } else {
-                    joiner.add("?");
+                    placeholderJoiner.add("?");
                 }
+                paramNames.add(data.columnName());
             }
-            columnJoiner.add(data.columnName());
         }
 
-        queryBuilder.append(columnJoiner).append(") VALUES (").append(joiner).append(");");
-        return queryBuilder.toString();
+        char q = sqlType.quoteChar();
+        String sql = "INSERT INTO " + q + repositoryInformation.tableName() + q
+            + " (" + columnJoiner + ") VALUES (" + placeholderJoiner + ");";
+
+        return ParameterizedSql.of(sql, paramNames);
     }
 
     private boolean hasPhysicalColumn(String columnName) {
         for (FieldModel<T> field : repositoryInformation.fields()) {
             if (field == null) continue;
             String col = field.columnName();
-            if (col != null && col.equalsIgnoreCase(columnName)) {
-                return true;
-            }
+            if (col != null && col.equalsIgnoreCase(columnName)) return true;
         }
         return false;
     }

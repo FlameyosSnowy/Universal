@@ -1,8 +1,10 @@
-package io.github.flameyossnowy.universal.checker;
+package io.github.flameyossnowy.universal.checker.generator;
 
 import com.squareup.javapoet.*;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
-import io.github.flameyossnowy.universal.checker.generator.RepositoryFieldModelGenerator;
+import io.github.flameyossnowy.universal.checker.FieldModel;
+import io.github.flameyossnowy.universal.checker.GeneratorUtils;
+import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.ElementKind;
@@ -37,8 +39,6 @@ public final class InsertEntityGenerator {
         this.elements = elements;
         this.messager = messager;
     }
-
-    // ------------------------------------------------------------------
 
     public MethodSpec generate(RepositoryModel repo, ClassName entityType) {
         ClassName dbParams   = ClassName.get("io.github.flameyossnowy.universal.api.params", "DatabaseParameters");
@@ -84,7 +84,7 @@ public final class InsertEntityGenerator {
                     emitRelationshipFk(m, repo, field, fieldName, valueVar,
                         thisIdMirror, thisIdNameBoxed, repoMeta, genMeta, fieldModel, entityType);
                 }
-                // ONE_TO_MANY → collection, already filtered above
+                // ONE_TO_MANY -> collection, already filtered above
                 continue;
             }
 

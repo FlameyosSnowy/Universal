@@ -4,21 +4,21 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class QueryStringCache {
-    private final Map<String, String> cache;
+    private final Map<String, ParameterizedSql> cache;
 
     public QueryStringCache(int initialCapacity) {
         this.cache = new ConcurrentHashMap<>(initialCapacity);
     }
 
-    public String get(String key) {
+    public ParameterizedSql get(String key) {
         return cache.get(key);
     }
 
-    public String computeIfAbsent(String key, java.util.function.Function<String, String> mappingFunction) {
+    public ParameterizedSql computeIfAbsent(String key, java.util.function.Function<String, ParameterizedSql> mappingFunction) {
         return cache.computeIfAbsent(key, mappingFunction);
     }
 
-    public void put(String key, String value) {
+    public void put(String key, ParameterizedSql value) {
         cache.put(key, value);
     }
 }

@@ -5,10 +5,10 @@ import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
-import me.flame.uniform.json.JsonAdapter;
-import me.flame.uniform.json.dom.JsonObject;
-import me.flame.uniform.json.dom.JsonValue;
-import me.flame.uniform.json.exceptions.JsonException;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.dom.JsonObject;
+import io.github.flameyossnowy.uniform.json.dom.JsonValue;
+import io.github.flameyossnowy.uniform.json.exceptions.JsonException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

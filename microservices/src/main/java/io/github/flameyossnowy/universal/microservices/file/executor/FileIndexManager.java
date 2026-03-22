@@ -6,7 +6,7 @@ import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.microservices.file.indexes.SecondaryIndex;
-import me.flame.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -36,10 +36,6 @@ public class FileIndexManager<T, ID> {
         this.objectMapper    = objectMapper;
         this.indexRoot        = indexRoot;
     }
-
-    // -------------------------------------------------------------------------
-    // Index lifecycle
-    // -------------------------------------------------------------------------
 
     public TransactionResult<Boolean> createIndex(@NotNull IndexOptions options, @NotNull List<T> allEntities) {
         String field = options.indexName();
@@ -71,10 +67,6 @@ public class FileIndexManager<T, ID> {
         return indexes.isEmpty();
     }
 
-    // -------------------------------------------------------------------------
-    // Per-entity updates
-    // -------------------------------------------------------------------------
-
     public void onInsertOrUpdate(T entity, ID id) {
         if (indexes.isEmpty()) return;
         for (SecondaryIndex<ID> index : indexes.values()) {
@@ -100,10 +92,6 @@ public class FileIndexManager<T, ID> {
             } catch (Exception ignored) {}
         });
     }
-
-    // -------------------------------------------------------------------------
-    // Batch updates
-    // -------------------------------------------------------------------------
 
     public void onInsertOrUpdateBatch(Collection<T> entities) {
         if (entities.isEmpty() || indexes.isEmpty()) return;
@@ -136,10 +124,6 @@ public class FileIndexManager<T, ID> {
             }
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
 
     @SuppressWarnings("ObjectAllocationInLoop")
     private Map<Object, Set<ID>> collectValueToIds(Collection<T> entities, FieldModel<T> field) {

@@ -115,7 +115,7 @@ public interface DatabaseSession<ID, T, C> extends TransactionContext<C>, AutoCl
      * IDs that cannot be found are absent from the returned map.
      *
      * @param ids the primary keys to look up
-     * @return a map of ID → entity for every ID that was found
+     * @return a map of ID -> entity for every ID that was found
      */
     default Map<ID, T> findAllById(Collection<ID> ids) {
         Map<ID, T> result = new java.util.LinkedHashMap<>(ids.size());

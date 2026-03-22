@@ -72,7 +72,7 @@ public class SqlReadExecutor<T, ID> {
             FieldModel<T> primaryKey = resultMapper.getRepositoryModel().getPrimaryKey();
             @SuppressWarnings("unchecked")
             TypeResolver<ID> resolver = (TypeResolver<ID>) resultMapper.getResolverRegistry().resolve(primaryKey.type());
-            resolver.insert(parameters, "=", id);
+            resolver.insert(parameters, primaryKey.columnName(), id);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 SQLDatabaseResult databaseResult = resultMapper.createDatabaseResult(resultSet, collectionHandler, supportsArrays);

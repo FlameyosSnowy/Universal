@@ -1,8 +1,8 @@
 package io.github.flameyossnowy.universal.api.json;
 
 import io.github.flameyossnowy.universal.api.exceptions.json.JsonProcessException;
-import me.flame.uniform.json.JsonAdapter;
-import me.flame.uniform.json.exceptions.JsonException;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.exceptions.JsonException;
 
 public class DefaultJsonCodec<T> implements JsonCodec<T> {
     private final JsonAdapter mapper;

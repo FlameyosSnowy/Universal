@@ -36,11 +36,11 @@ import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStr
 import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategy;
 import io.github.flameyossnowy.universal.microservices.relationship.MicroserviceRelationshipHandler;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
-import me.flame.uniform.json.JsonAdapter;
-import me.flame.uniform.json.JsonConfigBuilder;
-import me.flame.uniform.json.features.JsonReadFeature;
-import me.flame.uniform.json.features.JsonWriteFeature;
-import me.flame.uniform.json.resolvers.CoreTypeResolverRegistry;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.JsonConfigBuilder;
+import io.github.flameyossnowy.uniform.json.features.JsonReadFeature;
+import io.github.flameyossnowy.uniform.json.features.JsonWriteFeature;
+import io.github.flameyossnowy.uniform.json.resolvers.CoreTypeResolverRegistry;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

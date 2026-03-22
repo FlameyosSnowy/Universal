@@ -1,6 +1,8 @@
 package io.github.flameyossnowy.universal.api.handler;
 
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -12,6 +14,8 @@ import java.util.Set;
  */
 public interface RelationshipHandler<T, ID> {
     Object handleManyToOneRelationship(ID primaryKeyValue, FieldModel<T> field);
+
+    @Nullable Object handleOneToOneRelationshipOwning(Object fkValue, @NotNull FieldModel<T> field);
 
     Object handleOneToOneRelationship(ID primaryKeyValue, FieldModel<T> field);
 

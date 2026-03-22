@@ -12,6 +12,7 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.postgresql.connections.PostgreSQLSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -88,7 +89,7 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
         boolean cacheEnabled = cacheable.isEnabled();
         int maxSize = 0;
 
-        DefaultResultCache<String, T, ID> resultCache = null;
+        DefaultResultCache<ParameterizedSql, T, ID> resultCache = null;
 
         if (cacheEnabled && cacheable.maxSize() > 0) {
             maxSize = cacheable.maxSize();

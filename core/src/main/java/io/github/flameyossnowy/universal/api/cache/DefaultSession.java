@@ -76,7 +76,7 @@ public class DefaultSession<ID, T, C> implements DatabaseSession<ID, T, C> {
      * repository in a single batch call via {@link RepositoryAdapter#findAllById}.
      *
      * @param ids the IDs to look up
-     * @return a map of ID → entity for every ID that was found; missing IDs are absent
+     * @return a map of ID -> entity for every ID that was found; missing IDs are absent
      */
     @Override
     public Map<ID, T> findAllById(Collection<ID> ids) {

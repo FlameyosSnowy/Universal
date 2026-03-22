@@ -16,11 +16,11 @@ import java.util.List;
  * Builds MongoDB aggregation pipelines from AggregationQuery objects.
  *
  * <p>Translates SQL-style aggregations into MongoDB pipeline stages:
- * - WHERE → $match
- * - GROUP BY → $group
- * - HAVING → $match (after $group)
- * - ORDER BY → $sort
- * - LIMIT → $limit
+ * - WHERE -> $match
+ * - GROUP BY -> $group
+ * - HAVING -> $match (after $group)
+ * - ORDER BY -> $sort
+ * - LIMIT -> $limit
  *
  * <p>Examples:
  * <pre>{@code

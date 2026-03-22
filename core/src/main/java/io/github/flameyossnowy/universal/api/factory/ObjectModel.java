@@ -41,7 +41,7 @@ public interface ObjectModel<T, ID> {
      * @param id     The primary key of the entity
      * @param loader The relationship loader to use for fetching related entities
      */
-    void populateRelationships(T entity, ID id, RelationshipLoader loader);
+    void populateRelationships(T entity, ID id, RelationshipLoader<T, ID> loader, ValueReader reader);
 
     /**
      * Inserts a single entity into the database.

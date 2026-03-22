@@ -1,4 +1,4 @@
-package io.github.flameyossnowy.universal.checker;
+package io.github.flameyossnowy.universal.checker.generator;
 
 import com.squareup.javapoet.*;
 import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
@@ -6,9 +6,6 @@ import io.github.flameyossnowy.universal.api.cache.CacheConfig;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
 import io.github.flameyossnowy.universal.checker.*;
-import io.github.flameyossnowy.universal.checker.generator.RepositoryFieldModelGenerator;
-import io.github.flameyossnowy.universal.checker.generator.RepositoryServicesGenerator;
-import io.github.flameyossnowy.universal.checker.processor.AnnotationUtils;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
@@ -46,7 +43,7 @@ public final class RepositoryModelGenerator {
             .addSuperinterface(repoType)
             .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
             .addAnnotation(AnnotationSpec.builder(Generated.class)
-                .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator")
+                .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.generator.UnifiedFactoryGenerator")
                 .build());
 
         // Singleton INSTANCE
@@ -486,7 +483,7 @@ public final class RepositoryModelGenerator {
 
             String relClassName  = entityClass.simpleName() + "_" + rel.fieldName() + "_RelationshipModel";
             boolean isCollection = rel.relationshipKind() == RelationshipKind.ONE_TO_MANY;
-            boolean isOwning     = rel.relationshipKind() == RelationshipKind.MANY_TO_ONE;
+            boolean isOwning     = rel.owning();
             String kindName      = switch (rel.collectionKind()) {
                 case LIST  -> "LIST"; case SET   -> "SET";
                 case QUEUE -> "QUEUE"; case DEQUE -> "DEQUE";

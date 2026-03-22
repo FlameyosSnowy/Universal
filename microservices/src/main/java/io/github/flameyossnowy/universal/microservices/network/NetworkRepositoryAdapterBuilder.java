@@ -7,7 +7,7 @@ import io.github.flameyossnowy.universal.api.annotations.builder.EndpointConfig;
 import io.github.flameyossnowy.universal.api.annotations.enums.AuthType;
 import io.github.flameyossnowy.universal.api.annotations.enums.HttpMethod;
 import io.github.flameyossnowy.universal.api.annotations.enums.NetworkProtocol;
-import me.flame.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;

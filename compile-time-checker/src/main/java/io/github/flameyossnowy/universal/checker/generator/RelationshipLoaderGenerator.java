@@ -1,8 +1,9 @@
-package io.github.flameyossnowy.universal.checker;
+package io.github.flameyossnowy.universal.checker.generator;
 
 import com.squareup.javapoet.*;
 import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
 import io.github.flameyossnowy.universal.checker.FieldModel;
+import io.github.flameyossnowy.universal.checker.GeneratorUtils;
 import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.annotation.processing.Filer;
@@ -34,8 +35,6 @@ public final class RelationshipLoaderGenerator {
         this.collectionMethods    = new CollectionLoaderMethodGenerator();
     }
 
-    // ------------------------------------------------------------------
-
     public String generate(RepositoryModel repo, List<String> qualifiedNames) {
         List<FieldModel> pks = repo.primaryKeys();
         if (pks.isEmpty()) return null;
@@ -46,12 +45,14 @@ public final class RelationshipLoaderGenerator {
 
         ParameterizedTypeName repoModelType = ParameterizedTypeName.get(
             ClassName.get("io.github.flameyossnowy.universal.api.meta", "RepositoryModel"),
-            entityType, idType.box());
+            entityType, idType.box()
+        );
 
         TypeSpec.Builder builder = TypeSpec.classBuilder(className)
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .addAnnotation(AnnotationSpec.builder(Generated.class)
-                .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator")
+                .addMember("value", "$S", "io.github.flameyossnowy.universal" +
+                    ".checker.generator.UnifiedFactoryGenerator")
                 .build())
             .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
             .addSuperinterface(ParameterizedTypeName.get(
@@ -65,11 +66,9 @@ public final class RelationshipLoaderGenerator {
                 entityType, idType.box(), repo.tableName(), className)
             .build());
 
-        // ---- Fields --------------------------------------------------------
         addHandlerFields(builder, repoModelType);
         addCacheFields(builder, idType);
 
-        // ---- Constructor ---------------------------------------------------
         builder.addMethod(MethodSpec.constructorBuilder()
             .addModifiers(Modifier.PUBLIC)
             .addParameter(ClassName.get("io.github.flameyossnowy.universal.api.handler", "RelationshipHandler"),  "handler")
@@ -85,18 +84,16 @@ public final class RelationshipLoaderGenerator {
             .addModifiers(Modifier.PUBLIC)
             .build());
 
-        // ---- Relationship methods ------------------------------------------
-        builder.addMethod(relationshipMethods.generateOneToOne(repo, idType));
+        builder.addMethod(relationshipMethods.generateOneToOneOwning(repo, idType));
+        builder.addMethod(relationshipMethods.generateOneToOne(repo, idType, entityType));
         builder.addMethod(relationshipMethods.generateOneToMany(repo, idType));
-        builder.addMethod(relationshipMethods.generateManyToOne(repo, idType));
+        builder.addMethod(relationshipMethods.generateManyToOne(repo, idType, entityType));
 
-        // ---- Collection loader methods -------------------------------------
         builder.addMethod(collectionMethods.generateLoadList(repo, idType));
         builder.addMethod(collectionMethods.generateLoadSet(repo, idType));
         builder.addMethod(collectionMethods.generateLoadMap(repo, idType));
         builder.addMethod(collectionMethods.generateLoadArray(repo, idType));
 
-        // ---- Cache invalidation / clear ------------------------------------
         builder.addMethod(invalidateMethod(idType));
         builder.addMethod(clearMethod());
 
@@ -121,6 +118,11 @@ public final class RelationshipLoaderGenerator {
 
     private static void addCacheFields(TypeSpec.Builder b, TypeName idType) {
         TypeName idBoxed = idType.box();
+
+        b.addField(FieldSpec.builder(Object.class, "NULL_SENTINEL",
+                Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+            .initializer("new Object()")
+            .build());
 
         // Map<ID, Map<String, Object>>
         TypeName singleCache = ParameterizedTypeName.get(ClassName.get(Map.class),

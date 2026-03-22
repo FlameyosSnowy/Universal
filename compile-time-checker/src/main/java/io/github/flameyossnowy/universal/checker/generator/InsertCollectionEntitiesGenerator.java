@@ -1,6 +1,11 @@
-package io.github.flameyossnowy.universal.checker;
+package io.github.flameyossnowy.universal.checker.generator;
 
 import com.squareup.javapoet.*;
+import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
+import io.github.flameyossnowy.universal.checker.FieldModel;
+import io.github.flameyossnowy.universal.checker.GeneratorUtils;
+import io.github.flameyossnowy.universal.checker.RelationshipModel;
+import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
@@ -17,8 +22,6 @@ import javax.lang.model.type.TypeMirror;
 public final class InsertCollectionEntitiesGenerator {
 
     public InsertCollectionEntitiesGenerator() {}
-
-    // ------------------------------------------------------------------
 
     public MethodSpec generate(RepositoryModel repo, ClassName entityType, TypeName idType) {
         ClassName dbParams         = ClassName.get("io.github.flameyossnowy.universal.api.params",   "DatabaseParameters");
@@ -37,14 +40,19 @@ public final class InsertCollectionEntitiesGenerator {
         boolean hasCollections = false;
 
         for (FieldModel field : repo.fields()) {
-            if (field.relationship()) continue;
+            if (field.relationship()) {
+                RelationshipModel relationshipModel1 = repo.relationships().stream().filter((relationshipModel -> relationshipModel.hasField(field))).findFirst().orElse(null);
+                if (!(field.relationshipKind() == RelationshipKind.ONE_TO_ONE || field.relationshipKind() == RelationshipKind.MANY_TO_ONE)
+                    || !relationshipModel1.owning()) {
+                    continue;
+                }
+            }
 
             TypeMirror fieldType  = field.type();
             String     typeName   = fieldType.toString();
             String     fieldName  = field.name();
             String     getterCall = "entity." + field.getterName() + "()";
 
-            // ---- List / Set / Collection ---------------------------------
             if (typeName.startsWith("java.util.List")
                 || typeName.startsWith("java.util.Set")
                 || typeName.startsWith("java.util.Collection")) {
@@ -60,7 +68,6 @@ public final class InsertCollectionEntitiesGenerator {
                 continue;
             }
 
-            // ---- Map ----------------------------------------------------
             if (typeName.startsWith("java.util.Map")) {
                 hasCollections = true;
                 TypeMirror keyMirror   = GeneratorUtils.genericArg(fieldType, 0);
@@ -83,7 +90,6 @@ public final class InsertCollectionEntitiesGenerator {
                 continue;
             }
 
-            // ---- Array: only when the DB does NOT support arrays natively ---
             if (fieldType.getKind() == TypeKind.ARRAY) {
                 hasCollections = true;
                 ArrayType  arrayType      = (ArrayType) fieldType;

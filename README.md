@@ -97,11 +97,6 @@ public class Example {
 To include Universal in your project, add it as a dependency in your `pom.xml` (Maven) or `build.gradle`(`.kts`) (Gradle):
 
 ```xml
-<repository>
-  <id>jitpack.io</id>
-  <url>https://jitpack.io</url>
-</repository>
-
 <dependency>
   <groupId>com.github.FlameyosSnowy.Universal</groupId>
   <artifact>core</artifactId>
@@ -117,7 +112,7 @@ To include Universal in your project, add it as a dependency in your `pom.xml` (
 
 ```gradle
 repositories {
-    maven("https://jitpack.io")
+    mavenCentral()
 }
 
 dependencies {

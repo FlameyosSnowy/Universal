@@ -7,6 +7,7 @@ import io.github.flameyossnowy.universal.sql.internals.AbstractRelationalReposit
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
@@ -15,7 +16,7 @@ import java.util.function.LongFunction;
 public class PostgreSQLRepositoryAdapter<T, ID> extends AbstractRelationalRepositoryAdapter<T, ID> {
     protected PostgreSQLRepositoryAdapter(
             @NotNull final SQLConnectionProvider dataSource,
-            final DefaultResultCache<String, T, ID> cache,
+            final DefaultResultCache<ParameterizedSql, T, ID> cache,
             final Class<T> repository,
             final Class<ID> idClass,
             SessionCache<ID, T> globalCache,

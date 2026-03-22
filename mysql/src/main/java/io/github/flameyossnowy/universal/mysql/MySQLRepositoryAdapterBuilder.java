@@ -12,6 +12,7 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.mysql.connections.MySQLSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.mysql.credentials.MySQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -87,7 +88,7 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
         boolean cacheEnabled = cacheConfig.isEnabled();
         int maxSize = 0;
 
-        DefaultResultCache<String, T, ID> resultCache = null;
+        DefaultResultCache<ParameterizedSql, T, ID> resultCache = null;
 
         if (cacheEnabled) {
             maxSize = cacheConfig.maxSize();

@@ -1006,7 +1006,7 @@ public interface RepositoryAdapter<T, ID, C> extends BaseRepositoryAdapter<T, ID
      * }</pre>
      *
      * @param query The aggregation query specification
-     * @return List of result maps (field name → value)
+     * @return List of result maps (field name -> value)
      */
     List<Map<String, Object>> aggregate(@NotNull AggregationQuery query);
 
