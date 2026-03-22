@@ -16,6 +16,7 @@ import io.github.flameyossnowy.universal.api.exceptions.handler.DefaultException
 import io.github.flameyossnowy.universal.api.exceptions.handler.ExceptionHandler;
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.factory.RelationshipLoader;
+import io.github.flameyossnowy.universal.api.factory.ValueReader;
 import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
@@ -41,7 +42,7 @@ import io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodecProvider;
 import io.github.flameyossnowy.universal.mongodb.params.MongoDatabaseParameters;
 import io.github.flameyossnowy.universal.mongodb.query.MongoQueryValidator;
 import io.github.flameyossnowy.universal.mongodb.result.MongoDatabaseResult;
-import me.flame.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import org.bson.*;
 import org.bson.codecs.*;
 import org.bson.codecs.configuration.*;
@@ -116,7 +117,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     private final boolean autoCreate;
 
-    private static String mongoPrimaryKeyName(@NotNull FieldModel<?> primaryKey) {
+    static String mongoPrimaryKeyName(@NotNull FieldModel<?> primaryKey) {
         // MongoDB reserves the document primary key field name as "_id".
         // Many models use a logical field name "id"; if metadata doesn't override the column name,
         // we map it here to avoid mismatches between queries and stored documents.
@@ -316,8 +317,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                 return this.exceptionHandler.handleRead(e, repositoryModel, query, this);
             }
 
-            T result = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id));
-            objectModel.populateRelationships(result, id, relationshipLoader);
+            ValueReader valueReader = GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id);
+            T result = objectModel.construct(valueReader);
+            objectModel.populateRelationships(result, id, relationshipLoader, valueReader);
             List<T> single = List.of(result);
             if (resultCache != null) {
                 resultCache.insert(filterDoc, single, objectModel::getId);
@@ -349,8 +351,12 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         }
         String pk = mongoPrimaryKeyName(primaryKey);
         ID id = typeResolverRegistry.resolve(idType).resolve(databaseResult, pk);
-        T construct = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id));
-        objectModel.populateRelationships(construct, id, relationshipLoader);
+        if (id == null) {
+            logger.warn("constructObject: resolved null ID for pk={} in {}", pk, repositoryModel.tableName());
+        }
+        ValueReader valueReader = GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id);
+        T construct = objectModel.construct(valueReader);
+        objectModel.populateRelationships(construct, id, relationshipLoader, valueReader);
         return construct;
     }
 
@@ -385,8 +391,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                 }
                 String pk = mongoPrimaryKeyName(pkField);
                 ID id = typeResolverRegistry.resolve(idType).resolve(databaseResult, pk);
-                T construct = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id));
-                objectModel.populateRelationships(construct, id, relationshipLoader);
+                ValueReader valueReader = GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id);
+                T construct = objectModel.construct(valueReader);
+                objectModel.populateRelationships(construct, id, relationshipLoader, valueReader);
                 results.add(construct);
                 databaseResult.clear();
             }
@@ -508,7 +515,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
             return Map.of();
         }
 
-        String pk = repositoryModel.getPrimaryKey().name();
+        String pk = mongoPrimaryKeyName(repositoryModel.getPrimaryKey());
         FindIterable<Document> iterable = collection.find(in(pk, keys));
 
         Map<ID, T> result = new HashMap<>(keys.size());
@@ -576,8 +583,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         Document filter = new Document(pk, key);
         MongoDatabaseResult databaseResult = new MongoDatabaseResult(collection.find(filter).first(), collectionHandler, repositoryModel);
         ID id = typeResolverRegistry.resolve(idType).resolve(databaseResult, pk);
-        T construct = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id));
-        objectModel.populateRelationships(construct, id, relationshipLoader);
+        ValueReader valueReader = GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id);
+        T construct = objectModel.construct(valueReader);
+        objectModel.populateRelationships(construct, id, relationshipLoader, valueReader);
         if (construct != null) {
             if (resultCache != null) {
                 resultCache.insert(filter, List.of(construct), objectModel::getId);
@@ -899,8 +907,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
                 if (readThroughCache != null) readThroughCache.invalidate(id);
                 if (auditLogger != null) {
                     MongoDatabaseResult databaseResult = new MongoDatabaseResult(replaced, collectionHandler, repositoryModel);
-                    T construct = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id));
-                    objectModel.populateRelationships(construct, id, relationshipLoader);
+                    ValueReader valueReader = GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, typeResolverRegistry, id);
+                    T construct = objectModel.construct(valueReader);
+                    objectModel.populateRelationships(construct, id, relationshipLoader, valueReader);
                     auditLogger.onUpdate(entity, construct);
                 }
                 invalidate(document);
