@@ -12,15 +12,22 @@ import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeVariableName;
 import com.squareup.javapoet.WildcardTypeName;
 import io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory;
+import io.github.flameyossnowy.universal.api.annotations.Id;
+import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.checker.FieldModel;
+import io.github.flameyossnowy.universal.checker.RelationshipModel;
 import io.github.flameyossnowy.universal.checker.RepositoryModel;
+import io.github.flameyossnowy.universal.checker.processor.AnnotationUtils;
 import io.github.flameyossnowy.universal.checker.processor.TypeMirrorUtils;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
@@ -73,7 +80,7 @@ public class ValueReaderGenerator {
         TypeSpec.Builder builder = TypeSpec.classBuilder(className)
             .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
             .addAnnotation(AnnotationSpec.builder(Generated.class)
-                .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.UnifiedFactoryGenerator")
+                .addMember("value", "$S", "io.github.flameyossnowy.universal.checker.generator.UnifiedFactoryGenerator")
                 .build())
             .addTypeVariable(TypeVariableName.get("ID"))
             .addSuperinterface(readerInterface)
@@ -152,7 +159,23 @@ public class ValueReaderGenerator {
         int helperMethodIndex = 1;
 
         for (FieldModel field : repo.fields()) {
-            if (!field.participatesInConstruction()) continue;
+            if (!field.participatesInConstruction()) {
+                // Include owning-side OneToOne/ManyToOne FK columns as raw reads
+                if (field.relationship()) {
+                    RelationshipModel rel = repo.relationships().stream()
+                        .filter(r -> r.hasField(field))
+                        .findFirst().orElse(null);
+                    if (rel != null && rel.owning() && rel.relationshipKind() != RelationshipKind.ONE_TO_MANY) {
+                        TypeMirror idType = getTargetPrimaryKeyType(rel); // UUID, Long, etc.
+                        // We read the raw FK column value (e.g. warp VARCHAR(36) -> UUID)
+                        TypeName typeName = ClassName.get(types.erasure(idType));
+                        readMethod.addStatement("case $L: return (T) registry.resolve($T.class).resolve(result, $S)",
+                            index, typeName, field.columnName());
+                        index++;
+                    }
+                }
+                continue;
+            }
 
             String columnName = field.columnName();
             TypeMirror fieldType = field.type();
@@ -242,6 +265,22 @@ public class ValueReaderGenerator {
         write(repo.packageName(), builder.build(), filer);
     }
 
+    private TypeMirror getTargetPrimaryKeyType(RelationshipModel rel) {
+        TypeMirror targetType = rel.targetType();
+        if (!(targetType instanceof DeclaredType dt)) return null;
+
+        TypeElement targetElement = (TypeElement) dt.asElement();
+
+        for (Element enclosed : targetElement.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.FIELD) continue;
+            if (AnnotationUtils.hasAnnotation(enclosed, Id.class.getCanonicalName())) {
+                return enclosed.asType();
+            }
+        }
+
+        return null;
+    }
+
     public TypeMirror getRawType(TypeMirror type) {
         if (type instanceof DeclaredType) {
             return types.erasure(type);
@@ -305,7 +344,7 @@ public class ValueReaderGenerator {
             methodBuilder
                 .beginControlFlow("if (result.supportsArraysNatively())")
                 // Native path: the array column is in the current ResultSet row.
-                // We reuse the TypeResolverRegistry so adapters (e.g. JDBC Array → T[])
+                // We reuse the TypeResolverRegistry so adapters (e.g. JDBC Array -> T[])
                 // are applied consistently.
                 .addStatement("return ($T) result.get(columnName, java.sql.Array.class).getArray()", returnType)
                 .nextControlFlow("else")
