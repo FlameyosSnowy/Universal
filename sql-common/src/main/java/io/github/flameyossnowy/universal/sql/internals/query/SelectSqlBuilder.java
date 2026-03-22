@@ -11,6 +11,10 @@ public final class SelectSqlBuilder<T, ID> {
     private final SqlConditionBuilder<T, ID> conditionBuilder;
     private final SqlSortBuilder sortBuilder;
 
+    private final ParameterizedSql selectAll;
+    private final ParameterizedSql selectFirst;
+    private final ParameterizedSql countAll;
+
     public SelectSqlBuilder(
         QueryParseEngine.SQLType sqlType,
         RepositoryModel<T, ID> repositoryInformation,
@@ -21,75 +25,85 @@ public final class SelectSqlBuilder<T, ID> {
         this.repositoryInformation = repositoryInformation;
         this.conditionBuilder = conditionBuilder;
         this.sortBuilder = sortBuilder;
+
+        char q = sqlType.quoteChar();
+        String table = repositoryInformation.tableName();
+        String base  = "SELECT * FROM " + q + table + q;
+
+        this.selectAll   = ParameterizedSql.of(base);
+        this.selectFirst = ParameterizedSql.of(base + " LIMIT 1");
+        this.countAll    = ParameterizedSql.of("SELECT COUNT(*) FROM " + q + table + q);
     }
 
-    public String parseSelect(SelectQuery query, boolean first) {
-        String tableName = repositoryInformation.tableName();
+    public ParameterizedSql parseSelect(SelectQuery query, boolean first) {
+        if (query == null) return first ? selectFirst : selectAll;
 
-        if (query == null) {
-            return "SELECT * FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + (first ? " LIMIT 1" : "");
-        }
+        char q = sqlType.quoteChar();
+        String table = repositoryInformation.tableName();
+        StringBuilder sql = new StringBuilder("SELECT * FROM ").append(q).append(table).append(q);
 
-        StringBuilder sql = new StringBuilder("SELECT * FROM " + sqlType.quoteChar())
-            .append(tableName)
-            .append(sqlType.quoteChar());
-
-        appendConditions(query, sql);
+        SqlConditionBuilder.BuiltCondition where = appendConditions(query, sql);
         appendSortingAndLimit(query, sql, first);
 
-        return sql.toString();
+        return ParameterizedSql.of(sql.toString(), where.paramNames());
     }
 
-    public String parseCount(SelectQuery query) {
-        String tableName = repositoryInformation.tableName();
+    public ParameterizedSql parseCount(SelectQuery query) {
+        if (query == null) return countAll;
 
-        if (query == null) {
-            return "SELECT COUNT(*) FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar();
-        }
+        char q = sqlType.quoteChar();
+        String table = repositoryInformation.tableName();
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM ").append(q).append(table).append(q);
 
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM " + sqlType.quoteChar())
-            .append(tableName)
-            .append(sqlType.quoteChar());
+        SqlConditionBuilder.BuiltCondition where = appendConditions(query, sql);
 
-        appendConditions(query, sql);
-        return sql.toString();
+        return ParameterizedSql.of(sql.toString(), where.paramNames());
     }
 
-    public String parseQueryIds(SelectQuery query, boolean first) {
-        String tableName = repositoryInformation.tableName();
-
+    public ParameterizedSql parseQueryIds(SelectQuery query, boolean first) {
         FieldModel<T> primaryKey = repositoryInformation.getPrimaryKey();
         if (primaryKey == null) {
             throw new IllegalArgumentException("Cannot find Id because it doesn't exist.");
         }
 
+        char q = sqlType.quoteChar();
+        String table  = repositoryInformation.tableName();
         String idName = primaryKey.columnName();
 
         if (query == null) {
-            return "SELECT " + idName + " FROM " + sqlType.quoteChar() + tableName + sqlType.quoteChar() + (first ? " LIMIT 1" : "");
+            String sql = "SELECT " + idName + " FROM " + q + table + q + (first ? " LIMIT 1" : "");
+            return ParameterizedSql.of(sql);
         }
 
-        StringBuilder sql = new StringBuilder("SELECT " + idName + " FROM " + sqlType.quoteChar())
-            .append(tableName)
-            .append(sqlType.quoteChar());
+        StringBuilder sql = new StringBuilder("SELECT ").append(idName)
+            .append(" FROM ").append(q).append(table).append(q);
 
-        appendConditions(query, sql);
+        SqlConditionBuilder.BuiltCondition where = appendConditions(query, sql);
         appendSortingAndLimit(query, sql, first);
 
-        return sql.toString();
+        return ParameterizedSql.of(sql.toString(), where.paramNames());
     }
 
-    private void appendConditions(SelectQuery query, StringBuilder sql) {
-        if (!query.filters().isEmpty()) {
-            sql.append(" WHERE ");
-            sql.append(conditionBuilder.buildConditions(query.filters()));
+    /**
+     * Appends a WHERE clause to {@code sql} if the query has filters, and
+     * returns the {@link SqlConditionBuilder.BuiltCondition} so callers can
+     * include the param names in the resulting {@link ParameterizedSql}.
+     * Returns an empty condition (no SQL appended, empty name list) when there
+     * are no filters.
+     */
+    private SqlConditionBuilder.BuiltCondition appendConditions(SelectQuery query, StringBuilder sql) {
+        if (query.filters().isEmpty()) {
+            return new SqlConditionBuilder.BuiltCondition("", java.util.List.of());
         }
+
+        SqlConditionBuilder.BuiltCondition where = conditionBuilder.buildConditionsFull(query.filters());
+        sql.append(" WHERE ").append(where.sql());
+        return where;
     }
 
     private void appendSortingAndLimit(SelectQuery query, StringBuilder sql, boolean first) {
         if (!query.sortOptions().isEmpty()) {
-            sql.append(" ORDER BY ");
-            sql.append(sortBuilder.buildSortOptions(query.sortOptions()));
+            sql.append(" ORDER BY ").append(sortBuilder.buildSortOptions(query.sortOptions()));
         }
 
         if (query.limit() != -1) {

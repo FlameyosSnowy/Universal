@@ -396,21 +396,27 @@ public final class SqlParameterBinder<T, ID> {
         List<FilterOption> conditions = query.filters();
         if (conditions.isEmpty()) return;
         for (FilterOption value : conditions) {
-            if (value instanceof SelectOption s) {
-                bindSelectOption(s, parameters, resolverRegistry);
-                continue;
-            }
-
-            if (value instanceof JsonSelectOption j) {
-                bindJsonSelectOption(j, parameters, resolverRegistry, repositoryModel, sqlType);
-                continue;
-            }
-
-            throw new IllegalStateException("Unknown filter type: " + value);
+            bindOptionValue(parameters, resolverRegistry, repositoryModel, sqlType, value);
         }
     }
 
-    @SuppressWarnings("unchecked")
+    private void bindOptionValue(SQLDatabaseParameters parameters, TypeResolverRegistry resolverRegistry, RepositoryModel<T, ID> repositoryModel, QueryParseEngine.SQLType sqlType, FilterOption value) {
+        switch (value) {
+            case SelectOption s -> {
+                bindSelectOption(s, parameters, resolverRegistry);
+                return;
+            }
+            case JsonSelectOption j -> {
+                bindJsonSelectOption(j, parameters, resolverRegistry, repositoryModel, sqlType);
+                return;
+            }
+            case null, default -> {
+            }
+        }
+
+        throw new IllegalStateException("Unknown filter type: " + value);
+    }
+
     public void setUpdateParameters(
         @NotNull DeleteQuery query,
         SQLDatabaseParameters parameters,
@@ -419,17 +425,7 @@ public final class SqlParameterBinder<T, ID> {
         QueryParseEngine.SQLType sqlType
     ) {
         for (FilterOption value : query.filters()) {
-            if (value instanceof SelectOption s) {
-                bindSelectOption(s, parameters, resolverRegistry);
-                continue;
-            }
-
-            if (value instanceof JsonSelectOption j) {
-                bindJsonSelectOption(j, parameters, resolverRegistry, repositoryModel, sqlType);
-                continue;
-            }
-
-            throw new IllegalStateException("Unknown filter type: " + value);
+            bindOptionValue(parameters, resolverRegistry, repositoryModel, sqlType, value);
         }
     }
 }

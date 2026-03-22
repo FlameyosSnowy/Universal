@@ -7,7 +7,6 @@ import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
 import io.github.flameyossnowy.universal.api.options.validator.ValidationEstimation;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -277,7 +276,7 @@ public record SQLQueryValidator<T, ID>(
             }
             case SQLITE -> {
                 if (query.limit() > 10_000) {
-                    Logging.warn("SQLite: very large LIMIT may be slow");
+                    Logging.warn("SQLite: very large LIMIT may be slow: " + query.limit());
                 }
                 yield ValidationEstimation.PASS;
             }

@@ -1,6 +1,6 @@
-package io.github.flameyossnowy.universal.checker;
+package io.github.flameyossnowy.universal.checker.generator;
 
-import io.github.flameyossnowy.universal.checker.generator.*;
+import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;

@@ -10,6 +10,7 @@ import io.github.flameyossnowy.universal.api.options.FilterOption;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -18,12 +19,12 @@ import java.util.List;
 public class SqlQueryExecutor<T, ID> {
     private final SQLConnectionProvider dataSource;
     private final ExceptionHandler<T, ID, Connection> exceptionHandler;
-    private final DefaultResultCache<String, T, ID> cache;
+    private final DefaultResultCache<ParameterizedSql, T, ID> cache;
     private final RepositoryModel<T, ID> repositoryModel;
     private final SqlReadExecutor<T, ID> readExecutor;
     private final RepositoryAdapter<T, ID, Connection> adapter;
 
-    public SqlQueryExecutor(SQLConnectionProvider dataSource, ExceptionHandler<T, ID, Connection> exceptionHandler, DefaultResultCache<String, T, ID> cache, RepositoryModel<T, ID> repositoryModel, SqlReadExecutor<T, ID> readExecutor, RepositoryAdapter<T, ID, Connection> adapter) {
+    public SqlQueryExecutor(SQLConnectionProvider dataSource, ExceptionHandler<T, ID, Connection> exceptionHandler, DefaultResultCache<ParameterizedSql, T, ID> cache, RepositoryModel<T, ID> repositoryModel, SqlReadExecutor<T, ID> readExecutor, RepositoryAdapter<T, ID, Connection> adapter) {
         this.dataSource = dataSource;
         this.exceptionHandler = exceptionHandler;
         this.cache = cache;
@@ -42,11 +43,11 @@ public class SqlQueryExecutor<T, ID> {
         }
     }
 
-    public List<T> executeQuery(String query) {
+    public List<T> executeQuery(ParameterizedSql query) {
         return executeQuery(query, ReadPolicy.NO_READ_POLICY);
     }
 
-    public List<T> executeQuery(String query, ReadPolicy policy) {
+    public List<T> executeQuery(ParameterizedSql query, ReadPolicy policy) {
         try {
             boolean bypassCache = policy != null && policy.bypassCache();
             if (!bypassCache && cache != null) {
@@ -61,11 +62,11 @@ public class SqlQueryExecutor<T, ID> {
         }
     }
 
-    public List<T> executeQueryWithParams(String query, SelectQuery selectQuery, List<FilterOption> params) {
+    public List<T> executeQueryWithParams(ParameterizedSql query, SelectQuery selectQuery, List<FilterOption> params) {
         return executeQueryWithParams(query, selectQuery, ReadPolicy.NO_READ_POLICY, false, params);
     }
 
-    public List<T> executeQueryWithParams(String query, SelectQuery selectQuery, boolean first, List<FilterOption> params) {
+    public List<T> executeQueryWithParams(ParameterizedSql query, SelectQuery selectQuery, boolean first, List<FilterOption> params) {
         try {
             return executeQueryWithParams(query, selectQuery, ReadPolicy.NO_READ_POLICY, first, params);
         } catch (Exception e) {
@@ -74,7 +75,7 @@ public class SqlQueryExecutor<T, ID> {
     }
 
     public List<T> executeQueryWithParams(
-        String query,
+        ParameterizedSql query,
         SelectQuery selectQuery,
         ReadPolicy policy,
         boolean first,
@@ -91,6 +92,14 @@ public class SqlQueryExecutor<T, ID> {
             return readExecutor.search(query, first, params);
         } catch (Exception e) {
             return this.exceptionHandler.handleRead(e, repositoryModel, selectQuery, adapter);
+        }
+    }
+
+    public List<T> loadFromDatabase(ParameterizedSql cachedSelectQuery, ID id) {
+        try {
+            return readExecutor.loadFromDatabase(cachedSelectQuery, id);
+        } catch (Exception e) {
+            return this.exceptionHandler.handleRead(e, repositoryModel, null, adapter);
         }
     }
 }

@@ -52,23 +52,23 @@ public class SqlAggregationImplementation<T, ID> {
      * Execute aggregation query and return raw results.
      */
     public List<Map<String, Object>> aggregate(@NotNull AggregationQuery query) {
-        AggregationQueryParser.ParameterizedSql pq = aggregationParser.parseParameterized(query);
+        AggregationQueryParser.BoundSql pq = aggregationParser.parseParameterized(query);
         String sql = pq.sql();
         
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
         ) {
 
-            if (!pq.params().isEmpty()) {
+            if (!pq.paramNames().isEmpty()) {
                 SQLDatabaseParameters parameters = new SQLDatabaseParameters(
                     stmt,
                     resolverRegistry,
-                    sql,
+                    pq,
                     repositoryModel,
                     collectionHandler,
                     supportsArrays
                 );
-                bindPositional(parameters, pq.params());
+                bindPositional(parameters, pq.paramValues());
             }
 
             try (ResultSet rs = stmt.executeQuery()) {
@@ -87,14 +87,14 @@ public class SqlAggregationImplementation<T, ID> {
      * (or any other strategy) instead of reflection.</p>
      */
     public List<T> aggregateEntities(@NotNull AggregationQuery query) {
-        AggregationQueryParser.ParameterizedSql pq = aggregationParser.parseParameterized(query);
+        AggregationQueryParser.BoundSql pq = aggregationParser.parseParameterized(query);
         String sql = pq.sql();
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)
         ) {
 
-            if (!pq.params().isEmpty()) {
+            if (!pq.paramNames().isEmpty()) {
                 SQLDatabaseParameters parameters = new SQLDatabaseParameters(
                     stmt,
                     resolverRegistry,
@@ -103,7 +103,7 @@ public class SqlAggregationImplementation<T, ID> {
                     collectionHandler,
                     supportsArrays
                 );
-                bindPositional(parameters, pq.params());
+                bindPositional(parameters, pq.paramValues());
             }
 
             try (ResultSet rs = stmt.executeQuery()) {

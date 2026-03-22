@@ -10,6 +10,7 @@ import io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.NotNull;
@@ -27,7 +28,7 @@ public final class SqlResultMapper<T, ID> {
     private final ObjectModel<T, ID> objectModel;
     private final RelationshipLoader<T, ID> relationshipLoader;
     private final SessionCache<ID, T> globalCache;
-    private final DefaultResultCache<String, T, ID> cache;
+    private final DefaultResultCache<ParameterizedSql, T, ID> cache;
 
     public SqlResultMapper(
         RepositoryModel<T, ID> repositoryModel,
@@ -36,7 +37,7 @@ public final class SqlResultMapper<T, ID> {
         ObjectModel<T, ID> objectModel,
         RelationshipLoader<T, ID> relationshipLoader,
         SessionCache<ID, T> globalCache,
-        DefaultResultCache<String, T, ID> cache
+        DefaultResultCache<ParameterizedSql, T, ID> cache
     ) {
         this.repositoryModel = repositoryModel;
         this.idClass = idClass;
@@ -62,7 +63,7 @@ public final class SqlResultMapper<T, ID> {
 
     public SQLDatabaseParameters createParameters(
         java.sql.PreparedStatement statement,
-        String sql,
+        ParameterizedSql sql,
         CollectionHandler collectionHandler,
         boolean supportsArrays
     ) {
@@ -99,16 +100,14 @@ public final class SqlResultMapper<T, ID> {
 
     public T constructNewEntity(SQLDatabaseResult databaseResult) {
         ID id = resolverRegistry.resolve(idClass).resolve(databaseResult, repositoryModel.getPrimaryKey().columnName());
-        if (repositoryModel.hasRelationships()) {
-            T construct = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, resolverRegistry, id));
-            objectModel.populateRelationships(construct, id, relationshipLoader);
-            return construct;
-        }
-        return objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, resolverRegistry, id));
+        var reader = GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, resolverRegistry, id);
+        T construct = objectModel.construct(reader);
+        objectModel.populateRelationships(construct, id, relationshipLoader, reader);
+        return construct;
     }
 
     public List<T> mapResults(
-        String query,
+        ParameterizedSql query,
         @NotNull ResultSet resultSet,
         List<T> results,
         CollectionHandler collectionHandler,
@@ -120,28 +119,24 @@ public final class SqlResultMapper<T, ID> {
 
         while (resultSet.next()) {
             ID id = resolverRegistry.resolve(idClass).resolve(databaseResult, repositoryModel.getPrimaryKey().columnName());
-            T entity = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, resolverRegistry, id));
-            objectModel.populateRelationships(entity, objectModel.getId(entity), relationshipLoader);
-            if (existingGlobalCache) {
-                globalCache.put(id, entity);
-            }
+            var reader = GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, resolverRegistry, id);
+            T entity = objectModel.construct(reader);
+            objectModel.populateRelationships(entity, objectModel.getId(entity), relationshipLoader, reader);
+            if (existingGlobalCache) globalCache.put(id, entity);
             results.add(entity);
         }
 
-        if (cache != null) {
-            cache.insert(query, results, objectModel::getId);
-        }
-
+        if (cache != null) cache.insert(query, results, objectModel::getId);
         return results;
     }
 
     public List<T> fetchFirstItem(@NotNull SQLDatabaseResult databaseResult) {
         ID id = resolverRegistry.resolve(idClass).resolve(databaseResult, repositoryModel.getPrimaryKey().columnName());
+        var reader = GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, resolverRegistry, id);
+        T construct = objectModel.construct(reader);
         if (repositoryModel.hasRelationships()) {
-            T construct = objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, resolverRegistry, id));
-            objectModel.populateRelationships(construct, id, relationshipLoader);
-            return List.of(construct);
+            objectModel.populateRelationships(construct, id, relationshipLoader, reader);
         }
-        return List.of(objectModel.construct(GeneratedValueReaders.get(repositoryModel.tableName(), databaseResult, resolverRegistry, id)));
+        return List.of(construct);
     }
 }

@@ -1,20 +1,21 @@
 package io.github.flameyossnowy.universal.api.resolver;
 
+import io.github.flameyossnowy.uniform.json.dom.JsonNumber;
+import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
-import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
-import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 
-import me.flame.uniform.json.dom.JsonBoolean;
-import me.flame.uniform.json.dom.JsonDouble;
-import me.flame.uniform.json.dom.JsonInteger;
-import me.flame.uniform.json.dom.JsonLong;
-import me.flame.uniform.json.dom.JsonNull;
-import me.flame.uniform.json.dom.JsonString;
-import me.flame.uniform.json.dom.JsonValue;
+import io.github.flameyossnowy.uniform.json.dom.JsonBoolean;
+import io.github.flameyossnowy.uniform.json.dom.JsonDouble;
+import io.github.flameyossnowy.uniform.json.dom.JsonInteger;
+import io.github.flameyossnowy.uniform.json.dom.JsonLong;
+import io.github.flameyossnowy.uniform.json.dom.JsonNull;
+import io.github.flameyossnowy.uniform.json.dom.JsonString;
+import io.github.flameyossnowy.uniform.json.dom.JsonValue;
 
-import me.flame.uniform.json.resolvers.CoreTypeResolver;
-import me.flame.uniform.json.resolvers.CoreTypeResolverRegistry;
+import io.github.flameyossnowy.uniform.json.resolvers.CoreTypeResolver;
+import io.github.flameyossnowy.uniform.json.resolvers.CoreTypeResolverRegistry;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -44,12 +45,12 @@ import java.util.HashSet;
  * TypeResolverBridge.register(myTypeResolver, CoreTypeResolverRegistry.INSTANCE);
  * }</pre>
  *
- * <h3>Serialize direction (T → JsonValue)</h3>
+ * <h3>Serialize direction (T -> JsonValue)</h3>
  * Uses a {@link MockDatabaseParameters} to capture the value that
  * {@link TypeResolver#insert} writes, then converts the stored object to the
  * appropriate {@link JsonValue} based on {@link TypeResolver#getDatabaseType()}.
  *
- * <h3>Deserialize direction (JsonValue → T)</h3>
+ * <h3>Deserialize direction (JsonValue -> T)</h3>
  * Converts the {@link JsonValue} to the resolver's database type, wraps it in a
  * {@link MockDatabaseResult}, then delegates to {@link TypeResolver#resolve}.
  */
@@ -126,8 +127,6 @@ public final class TypeResolverBridge {
     // -------------------------------------------------------------------------
     // Internal
     // -------------------------------------------------------------------------
-
-    @SuppressWarnings("unchecked")
     private static <T> boolean registerIfAbsent(
             TypeResolver<T> resolver,
             CoreTypeResolverRegistry target) {
@@ -150,26 +149,15 @@ public final class TypeResolverBridge {
         return true;
     }
 
-    // -------------------------------------------------------------------------
-    // BridgedTypeResolver
-    // -------------------------------------------------------------------------
-
-    private static final class BridgedTypeResolver<T> implements CoreTypeResolver<T> {
+    private record BridgedTypeResolver<T>(TypeResolver<T> delegate) implements CoreTypeResolver<T> {
 
         private static final String COL = "v";
-
-        private final TypeResolver<T> delegate;
-
-        BridgedTypeResolver(TypeResolver<T> delegate) {
-            this.delegate = delegate;
-        }
 
         @Override
         public @NotNull Class<T> getType() {
             return delegate.getType();
         }
 
-        // ── Deserialize: JsonValue → database type → T ────────────────────────
 
         @Override
         public @Nullable T deserialize(@NotNull JsonValue value) {
@@ -179,8 +167,6 @@ public final class TypeResolverBridge {
             return delegate.resolve(new MockDatabaseResult(dbValue), COL);
         }
 
-        // ── Serialize: T → database type → JsonValue ──────────────────────────
-
         @Override
         public @NotNull JsonValue serialize(@NotNull T value) {
             MockDatabaseParameters params = new MockDatabaseParameters();
@@ -188,23 +174,21 @@ public final class TypeResolverBridge {
             return toJsonValue(params.value, delegate.getDatabaseType());
         }
 
-        // ── JsonValue → raw DB object ─────────────────────────────────────────
-
         private static @Nullable Object toDbValue(@NotNull JsonValue v, @NotNull Class<?> dbType) {
             if (dbType == String.class)
                 return v instanceof JsonString(String value) ? value : v.toString();
 
-            if (dbType == Long.class    || dbType == long.class)
-                return v instanceof me.flame.uniform.json.dom.JsonNumber n ? n.longValue() : Long.parseLong(v.toString());
+            if (dbType == Long.class || dbType == long.class)
+                return v instanceof JsonNumber n ? n.longValue() : Long.parseLong(v.toString());
 
             if (dbType == Integer.class || dbType == int.class)
-                return v instanceof me.flame.uniform.json.dom.JsonNumber n ? n.intValue() : Integer.parseInt(v.toString());
+                return v instanceof JsonNumber n ? n.intValue() : Integer.parseInt(v.toString());
 
-            if (dbType == Double.class  || dbType == double.class)
-                return v instanceof me.flame.uniform.json.dom.JsonNumber n ? n.doubleValue() : Double.parseDouble(v.toString());
+            if (dbType == Double.class || dbType == double.class)
+                return v instanceof JsonNumber n ? n.doubleValue() : Double.parseDouble(v.toString());
 
-            if (dbType == Float.class   || dbType == float.class)
-                return v instanceof me.flame.uniform.json.dom.JsonNumber n ? n.floatValue() : Float.parseFloat(v.toString());
+            if (dbType == Float.class || dbType == float.class)
+                return v instanceof JsonNumber n ? n.floatValue() : Float.parseFloat(v.toString());
 
             if (dbType == Boolean.class || dbType == boolean.class)
                 return v instanceof JsonBoolean(boolean value) ? value : Boolean.parseBoolean(v.toString());
@@ -216,27 +200,21 @@ public final class TypeResolverBridge {
             return v.toString();
         }
 
-        // ── Raw DB object → JsonValue ─────────────────────────────────────────
-
         private static @NotNull JsonValue toJsonValue(@Nullable Object dbValue, @NotNull Class<?> dbType) {
             if (dbValue == null) return JsonNull.INSTANCE;
 
-            if (dbType == String.class)                              return new JsonString((String) dbValue);
-            if (dbType == Long.class    || dbType == long.class)     return new JsonLong((Long) dbValue);
-            if (dbType == Integer.class || dbType == int.class)      return new JsonInteger((Integer) dbValue);
-            if (dbType == Double.class  || dbType == double.class)   return new JsonDouble((Double) dbValue);
-            if (dbType == Float.class   || dbType == float.class)    return new JsonDouble(((Float) dbValue).doubleValue());
-            if (dbType == Boolean.class || dbType == boolean.class)  return JsonBoolean.of((Boolean) dbValue);
-            if (dbType == byte[].class)                              return new JsonString(Base64.getEncoder().encodeToString((byte[]) dbValue));
+            if (dbType == String.class) return new JsonString((String) dbValue);
+            if (dbType == Long.class || dbType == long.class) return new JsonLong((Long) dbValue);
+            if (dbType == Integer.class || dbType == int.class) return new JsonInteger((Integer) dbValue);
+            if (dbType == Double.class || dbType == double.class) return new JsonDouble((Double) dbValue);
+            if (dbType == Float.class || dbType == float.class) return new JsonDouble(((Float) dbValue).doubleValue());
+            if (dbType == Boolean.class || dbType == boolean.class) return JsonBoolean.of((Boolean) dbValue);
+            if (dbType == byte[].class) return new JsonString(Base64.getEncoder().encodeToString((byte[]) dbValue));
 
             // Fallback - toString serialization for unknown DB types
             return new JsonString(dbValue.toString());
         }
     }
-
-    // -------------------------------------------------------------------------
-    // MockDatabaseParameters - captures what TypeResolver.insert() writes
-    // -------------------------------------------------------------------------
 
     private static final class MockDatabaseParameters implements DatabaseParameters {
 
@@ -272,27 +250,42 @@ public final class TypeResolverBridge {
         public boolean contains(@NotNull String name) { return value != null; }
     }
 
-    // -------------------------------------------------------------------------
-    // MockDatabaseResult - feeds a raw DB value to TypeResolver.resolve()
-    // -------------------------------------------------------------------------
-
-    private static final class MockDatabaseResult implements DatabaseResult {
+    private record MockDatabaseResult(@Nullable Object value) implements DatabaseResult {
 
         private static final String COL = "v";
-        private final @Nullable Object value;
 
-        MockDatabaseResult(@Nullable Object value) {
-            this.value = value;
+        @Override
+        public CollectionHandler getCollectionHandler() {
+            return null;
         }
 
-        @Override public io.github.flameyossnowy.universal.api.handler.CollectionHandler getCollectionHandler() { return null; }
-        @Override public boolean supportsArraysNatively() { return false; }
-        @Override public io.github.flameyossnowy.universal.api.meta.RepositoryModel<?, ?> repositoryModel() { return null; }
-        @Override public int getColumnCount() { return 1; }
-        @Override public String getColumnName(int index) { return COL; }
-        @Override public boolean hasColumn(String col) { return COL.equals(col); }
+        @Override
+        public boolean supportsArraysNatively() {
+            return false;
+        }
 
-        @Override @SuppressWarnings("unchecked")
+        @Override
+        public RepositoryModel<?, ?> repositoryModel() {
+            return null;
+        }
+
+        @Override
+        public int getColumnCount() {
+            return 1;
+        }
+
+        @Override
+        public String getColumnName(int index) {
+            return COL;
+        }
+
+        @Override
+        public boolean hasColumn(String col) {
+            return COL.equals(col);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
         public <T> @Nullable T get(String col, Class<T> type) {
             if (!COL.equals(col)) return null;
             return (T) value;

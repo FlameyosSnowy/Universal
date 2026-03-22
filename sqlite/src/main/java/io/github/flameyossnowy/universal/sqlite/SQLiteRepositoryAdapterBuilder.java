@@ -11,6 +11,7 @@ import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import io.github.flameyossnowy.universal.sqlite.connections.SQLiteSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
 
@@ -164,7 +165,7 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
 
         int maxSize = 0;
 
-        DefaultResultCache<String, T, ID> resultCache = null;
+        DefaultResultCache<ParameterizedSql, T, ID> resultCache = null;
 
         if (cacheable) {
             maxSize = information.getCacheConfig().maxSize();

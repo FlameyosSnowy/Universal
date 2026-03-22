@@ -6,6 +6,7 @@ import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
+import org.jetbrains.annotations.NotNull;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -118,7 +119,7 @@ public class ResultSetIterator<T> implements CloseableIterator<T> {
     /**
      * Creates a Stream from a ResultSet with default fetch size.
      */
-    public static <T> Stream<T> stream(
+    public static <T> @NotNull Stream<T> stream(
         ResultSet resultSet, BiFunction<ResultSet, SQLDatabaseResult, T> mapper, TypeResolverRegistry resolverRegistry,
         CollectionHandler collectionHandler, boolean supportArrays, RepositoryModel<T, ?> information
     ) {
@@ -131,7 +132,7 @@ public class ResultSetIterator<T> implements CloseableIterator<T> {
      * 
      * @param fetchSize the number of rows to fetch at a time, or null for default
      */
-    public static <T> Stream<T> stream(
+    public static <T> @NotNull Stream<T> stream(
         ResultSet resultSet, BiFunction<ResultSet, SQLDatabaseResult, T> mapper, Integer fetchSize,
         TypeResolverRegistry resolverRegistry, CollectionHandler collectionHandler, boolean supportArrays, RepositoryModel<T, ?> information
     ) {

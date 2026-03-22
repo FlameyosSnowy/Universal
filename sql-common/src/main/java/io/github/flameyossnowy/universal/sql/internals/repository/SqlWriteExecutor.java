@@ -19,6 +19,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
 import org.jetbrains.annotations.NotNull;
@@ -38,7 +39,7 @@ public final class SqlWriteExecutor<T, ID> {
     private final TypeResolverRegistry resolverRegistry;
     private final io.github.flameyossnowy.universal.api.handler.CollectionHandler collectionHandler;
     private final boolean supportsArrays;
-    private final DefaultResultCache<String, T, ID> cache;
+    private final DefaultResultCache<ParameterizedSql, T, ID> cache;
     private final SessionCache<ID, T> globalCache;
     private final RelationshipHandler<T, ID> relationshipHandler;
     private final ExceptionHandler<T, ID, Connection> exceptionHandler;
@@ -60,7 +61,7 @@ public final class SqlWriteExecutor<T, ID> {
         TypeResolverRegistry resolverRegistry,
         io.github.flameyossnowy.universal.api.handler.CollectionHandler collectionHandler,
         boolean supportsArrays,
-        DefaultResultCache<String, T, ID> cache,
+        DefaultResultCache<ParameterizedSql, T, ID> cache,
         SessionCache<ID, T> globalCache,
         RelationshipHandler<T, ID> relationshipHandler,
         ExceptionHandler<T, ID, Connection> exceptionHandler,
@@ -94,7 +95,7 @@ public final class SqlWriteExecutor<T, ID> {
         this.primaryKeyColumnNames = primaryKeyColumnNames;
     }
 
-    public TransactionResult<Boolean> executeBatch(TransactionContext<Connection> transactionContext, String sql, Collection<T> collection) {
+    public TransactionResult<Boolean> executeBatch(TransactionContext<Connection> transactionContext, ParameterizedSql sql, Collection<T> collection) {
         try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
              PreparedStatement statement = prepareStatementWithGeneratedKeys(connection, sql)) {
 
@@ -164,8 +165,8 @@ public final class SqlWriteExecutor<T, ID> {
         }
     }
 
-    public TransactionResult<Boolean> executeUpdate(TransactionContext<Connection> transactionContext, String sql, StatementSetter setter) {
-        try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
+    public TransactionResult<Boolean> executeUpdate(TransactionContext<Connection> transactionContext, ParameterizedSql sql, StatementSetter setter) {
+        try (var statement = dataSource.prepareStatement(sql.sql(), transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
             if (setter != null) setter.set(statement);
             if (cache != null) cache.clear();
             int updated = statement.executeUpdate();
@@ -175,16 +176,16 @@ public final class SqlWriteExecutor<T, ID> {
         }
     }
 
-    public TransactionResult<Boolean> executeUpdateQuery(TransactionContext<Connection> transactionContext, String sql, UpdateQuery query) {
+    public TransactionResult<Boolean> executeUpdateQuery(TransactionContext<Connection> transactionContext, ParameterizedSql sql, UpdateQuery query) {
         return executeUpdate(transactionContext, sql, statement -> {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryModel, collectionHandler, supportsArrays);
             parameterBinder.setUpdateParameters(query, parameters, resolverRegistry, repositoryModel, sqlType);
         });
     }
 
-    public TransactionResult<Boolean> executeUpdate(TransactionContext<Connection> transactionContext, String sql, StatementSetter setter, T entity, ID id, java.util.function.Function<ID, T> findById) {
+    public TransactionResult<Boolean> executeUpdate(TransactionContext<Connection> transactionContext, ParameterizedSql sql, StatementSetter setter, T entity, ID id, java.util.function.Function<ID, T> findById) {
         if (entityLifecycleListener != null) entityLifecycleListener.onPreUpdate(entity);
-        try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
+        try (var statement = dataSource.prepareStatement(sql.sql(), transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
             if (setter != null) setter.set(statement);
             if (cache != null) cache.clear();
             if (globalCache != null) globalCache.put(id, entity);
@@ -213,8 +214,8 @@ public final class SqlWriteExecutor<T, ID> {
         }
     }
 
-    public TransactionResult<Boolean> executeDelete(TransactionContext<Connection> transactionContext, String sql, DeleteMode mode) {
-        try (var statement = dataSource.prepareStatement(sql, transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
+    public TransactionResult<Boolean> executeDelete(TransactionContext<Connection> transactionContext, ParameterizedSql sql, DeleteMode mode) {
+        try (var statement = dataSource.prepareStatement(sql.sql(), transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
             SQLDatabaseParameters parameters = new SQLDatabaseParameters(statement, resolverRegistry, sql, repositoryModel, collectionHandler, supportsArrays);
             return mode.apply(parameters, statement);
         } catch (Exception e) {
@@ -222,7 +223,7 @@ public final class SqlWriteExecutor<T, ID> {
         }
     }
 
-    public TransactionResult<Boolean> executeDeleteQuery(TransactionContext<Connection> transactionContext, String sql, DeleteQuery query) {
+    public TransactionResult<Boolean> executeDeleteQuery(TransactionContext<Connection> transactionContext, ParameterizedSql sql, DeleteQuery query) {
         return executeDelete(transactionContext, sql, (parameters, statement) -> {
             parameterBinder.setUpdateParameters(query, parameters, resolverRegistry, repositoryModel, sqlType);
             if (cache != null) cache.clear();
@@ -231,14 +232,14 @@ public final class SqlWriteExecutor<T, ID> {
         });
     }
 
-    public TransactionResult<Boolean> executeDeleteEntity(TransactionContext<Connection> transactionContext, String sql, @NotNull T entity) {
+    public TransactionResult<Boolean> executeDeleteEntity(TransactionContext<Connection> transactionContext, ParameterizedSql sql, @NotNull T entity) {
         if (entityLifecycleListener != null) entityLifecycleListener.onPreDelete(entity);
         return executeDelete(transactionContext, sql, (parameters, statement) ->
             processDelete(objectModel.getId(entity), parameters, statement, entity)
         );
     }
 
-    public TransactionResult<Boolean> executeDeleteWithId(TransactionContext<Connection> transactionContext, String sql, @NotNull ID id, java.util.function.Function<ID, T> findById) {
+    public TransactionResult<Boolean> executeDeleteWithId(TransactionContext<Connection> transactionContext, ParameterizedSql sql, @NotNull ID id, java.util.function.Function<ID, T> findById) {
         T byId = null;
         if (auditLogger != null || entityLifecycleListener != null) byId = findById.apply(id);
         if (entityLifecycleListener != null) entityLifecycleListener.onPreDelete(byId);
@@ -263,7 +264,7 @@ public final class SqlWriteExecutor<T, ID> {
         return success;
     }
 
-    public TransactionResult<Boolean> executeInsertAndSetId(TransactionContext<Connection> transactionContext, String sql, T value) {
+    public TransactionResult<Boolean> executeInsertAndSetId(TransactionContext<Connection> transactionContext, ParameterizedSql sql, T value) {
         if (entityLifecycleListener != null) entityLifecycleListener.onPreInsert(value);
         try (Connection connection = transactionContext == null ? dataSource.getConnection() : transactionContext.connection();
              PreparedStatement statement = prepareStatementWithGeneratedKeys(connection, sql)) {
@@ -323,12 +324,12 @@ public final class SqlWriteExecutor<T, ID> {
         }
     }
 
-    private PreparedStatement prepareStatementWithGeneratedKeys(Connection connection, String sql) throws SQLException {
+    private PreparedStatement prepareStatementWithGeneratedKeys(Connection connection, ParameterizedSql sql) throws SQLException {
         if (isAutoIncrement) {
-            return connection.prepareStatement(sql, primaryKeyColumnNames);
+            return connection.prepareStatement(sql.sql(), primaryKeyColumnNames);
         }
 
-        return connection.prepareStatement(sql);
+        return connection.prepareStatement(sql.sql());
     }
 
     private boolean usesJsonVersioning() {

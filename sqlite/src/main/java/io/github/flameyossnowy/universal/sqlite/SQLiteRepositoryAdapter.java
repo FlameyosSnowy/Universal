@@ -6,6 +6,7 @@ import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.sql.internals.AbstractRelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
@@ -14,7 +15,7 @@ import java.util.function.LongFunction;
 public class SQLiteRepositoryAdapter<T, ID> extends AbstractRelationalRepositoryAdapter<T, ID> {
     protected SQLiteRepositoryAdapter(
             SQLConnectionProvider dataSource,
-            DefaultResultCache<String, T, ID> cache,
+            DefaultResultCache<ParameterizedSql, T, ID> cache,
             Class<T> repository,
             Class<ID> idClass,
             SessionCache<ID, T> globalCache,

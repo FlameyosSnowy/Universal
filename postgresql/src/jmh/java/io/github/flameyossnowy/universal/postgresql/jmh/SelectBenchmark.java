@@ -42,8 +42,6 @@ public class SelectBenchmark {
         state.teardown();
     }
 
-    // ── findAll ───────────────────────────────────────────────────────────────
-
     @Benchmark
     public void universal_findAll(Blackhole bh) {
         List<BenchmarkEntity> list = state.entityAdapter.find();
@@ -65,8 +63,6 @@ public class SelectBenchmark {
             state.dsl.selectFrom(table("benchmark_entities")).fetchMaps();
         bh.consume(list);
     }
-
-    // ── findById ──────────────────────────────────────────────────────────────
 
     @Benchmark
     public void universal_findById(Blackhole bh) {
@@ -90,8 +86,6 @@ public class SelectBenchmark {
             .fetchOne();
         bh.consume(r);
     }
-
-    // ── findFiltered ──────────────────────────────────────────────────────────
 
     @Benchmark
     public void universal_findFiltered(Blackhole bh) {
@@ -127,8 +121,6 @@ public class SelectBenchmark {
             .fetchMaps();
         bh.consume(list);
     }
-
-    // ── count ─────────────────────────────────────────────────────────────────
 
     @Benchmark
     public void universal_count(Blackhole bh) {

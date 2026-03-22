@@ -18,6 +18,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.sql.internals.DelegatingResultSet;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import io.github.flameyossnowy.universal.sql.iteration.ResultSetIterator;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
@@ -77,7 +78,7 @@ public class SqlIteratorBuilder<T, ID> {
 
     public @NotNull CloseableIterator<T> findIterator(SelectQuery q) {
         try {
-            String sql = engine.parseSelect(q, false);
+            ParameterizedSql sql = engine.parseSelect(q, false);
 
             BiFunction<ResultSet, SQLDatabaseResult, T> mapper = (r, result) -> {
                 try {
@@ -88,7 +89,7 @@ public class SqlIteratorBuilder<T, ID> {
             };
 
             return executeForIteration(
-                sql,
+                sql.sql(),
                 q == null ? List.of() : q.filters(),
                 rs -> new ResultSetIterator<>(
                     rs, mapper, repositoryModel.getFetchPageSize(), resolverRegistry,
@@ -102,10 +103,10 @@ public class SqlIteratorBuilder<T, ID> {
 
     public @NotNull Stream<T> findStream(SelectQuery q) {
         try {
-            String sql = engine.parseSelect(q, false);
+            ParameterizedSql sql = engine.parseSelect(q, false);
 
             return executeForIteration(
-                sql,
+                sql.sql(),
                 q == null ? List.of() : q.filters(),
                 rs -> ResultSetIterator.stream(
                     rs,

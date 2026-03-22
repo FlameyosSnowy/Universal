@@ -9,7 +9,7 @@ import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.velocis.cache.algorithms.LRUCache;
 
-import me.flame.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -9,19 +9,23 @@ import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Primitives;
-import org.jetbrains.annotations.Contract;
+import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
+import io.github.flameyossnowy.universal.sql.internals.query.AggregationQueryParser;
+import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Types;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Maps named parameters to JDBC positional indices using the ordered
+ * {@link ParameterizedSql#parameterNames()} list produced by the SQL builders.
+ */
 @SuppressWarnings("unchecked")
 public class SQLDatabaseParameters implements DatabaseParameters {
 
@@ -29,23 +33,30 @@ public class SQLDatabaseParameters implements DatabaseParameters {
     private final TypeResolverRegistry typeRegistry;
     private final CollectionHandler collectionHandler;
     private final RepositoryModel<?, ?> repositoryInformation;
-
-    private int parameterIndex = 1;
     private final boolean supportsArrays;
-    private final Map<String, Integer> nameToIndexMap = new LinkedHashMap<>(8);
 
-    private final Map<String, Map<String, Integer>> whereCache = new HashMap<>(8);
+    /**
+     * name -> 1-based JDBC parameter index.
+     * Built once from the {@link ParameterizedSql} handed in by the caller.
+     */
+    private final Map<String, Integer> nameToIndexMap;
 
-    @Contract("null, _, _, _, _, _ -> fail; !null, null, _, _, _, _ -> fail")
+    /**
+     * Tracks the next free index for parameters that are registered lazily via
+     * {@link #setNull(String, Class)} (e.g. collection / relationship binders
+     * that append parameters after the main SQL was constructed).
+     */
+    private int nextDynamicIndex;
+
     public SQLDatabaseParameters(
         PreparedStatement statement,
         TypeResolverRegistry typeRegistry,
-        String sql,
+        ParameterizedSql parameterizedSql,
         RepositoryModel<?, ?> information,
         CollectionHandler collectionHandler,
         boolean supportsArrays
     ) {
-        if (statement == null) throw new IllegalArgumentException("PreparedStatement cannot be null");
+        if (statement == null)    throw new IllegalArgumentException("PreparedStatement cannot be null");
         if (typeRegistry == null) throw new IllegalArgumentException("TypeResolverRegistry cannot be null");
 
         this.statement = statement;
@@ -54,202 +65,84 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         this.supportsArrays = supportsArrays;
         this.repositoryInformation = information;
 
-        parseSql(sql, information);
-    }
+        List<String> names = parameterizedSql.parameterNames();
+        this.nameToIndexMap = new LinkedHashMap<>(Math.max(names.size() * 2, 8));
 
-    private void parseSql(@NotNull String sql, RepositoryModel<?, ?> information) {
-        String lower = sql.toLowerCase(Locale.ROOT).trim();
-
-        if (lower.startsWith("insert")) parseInsert(sql, information);
-        else if (lower.startsWith("update")) {
-            parseUpdate(sql);
-            parseWhereClause(sql);
-        }
-        else if (lower.startsWith("select")) parseWhereClause(sql);
-        else if (lower.startsWith("delete")) parseWhereClause(sql);
-    }
-
-    private void parseWhereClause(String sql) {
-        int wherePos = sql.toLowerCase(Locale.ROOT).indexOf("where");
-        if (wherePos < 0) return;
-
-        String where = sql.substring(wherePos + 5);
-        parseWhere(where);
-    }
-
-    private void parseWhere(String where) {
-        String cacheKey = where + "|start=" + parameterIndex;
-        Map<String, Integer> cached = whereCache.get(cacheKey);
-        if (cached != null) {
-            nameToIndexMap.putAll(cached);
-            return;
+        for (int i = 0; i < names.size(); i++) {
+            nameToIndexMap.putIfAbsent(names.get(i), i + 1);
         }
 
-        Map<String, Integer> mapping = new LinkedHashMap<>(32);
-        List<Token> tokens = SqlTokenizer.tokenize(where);
-
-        int pos = parameterIndex;
-
-        for (int i = 0; i < tokens.size(); i++) {
-            Token t = tokens.get(i);
-
-            if (t.type() != TokenType.IDENT) continue;
-
-            // IDENT OP STRING OP ?  (e.g. payload #>> '{n}' = ?)
-            if (i + 4 < tokens.size()) {
-                Token op1 = tokens.get(i + 1);
-                Token mid = tokens.get(i + 2);
-                Token op2 = tokens.get(i + 3);
-                Token rhs = tokens.get(i + 4);
-
-                if (op1.type() == TokenType.OPERATOR && mid.type() == TokenType.STRING
-                    && op2.type() == TokenType.OPERATOR && rhs.type() == TokenType.QUESTION) {
-                    String lhs = t.text() + " " + op1.text() + " " + mid.text();
-                    mapping.put(lhs, pos++);
-                    continue;
-                }
-            }
-
-            // IDENT OP ?
-            if (i + 2 < tokens.size()) {
-                Token op = tokens.get(i + 1);
-                Token rhs = tokens.get(i + 2);
-
-                if (op.type() == TokenType.OPERATOR && rhs.type() == TokenType.QUESTION) {
-                    mapping.put(t.text(), pos++);
-                    continue;
-                }
-
-                // IDENT IN (...)
-                if (op.type() == TokenType.KEYWORD && op.text().equalsIgnoreCase("in")) {
-                    int j = i + 2;
-                    if (j < tokens.size() && tokens.get(j).type() == TokenType.LPAREN) {
-                        j++;
-                        while (j < tokens.size() && tokens.get(j).type() != TokenType.RPAREN) {
-                            if (tokens.get(j).type() == TokenType.QUESTION) {
-                                mapping.put(t.text(), pos++);
-                            }
-                            j++;
-                        }
-                    }
-                }
-            }
-        }
-
-        whereCache.put(cacheKey, mapping);
-        nameToIndexMap.putAll(mapping);
-
-        parameterIndex = pos;
+        this.nextDynamicIndex = names.size() + 1;
     }
 
-    private void parseInsert(String sql, RepositoryModel<?, ?> information) {
-        int openParen = sql.indexOf('(');
-        int closeParen = sql.indexOf(')', openParen);
-        if (openParen < 0 || closeParen < 0) return;
+    public SQLDatabaseParameters(
+        PreparedStatement statement,
+        TypeResolverRegistry typeRegistry,
+        AggregationQueryParser.BoundSql parameterizedSql,
+        RepositoryModel<?, ?> information,
+        CollectionHandler collectionHandler,
+        boolean supportsArrays
+    ) {
+        if (statement == null)   throw new IllegalArgumentException("PreparedStatement cannot be null");
+        if (typeRegistry == null) throw new IllegalArgumentException("TypeResolverRegistry cannot be null");
 
-        String[] columns = sql.substring(openParen + 1, closeParen).split(",");
+        this.statement = statement;
+        this.typeRegistry = typeRegistry;
+        this.collectionHandler = collectionHandler;
+        this.supportsArrays = supportsArrays;
+        this.repositoryInformation = information;
 
-        FieldModel<?> autoIncrement = information.getPrimaryKey().autoIncrement()
-            ? information.getPrimaryKey()
-            : null;
+        List<String> names = parameterizedSql.paramNames();
+        this.nameToIndexMap = new LinkedHashMap<>(Math.max(names.size() * 2, 8));
 
-        int pos = 1;
-        for (String raw : columns) {
-            String col = raw.trim();
-            if (autoIncrement != null && col.equalsIgnoreCase(autoIncrement.columnName())) continue;
-            nameToIndexMap.put(col, pos++);
+        for (int i = 0; i < names.size(); i++) {
+            nameToIndexMap.putIfAbsent(names.get(i), i + 1);
         }
 
-        parameterIndex = pos;
+        this.nextDynamicIndex = names.size() + 1;
     }
 
-    private void parseUpdate(String sql) {
-        int setIndex = sql.toLowerCase(Locale.ROOT).indexOf("set");
-        if (setIndex < 0) return;
-
-        String afterSet = sql.substring(setIndex + 3);
-        int whereIndex = afterSet.toLowerCase(Locale.ROOT).indexOf("where");
-        String setOnly = whereIndex >= 0 ? afterSet.substring(0, whereIndex) : afterSet;
-
-        String[] assigns = setOnly.split(",");
-        int pos = 1;
-
-        for (String a : assigns) {
-            int eq = a.indexOf('=');
-            if (eq < 0) continue;
-            String col = a.substring(0, eq).trim();
-            String rhs = a.substring(eq + 1);
-            boolean hasPlaceholder = rhs.indexOf('?') >= 0;
-            if (!col.isEmpty() && hasPlaceholder) {
-                nameToIndexMap.put(col, pos++);
-            }
-        }
-
-        parameterIndex = pos;
+    public SQLDatabaseParameters(
+        PreparedStatement statement,
+        TypeResolverRegistry typeRegistry,
+        String sql,
+        RepositoryModel<?, ?> information,
+        CollectionHandler collectionHandler,
+        boolean supportsArrays
+    ) {
+        this(statement, typeRegistry, ParameterizedSql.of(sql), information, collectionHandler, supportsArrays);
     }
 
-    private int getIndexForName(Object index) {
-        if (index instanceof Integer i) return i;
-        if (index instanceof String s) {
-            // Allow positional binding for parameterized SQL (e.g. aggregation/HAVING) by
-            // passing "1", "2", ... as the parameter name.
-            int len = s.length();
-            if (len > 0) {
-                int n = 0;
-                for (int i1 = 0; i1 < len; i1++) {
-                    char c = s.charAt(i1);
-                    if (c < '0' || c > '9') {
-                        n = -1;
-                        break;
-                    }
-                    n = n * 10 + (c - '0');
-                }
-                if (n > 0) {
-                    return n;
-                }
-            }
-        }
-
-        String key = index.toString();
+    private int getIndexForName(String key) {
         Integer mapped = nameToIndexMap.get(key);
         if (mapped != null) return mapped;
 
-        // Allow binding by entity field name when SQL uses physical column name.
-        // Needed for @Named because generated ObjectModels bind using the field name.
-        FieldModel<?> field = repositoryInformation != null ? repositoryInformation.columnFieldByName(key) : null;
-        if (field != null) {
-            String column = field.columnName();
-            if (column != null) {
-                mapped = nameToIndexMap.get(column);
+        if (repositoryInformation != null) {
+            FieldModel<?> field = repositoryInformation.columnFieldByName(key);
+            if (field != null) {
+                mapped = nameToIndexMap.get(field.columnName());
                 if (mapped != null) return mapped;
             }
         }
 
-        throw new IllegalArgumentException("Unknown parameter: " + index);
+        throw new IllegalArgumentException("Unknown parameter: " + key);
     }
 
     @Override
-    public CollectionHandler getCollectionHandler() {
-        return collectionHandler;
-    }
+    public CollectionHandler getCollectionHandler() { return collectionHandler; }
 
     @Override
-    public String getAdapterType() {
-        return "sql";
-    }
+    public String getAdapterType() { return "sql"; }
 
     @Override
-    public boolean supportsArraysNatively() {
-        return supportsArrays;
-    }
+    public boolean supportsArraysNatively() { return supportsArrays; }
 
     @Override
     public <T> void set(@NotNull String name, @Nullable T value, @NotNull Class<?> type) {
         int idx = getIndexForName(name);
 
         if (value == null) {
-            try { statement.setObject(idx, null); }
-            catch (SQLException e) { throw new RuntimeException(e); }
+            setNull(idx, type);
             return;
         }
 
@@ -267,7 +160,7 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         int idx = getIndexForName(name);
 
         if (value == null) {
-            setNull(name, type);
+            setNull(idx, type);
             return;
         }
 
@@ -276,9 +169,8 @@ public class SQLDatabaseParameters implements DatabaseParameters {
 
             if (field != null && field.isJson()) {
                 Object toBind = value;
-                // If we were given the JSON object type, serialize it.
-                if (value != null && field.type().isInstance(value)) {
-                    JsonCodec<Object> codec = (JsonCodec<Object>) typeRegistry.getJsonCodec(field.jsonCodec());
+                if (field.type().isInstance(value)) {
+                    JsonCodec<Object> codec = typeRegistry.getJsonCodec(field.jsonCodec());
                     toBind = codec.serialize(value, (Class<Object>) field.type());
                 }
                 try {
@@ -289,44 +181,32 @@ public class SQLDatabaseParameters implements DatabaseParameters {
                 return;
             }
 
-            if (type == byte.class || type == Byte.class)             statement.setByte(idx, ((Number)value).byteValue());
-            else if (type == short.class || type == Short.class)      statement.setShort(idx, ((Number)value).shortValue());
-            else if (type == int.class || type == Integer.class)      statement.setInt(idx, ((Number)value).intValue());
-            else if (type == long.class || type == Long.class)        statement.setLong(idx, ((Number)value).longValue());
-            else if (type == float.class || type == Float.class)      statement.setFloat(idx, ((Number)value).floatValue());
-            else if (type == double.class || type == Double.class)    statement.setDouble(idx, ((Number)value).doubleValue());
-            else if (type == boolean.class || type == Boolean.class)  statement.setBoolean(idx, (Boolean)value);
-            else if (type == char.class || type == Character.class)   statement.setString(idx, value.toString());
-            else if (type == String.class)                            statement.setString(idx, (String) value);
-            else                                                      statement.setObject(idx, value); // I hope this never gets touched, lol
+            if      (type == byte.class    || type == Byte.class)      statement.setByte(idx, ((byte) value));
+            else if (type == short.class   || type == Short.class)     statement.setShort(idx, ((short) value));
+            else if (type == int.class     || type == Integer.class)   statement.setInt(idx, ((int) value));
+            else if (type == long.class    || type == Long.class)      statement.setLong(idx, ((long) value));
+            else if (type == float.class   || type == Float.class)     statement.setFloat(idx, ((float) value));
+            else if (type == double.class  || type == Double.class)    statement.setDouble(idx, ((double) value));
+            else if (type == boolean.class || type == Boolean.class)   statement.setBoolean(idx, (boolean) value);
+            else if (type == char.class    || type == Character.class) statement.setString(idx, value.toString());
+            else if (type == String.class)                             statement.setString(idx, (String) value);
+            else                                                       statement.setObject(idx, value);
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private @Nullable FieldModel<?> findFieldByNameOrColumnName(@NotNull String name) {
-        if (repositoryInformation == null) {
-            return null;
-        }
-
-        FieldModel<?> byName = repositoryInformation.fieldByName(name);
-        if (byName != null) {
-            return byName;
-        }
-
-        return repositoryInformation.columnFieldByName(name);
-    }
-
     @Override
     public void setNull(@NotNull String name, @NotNull Class<?> type) {
-        int index = nameToIndexMap.computeIfAbsent(name, n -> parameterIndex++);
+        // Register the name dynamically if it isn't in the map yet (e.g. a
+        // collection/relationship binder adding extra params after construction).
+        int index = nameToIndexMap.computeIfAbsent(name, n -> nextDynamicIndex++);
         setNull(index, type);
     }
 
     private void setNull(int index, @NotNull Class<?> type) {
         Class<?> lookup = Primitives.asWrapper(type);
-
         DataHandler<?> handler = typeRegistry.getHandler(lookup);
         int sqlType = handler != null ? handler.getSqlType() : Types.OTHER;
 
@@ -334,7 +214,13 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         catch (SQLException e) { throw new RuntimeException(e); }
     }
 
-    @Override public int size() { return Math.max(parameterIndex - 1, nameToIndexMap.size()); }
+    private @Nullable FieldModel<?> findFieldByNameOrColumnName(@NotNull String name) {
+        if (repositoryInformation == null) return null;
+        FieldModel<?> byName = repositoryInformation.fieldByName(name);
+        return byName != null ? byName : repositoryInformation.columnFieldByName(name);
+    }
+
+    @Override public int size() { return nextDynamicIndex - 1; }
     @Override public <T> @Nullable T get(int idx, @NotNull Class<T> type) { throw new UnsupportedOperationException(); }
     @Override public <T> @Nullable T get(@NotNull String name, @NotNull Class<T> type) { throw new UnsupportedOperationException(); }
     @Override public boolean contains(@NotNull String name) { return nameToIndexMap.containsKey(name); }
