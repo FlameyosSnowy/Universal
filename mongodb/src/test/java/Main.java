@@ -15,6 +15,7 @@ import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 public class Main {
@@ -226,7 +227,7 @@ public class Main {
 
         private String name;
 
-        @OneToOne
+        @OneToOne(mappedBy = "faction")
         private WarpRel warp;
 
         public FactionRel() {}
@@ -257,7 +258,32 @@ public class Main {
         }
 
         public void setWarp(WarpRel warp) {
+            System.out.println("called set warp with " + warp);
             this.warp = warp;
+        }
+
+        @Override
+        public final boolean equals(Object o) {
+            if (!(o instanceof FactionRel that)) return false;
+
+            return Objects.equals(id, that.id) && Objects.equals(name, that.name) && Objects.equals(warp, that.warp);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hashCode(id);
+            result = 31 * result + Objects.hashCode(name);
+            result = 31 * result + Objects.hashCode(warp);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "FactionRel{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", warp=" + warp +
+                '}';
         }
     }
 
@@ -269,15 +295,14 @@ public class Main {
 
         private String name;
 
-        @OneToOne
+        @OneToOne(mappedBy = "warp")
         private FactionRel faction;
 
         public WarpRel() {}
 
-        public WarpRel(UUID id, String name, FactionRel faction) {
+        public WarpRel(UUID id, String name) {
             this.id = id;
             this.name = name;
-            this.faction = faction;
         }
 
         public UUID getId() {
@@ -302,6 +327,31 @@ public class Main {
 
         public void setFaction(FactionRel faction) {
             this.faction = faction;
+        }
+
+        @Override
+        public final boolean equals(Object o) {
+            if (!(o instanceof WarpRel warpRel)) return false;
+            if (this == warpRel) return true;
+
+            return Objects.equals(id, warpRel.id) && Objects.equals(name, warpRel.name) && Objects.equals(faction, warpRel.faction);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hashCode(id);
+            result = 31 * result + Objects.hashCode(name);
+            result = 31 * result + Objects.hashCode(faction);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "WarpRel{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", faction=" + (faction == null ? null : faction.id) +
+                '}';
         }
     }
 }

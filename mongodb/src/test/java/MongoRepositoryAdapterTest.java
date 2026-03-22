@@ -263,18 +263,24 @@ class MongoRepositoryAdapterTest {
     }
 
     @Test
-    void one_to_one_relationship_is_populated_on_findById() {
+    void one_to_one_relationship_is_populated_on_findById() throws Throwable {
         UUID factionId = UUID.randomUUID();
         UUID warpId = UUID.randomUUID();
 
+        Main.WarpRel warp = new Main.WarpRel(warpId, "WarpA");
         Main.FactionRel faction = new Main.FactionRel(factionId, "FactionA");
-        factionAdapter.insert(faction);
+        warp.setFaction(faction);
+        faction.setWarp(warp);
 
-        warpAdapter.insert(new Main.WarpRel(warpId, "WarpA", faction));
+        factionAdapter.insert(faction).get();
+        warpAdapter.insert(warp).get();
 
         Main.FactionRel loaded = factionAdapter.findById(factionId);
         assertNotNull(loaded);
+
+        System.out.println("loaded " + loaded);
         assertNotNull(loaded.getWarp());
+        System.out.println("both warps are equal " + (warp.equals(loaded.getWarp())));
         assertEquals("WarpA", loaded.getWarp().getName());
     }
 }

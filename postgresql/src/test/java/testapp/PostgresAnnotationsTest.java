@@ -83,13 +83,11 @@ class PostgresAnnotationsTest {
 
         binder.setUpdateParameters(params, entity, model, registry);
 
-        // ── Entity mutation ───────────────────────────────────────────────────
         assertNotNull(entity.getUpdatedAt(),
             "@Now field must be set on the entity by the binder");
         assertInstanceOf(Instant.class, entity.getUpdatedAt(),
             "@Now field must be an Instant");
 
-        // ── Parameter binding ─────────────────────────────────────────────────
         assertTrue(params.bound.containsKey("updatedAt"),
             "binder must have bound the 'updatedAt' parameter");
         System.out.println(params.bound.get("updatedAt"));
@@ -99,12 +97,9 @@ class PostgresAnnotationsTest {
         assertEquals("x", params.bound.get("name"),
             "bound value for 'name' must match the entity value");
 
-        // id is @AutoIncrement — must NOT be bound
         assertFalse(params.bound.containsKey("id"),
             "@AutoIncrement field must not be bound as an update parameter");
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static final class CapturingConnectionProvider implements SQLConnectionProvider {
         String lastSql;

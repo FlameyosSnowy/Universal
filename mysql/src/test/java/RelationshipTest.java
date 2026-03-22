@@ -73,6 +73,8 @@ public class RelationshipTest {
 
         faction.warp = warp;
         warp.faction = faction;
+        System.out.println(faction);
+        System.out.println(warp);
 
         // Act
         factionsAdapter.insert(faction);
@@ -82,6 +84,7 @@ public class RelationshipTest {
         Faction retrievedFaction = factionsAdapter.findById(faction.id);
         System.out.println(retrievedFaction);
         assertNotNull(retrievedFaction, "Retrieved faction should not be null");
+
         assertNotNull(retrievedFaction.warp, "Faction's warp should not be null");
 
         Warp retrievedWarp = retrievedFaction.warp;

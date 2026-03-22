@@ -10,6 +10,7 @@ import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
 import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
+import io.github.flameyossnowy.universal.checker.generator.InsertCollectionEntitiesGenerator;
 import org.junit.jupiter.api.Test;
 
 import javax.lang.model.type.ArrayType;

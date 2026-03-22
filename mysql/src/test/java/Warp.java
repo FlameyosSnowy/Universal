@@ -26,7 +26,7 @@ public class Warp {
         return "Warp{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
-                //", faction=" + (faction == null ? "None (error)" : String.valueOf(faction.id)) +
+                ", faction=" + (faction == null ? "None (error)" : String.valueOf(faction.id)) +
                 '}';
     }
 
@@ -43,6 +43,7 @@ public class Warp {
     }
 
     public void setFaction(Faction faction) {
+        System.out.println(this + " getting a faction which is " + faction);
         this.faction = faction;
     }
 

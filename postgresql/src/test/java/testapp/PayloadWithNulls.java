@@ -1,6 +1,6 @@
 package testapp;
 
-import me.flame.uniform.core.annotations.SerializedObject;
+import io.github.flameyossnowy.uniform.core.annotations.SerializedObject;
 
 @SerializedObject
 public class PayloadWithNulls {

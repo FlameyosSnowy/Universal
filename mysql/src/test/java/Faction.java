@@ -10,7 +10,7 @@ public class Faction {
 
     public String name;
 
-    @OneToOne
+    @OneToOne(mappedBy = "faction")
     public Warp warp;
 
     public Faction() {}
@@ -49,6 +49,8 @@ public class Faction {
     }
 
     public void setWarp(Warp warp) {
+        System.out.println("called");
         this.warp = warp;
+        System.out.println(this);
     }
 }

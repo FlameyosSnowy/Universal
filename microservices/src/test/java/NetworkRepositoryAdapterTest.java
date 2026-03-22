@@ -47,7 +47,7 @@ class NetworkRepositoryAdapterTest {
                 5,
                 Map.of(),
                 EndpointConfig.defaults(),
-                new me.flame.uniform.json.JsonAdapter(),
+                new io.github.flameyossnowy.uniform.json.JsonAdapter(),
                 null,
                false);
     }
@@ -139,7 +139,7 @@ class NetworkRepositoryAdapterTest {
             0,
             Map.of(),
             EndpointConfig.defaults(),
-            new me.flame.uniform.json.JsonAdapter(),
+            new io.github.flameyossnowy.uniform.json.JsonAdapter(),
             null,
             false);
 

@@ -1,10 +1,15 @@
+import io.github.flameyossnowy.universal.api.annotations.Id;
 import io.github.flameyossnowy.universal.api.annotations.ManyToOne;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Repository(name = "factionUsers")
 public class User {
+    @Id
+    private UUID id;
+
     public String username;
 
     public int age;
@@ -16,7 +21,8 @@ public class User {
 
     public User() {}
 
-    public User(String username, int age, Instant createdAt, Faction faction) {
+    public User(UUID id, String username, int age, Instant createdAt, Faction faction) {
+        this.id = id;
         this.username = username;
         this.age = age;
         this.createdAt = createdAt;
@@ -26,7 +32,7 @@ public class User {
     @Override
     public String toString() {
         return "User{" +
-                //"id=" + id +
+                "id=" + id +
                 "username='" + username + '\'' +
                 ", age=" + age +
                 ", createdAt=" + createdAt +
@@ -64,5 +70,13 @@ public class User {
 
     public void setFaction(Faction faction) {
         this.faction = faction;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
     }
 }
