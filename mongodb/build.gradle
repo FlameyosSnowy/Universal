@@ -4,17 +4,6 @@ plugins {
     id("com.gradleup.shadow") version "9.3.1"
 }
 
-group = "io.github.flameyossnowy.universal"
-version = '7.0.0'
-
-repositories {
-    mavenCentral()
-    maven {
-        name = "jitpack"
-        url = "https://jitpack.io"
-    }
-}
-
 dependencies {
     compileOnly "org.mongodb:mongodb-driver-sync:5.3.0"
     compileOnly "org.jetbrains:annotations:24.0.1"
@@ -31,7 +20,7 @@ dependencies {
     testImplementation "org.mockito:mockito-core:5.11.0"
     testImplementation "org.mockito:mockito-junit-jupiter:5.11.0"
 
-    compileOnly "com.github.FlameyosSnowy:Uniform:1.5.4"
+    compileOnly "io.github.flameyossnowy:uniform-json:1.5.7"
 
     // Mongo driver interfaces (already present at runtime, but safe for tests)
     testImplementation "org.mongodb:mongodb-driver-sync:4.11.1"
@@ -39,20 +28,4 @@ dependencies {
     testImplementation project(":core")
     testImplementation project(":mongodb")
     testAnnotationProcessor project(":compile-time-checker")
-}
-
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
-}
-
-publishing {
-    publications {
-        maven(MavenPublication) {
-            groupId = 'io.github.flameyossnowy.universal'
-            artifactId = 'mongodb'
-            version = '7.0.0'
-
-            from components.java
-        }
-    }
 }

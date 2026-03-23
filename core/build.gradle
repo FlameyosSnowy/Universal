@@ -5,31 +5,13 @@ plugins {
     id("com.gradleup.shadow") version "9.3.1"
 }
 
-group = "io.github.flameyossnowy.universal"
-version = '7.0.0'
-
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
-    }
-}
-
-repositories {
-    mavenCentral()
-    //maven { url = "https://repo.foxikle.dev/flameyos" }
-    maven {
-        name = "jitpack"
-        url = "https://jitpack.io"
-    }
-}
-
 dependencies {
     compileOnly "org.jetbrains:annotations:24.0.1"
 
     api "org.slf4j:slf4j-api:2.1.0-alpha1"
 
-    api "com.github.FlameyosSnowy:Velocis:1.1.2"
-    api "com.github.FlameyosSnowy:Uniform:1.5.4"
+    api "io.github.flameyossnowy:velocis:1.1.2"
+    implementation "io.github.flameyossnowy:uniform-json:1.5.7"
 
     testImplementation platform("org.junit:junit-bom:5.10.2")
     testImplementation "org.junit.jupiter:junit-jupiter"
@@ -42,6 +24,7 @@ dependencies {
     compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"
 }
 
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
+shadowJar {
+    relocate "io.github.flameyossnowy.velocis", "io.github.flameyossnowy.universal.libs.velocis"
+    relocate "io.github.flameyossnowy.uniform", "io.github.flameyossnowy.universal.libs.uniform"
 }

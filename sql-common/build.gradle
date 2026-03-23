@@ -4,49 +4,10 @@ plugins {
     id("com.gradleup.shadow") version "9.3.1"
 }
 
-group = 'io.github.flameyossnowy.universal'
-version = '7.0.0'
-
-repositories {
-    mavenCentral()
-    maven {
-        name = "jitpack"
-        url = "https://jitpack.io"
-    }
-}
-
 dependencies {
-    // HikariCP
-    //implementation 'com.zaxxer:HikariCP:6.2.1'
-
     compileOnly project(':core')
 
     compileOnly 'org.jetbrains:annotations:24.0.1'
 
-    compileOnly "com.github.FlameyosSnowy:Uniform:1.5.4"
-}
-
-subprojects {
-    apply plugin: 'java'
-    apply plugin: 'maven-publish'
-    apply plugin: 'signing'
-
-    java {
-        withSourcesJar()
-    }
-
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                from components.java
-            }
-        }
-        repositories {
-            maven {
-                url 'https://jitpack.io'
-            }
-        }
-    }
-
-    java.toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+    compileOnly "io.github.flameyossnowy:uniform-json:1.5.7"
 }

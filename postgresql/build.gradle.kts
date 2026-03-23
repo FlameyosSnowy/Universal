@@ -4,14 +4,6 @@ plugins {
     id("com.gradleup.shadow") version("9.3.1")
 }
 
-group = "io.github.flameyossnowy.universal"
-version = "7.0.0"
-
-repositories {
-    mavenCentral()
-    maven("https://jitpack.io")
-}
-
 dependencies {
     compileOnly("com.zaxxer:HikariCP:6.2.1")
 
@@ -21,6 +13,10 @@ dependencies {
     compileOnly("org.jetbrains:annotations:24.0.1")
 
     compileOnly("org.postgresql:postgresql:42.7.2")
+    compileOnly("io.github.flameyossnowy:uniform-json:1.5.7")
+    compileOnly("io.github.flameyossnowy:uniform-core:1.5.7")
+    testCompileOnly("io.github.flameyossnowy:uniform-core:1.5.7")
+    testCompileOnly("io.github.flameyossnowy:uniform-json:1.5.7")
 
     testImplementation("org.postgresql:postgresql:42.7.2")
     testImplementation(project(":core"))
@@ -71,7 +67,6 @@ jmh {
     resultFormat      = "JSON"
     jmhVersion        = "1.37"
     jvmArgsAppend     = listOf(
-        "-cp", "${layout.buildDirectory.get()}/classes/java/jmh",
         "-Dbenchmark.host=${project.findProperty("benchmark.host") ?: "localhost"}",
         "-Dbenchmark.port=${project.findProperty("benchmark.port") ?: "5432"}",
         "-Dbenchmark.db=${project.findProperty("benchmark.db")     ?: "test"}",
@@ -88,20 +83,17 @@ sourceSets {
         java { setSrcDirs(listOf("src/jmh/java")) }
         compileClasspath += sourceSets.main.get().output
         runtimeClasspath += sourceSets.main.get().output
-        resources.srcDir(layout.buildDirectory.dir("classes/java/jmh"))
     }
 }
 
-// Tell Gradle that processJmhResources depends on compileJmhJava
 tasks.named("processJmhResources") {
     dependsOn("compileJmhJava")
 }
 
-tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
-    jvmArgs("--add-modules=jdk.incubator.vector")
+tasks.shadowJar {
+    mergeServiceFiles()
 }
 
-tasks.withType<JavaExec>().configureEach {
-    jvmArgs("--add-modules=jdk.incubator.vector")
+tasks.withType<ProcessResources>().configureEach {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
