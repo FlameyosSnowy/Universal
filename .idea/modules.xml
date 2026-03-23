@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mongodb/Universal.mongodb.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mongodb/Universal.mongodb.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mysql/Universal.mysql.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mysql/Universal.mysql.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" filepath="$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" />
     </modules>
   </component>
 </project>

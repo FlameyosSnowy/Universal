@@ -6,8 +6,8 @@ import io.github.flameyossnowy.universal.api.RepositoryRegistry;
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.*;
-import me.flame.uniform.json.JsonAdapter;
-import me.flame.uniform.json.dom.JsonObject;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.dom.JsonObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,10 +33,6 @@ public class FileFilterEngine<T, ID> {
         this.objectMapper = objectMapper;
     }
 
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
-
     public boolean matchesAll(T entity, List<FilterOption> filters) {
         if (filters == null || filters.isEmpty()) return true;
         for (FilterOption filter : filters) {
@@ -54,10 +50,6 @@ public class FileFilterEngine<T, ID> {
             return false;
         }
     }
-
-    // -------------------------------------------------------------------------
-    // SelectOption matching
-    // -------------------------------------------------------------------------
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     public boolean matchesSelectOption(T entity, SelectOption filter) {
@@ -90,10 +82,6 @@ public class FileFilterEngine<T, ID> {
             default -> false;
         };
     }
-
-    // -------------------------------------------------------------------------
-    // JsonSelectOption matching
-    // -------------------------------------------------------------------------
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     public boolean matchesJsonSelectOption(T entity, JsonSelectOption filter) {
@@ -128,10 +116,6 @@ public class FileFilterEngine<T, ID> {
         };
     }
 
-    // -------------------------------------------------------------------------
-    // JSON path evaluation
-    // -------------------------------------------------------------------------
-
     public static @Nullable JsonObject selectJsonPath(@NotNull JsonObject root, @Nullable String jsonPath) {
         if (jsonPath == null || jsonPath.isBlank()) return null;
         if (!jsonPath.startsWith("$")) return null;
@@ -148,10 +132,6 @@ public class FileFilterEngine<T, ID> {
         }
         return current;
     }
-
-    // -------------------------------------------------------------------------
-    // Subquery evaluation
-    // -------------------------------------------------------------------------
 
     private boolean evaluateInSubQuery(T entity, String localField, @NotNull SubQuery subQuery, boolean negate) {
         List<Object> values = executeSubQuerySingleField(subQuery);

@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Improve the performance of SQLDatabaseParameters and loadFromDatabase">
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Fixes">
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/md5-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/sha1-checksums.bin" afterDir="false" />
@@ -35,71 +35,27 @@
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/sha1-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/shelved.patch" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RelationshipMethodGenerator.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/JsonCollectionHandler.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/JsonNodeDatabaseResult.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/sketch/first_sketch.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/ParameterizedSql.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/compile-time-checker/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/build.gradle" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/CollectionLoaderMethodGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/CollectionLoaderMethodGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/InsertCollectionEntitiesGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/InsertCollectionEntitiesGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/InsertEntityGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/InsertEntityGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/LazyProxyGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/LazyProxyGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/ObjectModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RelationshipLoaderGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RelationshipLoaderGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RelationshipMethodGenerator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RelationshipModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RelationshipModel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryModelGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/core-ktx/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/core-ktx/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/core/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/core/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/ModelsBootstrap.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/ModelsBootstrap.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/RepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/RepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DatabaseSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DatabaseSession.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DefaultSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DefaultSession.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/ObjectModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/ObjectModel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/RelationshipLoader.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/RelationshipLoader.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/RelationshipHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/RelationshipHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/json/DefaultJsonCodec.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/json/DefaultJsonCodec.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microservices/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/MicroservicesJsonCodecBridge.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/MicroservicesJsonCodecBridge.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryAdapter.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileAggregationEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileAggregationEngine.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileEntityStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileEntityStore.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileFilterEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileFilterEngine.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileIndexManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileIndexManager.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileMutationExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileMutationExecutor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapterBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkRepositoryAdapterBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileQueryExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/executor/FileQueryExecutor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mongodb/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRelationshipHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRelationshipHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/aggregate/MongoAggregationPipelineBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/aggregate/MongoAggregationPipelineBuilder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/result/MongoDatabaseResult.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/result/MongoDatabaseResult.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/mysql/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/mysql/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mysql/src/main/java/io/github/flameyossnowy/universal/mysql/MySQLRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/mysql/src/main/java/io/github/flameyossnowy/universal/mysql/MySQLRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mysql/src/main/java/io/github/flameyossnowy/universal/mysql/MySQLRepositoryAdapterBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/mysql/src/main/java/io/github/flameyossnowy/universal/mysql/MySQLRepositoryAdapterBuilder.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/postgresql/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/AggregationBenchmark.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/AggregationBenchmark.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/BenchmarkParent.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/BenchmarkParent.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/InsertBenchmark.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh/InsertBenchmark.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/main/java/io/github/flameyossnowy/universal/postgresql/PostgreSQLRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/main/java/io/github/flameyossnowy/universal/postgresql/PostgreSQLRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/main/java/io/github/flameyossnowy/universal/postgresql/PostgreSQLRepositoryAdapterBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/main/java/io/github/flameyossnowy/universal/postgresql/PostgreSQLRepositoryAdapterBuilder.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sql-common/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/AbstractRelationalRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/AbstractRelationalRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/QueryParseEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/QueryParseEngine.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/AggregationQueryParser.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/AggregationQueryParser.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/DeleteSqlBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/DeleteSqlBuilder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/InsertSqlBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/InsertSqlBuilder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/QueryStringCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/QueryStringCache.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlReadExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlReadExecutor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/CollectionTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/CollectionTypeResolver.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/MapTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/MapTypeResolver.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/MultiMapTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/MultiMapTypeResolver.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sqlite/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/sqlite/build.gradle" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -358,110 +314,110 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Application.Main.executor": "Run",
-    "DELOMBOK_PRE_COMMIT": "false",
-    "Gradle.Build Universal-new.executor": "Run",
-    "Gradle.Build Universal.executor": "Run",
-    "Gradle.DefaultSessionTest.executor": "Run",
-    "Gradle.Download Sources.executor": "Run",
-    "Gradle.FileAggregationTest.executor": "Run",
-    "Gradle.FileRepositoryAdapterTest.executor": "Run",
-    "Gradle.FileRepositoryAdapterTest.jsonField_roundTrip_and_jsonSelectOption_filtering.executor": "Run",
-    "Gradle.MongoAggregationTest.executor": "Run",
-    "Gradle.MongoRepositoryAdapterTest.delete_user_is_called_on_collection.executor": "Run",
-    "Gradle.MongoRepositoryAdapterTest.executor": "Debug",
-    "Gradle.MongoRepositoryAdapterTest.find_by_id_queries_collection.executor": "Run",
-    "Gradle.MongoRepositoryAdapterTest.insert_existing_user_does_not_insert.executor": "Run",
-    "Gradle.MongoRepositoryAdapterTest.insert_new_user_inserts_document.executor": "Run",
-    "Gradle.MongoRepositoryAdapterTest.insert_user_is_written_to_collection.executor": "Run",
-    "Gradle.MongoRepositoryAdapterTest.mixed_filters_build_and_clause.executor": "Run",
-    "Gradle.MongoRepositoryAdapterTest.one_to_one_relationship_is_populated_on_findById.executor": "Run",
-    "Gradle.MySqlJsonFilterTest.executor": "Run",
-    "Gradle.NetworkRepositoryAdapterTest.executor": "Run",
-    "Gradle.NetworkRepositoryAdapterTest.insertClearsCache.executor": "Run",
-    "Gradle.NormalTest.executor": "Run",
-    "Gradle.NormalTest.postgres_connection_leak_stress_test.executor": "Run",
-    "Gradle.NormalTest.postgresql_arrays_test.executor": "Run",
-    "Gradle.NormalTest.postgresql_cache_test.executor": "Run",
-    "Gradle.NormalTest.postgresql_test.executor": "Run",
-    "Gradle.NormalTest.postgresql_test_record.executor": "Run",
-    "Gradle.PostgreSQLAggregationTest.executor": "Run",
-    "Gradle.PostgreSQLOneToOneUuidTest.executor": "Run",
-    "Gradle.PostgresAnnotationsTest.executor": "Run",
-    "Gradle.PostgresJsonAndNamedIntegrationTest.executor": "Run",
-    "Gradle.PostgresJsonFilterTest.executor": "Run",
-    "Gradle.RelationshipTest.executor": "Run",
-    "Gradle.RelationshipTest.testManyToManyRelationship.executor": "Run",
-    "Gradle.RelationshipTest.testOneToManyRelationship.executor": "Run",
-    "Gradle.RelationshipTest.testOneToOneRelationship.executor": "Run",
-    "Gradle.SqliteJsonFilterTest.executor": "Run",
-    "Gradle.SqliteJsonFilterTest.json_select_option_is_not_supported_for_sqlite.executor": "Run",
-    "Gradle.Universal [:cassandra:shadowJar].executor": "Run",
-    "Gradle.Universal [:compile-time-checker:shadowJar].executor": "Run",
-    "Gradle.Universal [:core:shadowJar].executor": "Run",
-    "Gradle.Universal [:microservices:shadowJar].executor": "Run",
-    "Gradle.Universal [:mongodb:Main.main()].executor": "Run",
-    "Gradle.Universal [:mongodb:shadowJar].executor": "Run",
-    "Gradle.Universal [:mysql:shadowJar].executor": "Run",
-    "Gradle.Universal [:postgresql:shadowJar].executor": "Run",
-    "Gradle.Universal [:sql-common:shadowJar].executor": "Run",
-    "Gradle.Universal [:sqlite:Main.main()].executor": "Run",
-    "Gradle.Universal [:sqlite:shadowJar].executor": "Run",
-    "Gradle.Universal-new [:compile-time-checker:shadowJar].executor": "Run",
-    "Gradle.Universal-new [:core:shadowJar].executor": "Run",
-    "Gradle.Universal-new [:microservices:shadowJar].executor": "Run",
-    "Gradle.Universal-new [:mongodb:Main.main()].executor": "Run",
-    "Gradle.Universal-new [:mongodb:shadowJar].executor": "Run",
-    "Gradle.Universal-new [:mysql:build].executor": "Run",
-    "Gradle.Universal-new [:mysql:shadowJar].executor": "Run",
-    "Gradle.Universal-new [:postgresql:build].executor": "Run",
-    "Gradle.Universal-new [:postgresql:jmh].executor": "Run",
-    "Gradle.Universal-new [:postgresql:shadowJar].executor": "Run",
-    "Gradle.Universal-new [:sqlite:build].executor": "Run",
-    "Gradle.Universal-new [:sqlite:shadowJar].executor": "Run",
-    "Gradle.Universal:cassandra [shadowJar].executor": "Run",
-    "Gradle.Universal:mongodb [shadowJar].executor": "Run",
-    "Gradle.Universal:mysql [:mysql:Main.main()].executor": "Run",
-    "Gradle.Universal:mysql [shadowJar].executor": "Run",
-    "Gradle.Universal:postgresql [shadowJar].executor": "Run",
-    "Gradle.Universal:postgresql [sourcesJar].executor": "Run",
-    "Gradle.Universal:sql-common [shadowJar].executor": "Run",
-    "Gradle.Universal:sqlite [:sqlite:Main.main()].executor": "Run",
-    "Gradle.Universal:sqlite [shadowJar].executor": "Run",
-    "JUnit.NormalTest.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "dart.analysis.tool.window.visible": "false",
-    "extract.method.default.visibility": "private",
-    "git-widget-placeholder": "main",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last.edited.regexp": "hello.hi",
-    "last_opened_file_path": "/home/flameyosflow/Universal-new/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "onboarding.tips.debug.path": "/home/flameyosflow/IdeaProjects/Universal/core-ktx/src/main/java/me/flame/universal/api/kotlin/Main.java",
-    "org.rust.first.attach.projects": "true",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.0",
-    "project.structure.side.proportion": "0.2",
-    "run.code.analysis.last.selected.profile": "pProject Default",
-    "settings.editor.selected.configurable": "application.passwordSafe",
-    "show.migrate.to.gradle.popup": "false",
-    "to.speed.mode.migration.done": "true",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Application.Main.executor&quot;: &quot;Run&quot;,
+    &quot;DELOMBOK_PRE_COMMIT&quot;: &quot;false&quot;,
+    &quot;Gradle.Build Universal-new.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Build Universal.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.DefaultSessionTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Download Sources.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.FileAggregationTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.FileRepositoryAdapterTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.FileRepositoryAdapterTest.jsonField_roundTrip_and_jsonSelectOption_filtering.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MongoAggregationTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MongoRepositoryAdapterTest.delete_user_is_called_on_collection.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MongoRepositoryAdapterTest.executor&quot;: &quot;Debug&quot;,
+    &quot;Gradle.MongoRepositoryAdapterTest.find_by_id_queries_collection.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MongoRepositoryAdapterTest.insert_existing_user_does_not_insert.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MongoRepositoryAdapterTest.insert_new_user_inserts_document.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MongoRepositoryAdapterTest.insert_user_is_written_to_collection.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MongoRepositoryAdapterTest.mixed_filters_build_and_clause.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MongoRepositoryAdapterTest.one_to_one_relationship_is_populated_on_findById.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.MySqlJsonFilterTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.NetworkRepositoryAdapterTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.NetworkRepositoryAdapterTest.insertClearsCache.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.NormalTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.NormalTest.postgres_connection_leak_stress_test.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.NormalTest.postgresql_arrays_test.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.NormalTest.postgresql_cache_test.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.NormalTest.postgresql_test.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.NormalTest.postgresql_test_record.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.PostgreSQLAggregationTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.PostgreSQLOneToOneUuidTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.PostgresAnnotationsTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.PostgresJsonAndNamedIntegrationTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.PostgresJsonFilterTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.RelationshipTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.RelationshipTest.testManyToManyRelationship.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.RelationshipTest.testOneToManyRelationship.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.RelationshipTest.testOneToOneRelationship.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.SqliteJsonFilterTest.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.SqliteJsonFilterTest.json_select_option_is_not_supported_for_sqlite.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:cassandra:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:compile-time-checker:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:core:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:microservices:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:mongodb:Main.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:mongodb:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:mysql:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:postgresql:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:sql-common:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:sqlite:Main.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal [:sqlite:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:compile-time-checker:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:core:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:microservices:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:mongodb:Main.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:mongodb:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:mysql:build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:mysql:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:postgresql:build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:postgresql:jmh].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:postgresql:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:sqlite:build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal-new [:sqlite:shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:cassandra [shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:mongodb [shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:mysql [:mysql:Main.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:mysql [shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:postgresql [shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:postgresql [sourcesJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:sql-common [shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:sqlite [:sqlite:Main.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.Universal:sqlite [shadowJar].executor&quot;: &quot;Run&quot;,
+    &quot;JUnit.NormalTest.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;extract.method.default.visibility&quot;: &quot;private&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last.edited.regexp&quot;: &quot;hello.hi&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/flameyosflow/Universal-new/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;onboarding.tips.debug.path&quot;: &quot;/home/flameyosflow/IdeaProjects/Universal/core-ktx/src/main/java/me/flame/universal/api/kotlin/Main.java&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;application.passwordSafe&quot;,
+    &quot;show.migrate.to.gradle.popup&quot;: &quot;false&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/postgresql/src/jmh/java/io/github/flameyossnowy/universal/postgresql/jmh" />
@@ -767,23 +723,8 @@
       <workItem from="1774022223921" duration="1065000" />
       <workItem from="1774077862203" duration="15768000" />
       <workItem from="1774180962922" duration="383000" />
-      <workItem from="1774184122234" duration="4673000" />
-    </task>
-    <task id="LOCAL-00143" summary=".idea updates and workflow updates">
-      <option name="closed" value="true" />
-      <created>1770392587340</created>
-      <option name="number" value="00143" />
-      <option name="presentableId" value="LOCAL-00143" />
-      <option name="project" value="LOCAL" />
-      <updated>1770392587340</updated>
-    </task>
-    <task id="LOCAL-00144" summary="Update tests">
-      <option name="closed" value="true" />
-      <created>1770392610683</created>
-      <option name="number" value="00144" />
-      <option name="presentableId" value="LOCAL-00144" />
-      <option name="project" value="LOCAL" />
-      <updated>1770392610683</updated>
+      <workItem from="1774184122234" duration="8672000" />
+      <workItem from="1774256162436" duration="1579000" />
     </task>
     <task id="LOCAL-00145" summary="Bump versions and switch to gradle 9, and others">
       <option name="closed" value="true" />
@@ -1161,15 +1102,29 @@
       <option name="project" value="LOCAL" />
       <updated>1774189593990</updated>
     </task>
-    <option name="localTasksCounter" value="192" />
+    <task id="LOCAL-00192" summary="Improve the performance of SQLDatabaseParameters and relocations in codegen">
+      <option name="closed" value="true" />
+      <created>1774190576128</created>
+      <option name="number" value="00192" />
+      <option name="presentableId" value="LOCAL-00192" />
+      <option name="project" value="LOCAL" />
+      <updated>1774190576128</updated>
+    </task>
+    <task id="LOCAL-00193" summary="Fixes">
+      <option name="closed" value="true" />
+      <created>1774190614990</created>
+      <option name="number" value="00193" />
+      <option name="presentableId" value="LOCAL-00193" />
+      <option name="project" value="LOCAL" />
+      <updated>1774190614990</updated>
+    </task>
+    <option name="localTasksCounter" value="194" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Update .idea" />
-    <MESSAGE value="Bump version" />
     <MESSAGE value="Add cascade" />
     <MESSAGE value="Add autoCreate and fix relationships, and fix indexes" />
     <MESSAGE value="Fix contract" />
@@ -1193,7 +1148,9 @@
     <MESSAGE value="Add getTargetPrimaryKeyType" />
     <MESSAGE value="Improve the performance of SQLDatabaseParameters and loadFromDatabase" />
     <MESSAGE value="Fix loadFromDatabaseBatch not using addResultAndAddToCache" />
-    <option name="LAST_COMMIT_MESSAGE" value="Fix loadFromDatabaseBatch not using addResultAndAddToCache" />
+    <MESSAGE value="Improve the performance of SQLDatabaseParameters and relocations in codegen" />
+    <MESSAGE value="Fixes" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixes" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

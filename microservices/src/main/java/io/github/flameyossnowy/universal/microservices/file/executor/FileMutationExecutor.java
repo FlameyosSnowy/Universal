@@ -35,10 +35,6 @@ public class FileMutationExecutor<T, ID> {
         this.indexManager    = indexManager;
     }
 
-    // -------------------------------------------------------------------------
-    // Insert
-    // -------------------------------------------------------------------------
-
     public TransactionResult<Boolean> insert(T entity) {
         try {
             ID id = extractId(entity);
@@ -61,10 +57,6 @@ public class FileMutationExecutor<T, ID> {
             return TransactionResult.failure(e);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Update
-    // -------------------------------------------------------------------------
 
     /** Writes a single entity back to disk (full replacement). */
     public TransactionResult<Boolean> updateEntity(T entity) {
@@ -98,10 +90,6 @@ public class FileMutationExecutor<T, ID> {
             return TransactionResult.failure(e);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Delete
-    // -------------------------------------------------------------------------
 
     public TransactionResult<Boolean> deleteEntity(T entity) {
         try {
@@ -144,10 +132,6 @@ public class FileMutationExecutor<T, ID> {
             return TransactionResult.failure(e);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
 
     private void applyUpdates(T entity, UpdateQuery query) {
         Map<String, Object> updates = query.updates();

@@ -1,15 +1,18 @@
 package io.github.flameyossnowy.universal.microservices.file.executor;
 
+import io.github.flameyossnowy.uniform.json.dom.JsonObject;
 import io.github.flameyossnowy.universal.api.annotations.enums.CompressionType;
 import io.github.flameyossnowy.universal.api.annotations.enums.FileFormat;
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.factory.RelationshipLoader;
+import io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.microservices.JsonNodeDatabaseResult;
 import io.github.flameyossnowy.universal.microservices.MicroservicesJsonCodecBridge;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
-import me.flame.uniform.json.JsonAdapter;
-import me.flame.uniform.json.writers.JsonWriterOptions;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.writers.JsonWriterOptions;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,10 +46,6 @@ public class FileEntityStore<T, ID> {
     private static final int STRIPE_COUNT  = 64;
     private static final int BUFFER_SIZE   = 8192;
 
-    // -------------------------------------------------------------------------
-    // Fields
-    // -------------------------------------------------------------------------
-
     private final Class<T>                    entityType;
     private final RepositoryModel<T, ID>      repositoryModel;
     private final TypeResolverRegistry        resolverRegistry;
@@ -68,10 +67,6 @@ public class FileEntityStore<T, ID> {
 
     private final Map<ID, T>                cache   = new ConcurrentHashMap<>(128);
     private final ReentrantReadWriteLock[]  stripes = new ReentrantReadWriteLock[STRIPE_COUNT];
-
-    // -------------------------------------------------------------------------
-    // Constructor
-    // -------------------------------------------------------------------------
 
     public FileEntityStore(
         @NotNull Class<T>                    entityType,
@@ -106,13 +101,10 @@ public class FileEntityStore<T, ID> {
         this.fileExtension       = buildFileExtension(format, compressed, compressionType);
 
         for (int i = 0; i < STRIPE_COUNT; i++) {
+            //noinspection ObjectAllocationInLoop
             stripes[i] = new ReentrantReadWriteLock();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Write
-    // -------------------------------------------------------------------------
 
     public void write(T entity, ID id) throws IOException {
         ReentrantReadWriteLock lock = lockForId(id);
@@ -147,10 +139,6 @@ public class FileEntityStore<T, ID> {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Read by ID
-    // -------------------------------------------------------------------------
-
     public @Nullable T read(ID id) throws IOException {
         T cached = cache.get(id);
         if (cached != null) return cached;
@@ -158,13 +146,11 @@ public class FileEntityStore<T, ID> {
         ReentrantReadWriteLock lock = lockForId(id);
         lock.readLock().lock();
         try {
-            // Re-check after acquiring lock - another thread may have populated the cache.
             T rechecked = cache.get(id);
             if (rechecked != null) return rechecked;
 
             Path path = entityPath(id);
 
-            // Use readAttributes for a single stat() rather than Files.exists + open.
             BasicFileAttributes attrs;
             try {
                 attrs = Files.readAttributes(path, BasicFileAttributes.class);
@@ -201,15 +187,21 @@ public class FileEntityStore<T, ID> {
              InputStream buffered = new BufferedInputStream(raw, BUFFER_SIZE)) {
 
             InputStream input = compressed ? unwrapCompression(buffered) : buffered;
-            T result = deserialize(input);
-            objectModel.populateRelationships(result, objectModel.getId(result), relationshipLoader);
+            var storedNode = objectMapper.readValue(input);
+            if (!(storedNode instanceof JsonObject object)) {
+                throw new IllegalStateException(storedNode + " is not a JsonObject.");
+            }
+            T result = MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                objectMapper, resolverRegistry, repositoryModel, entityType, storedNode
+            );
+            JsonNodeDatabaseResult databaseResult = new JsonNodeDatabaseResult(object, objectMapper, repositoryModel);
+            ID id = objectModel.getId(result);
+            String tableName = repositoryModel.tableName();
+            var valueReader = GeneratedValueReaders.get(tableName, databaseResult, resolverRegistry, id);
+            objectModel.populateRelationships(result, id, relationshipLoader, valueReader);
             return result;
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Delete
-    // -------------------------------------------------------------------------
 
     public void delete(ID id) throws IOException {
         ReentrantReadWriteLock lock = lockForId(id);
@@ -258,33 +250,41 @@ public class FileEntityStore<T, ID> {
     }
 
     private List<T> readAllShardsParallel() throws IOException {
-        // One task per shard; use the common pool so we don't create threads ourselves.
         @SuppressWarnings("unchecked")
-        ForkJoinTask<List<T>>[] tasks = new ForkJoinTask[shardCount];
+        CompletableFuture<List<T>>[] tasks = new CompletableFuture[shardCount];
 
         for (int i = 0; i < shardCount; i++) {
             final Path shardPath = basePath.resolve(String.valueOf(i));
-            tasks[i] = ForkJoinPool.commonPool().submit(() -> {
+            tasks[i] = CompletableFuture.supplyAsync(() -> {
                 if (!Files.exists(shardPath)) return List.of();
-                return readFromDirectory(shardPath);
+                try {
+                    return readFromDirectory(shardPath);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             });
         }
 
         // Collect - propagate the first IOException if any task failed.
         List<T> results = new ArrayList<>(shardCount * 16);
-        for (ForkJoinTask<List<T>> task : tasks) {
-            try {
-                results.addAll(task.get());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Interrupted while reading shards", e);
-            } catch (ExecutionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof IOException io) throw io;
-                throw new IOException("Failed to read shard", cause);
-            }
+        CompletableFuture.allOf(tasks).join();
+        for (CompletableFuture<List<T>> task : tasks) {
+            collectTask(task, results);
         }
         return results;
+    }
+
+    static <T> void collectTask(CompletableFuture<List<T>> task, List<T> results) throws IOException {
+        try {
+            results.addAll(task.get());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while reading shards", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException io) throw io;
+            throw new IOException("Failed to read shard", cause);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -328,21 +328,9 @@ public class FileEntityStore<T, ID> {
         return count;
     }
 
-    // -------------------------------------------------------------------------
-    // Cache management
-    // -------------------------------------------------------------------------
-
     public void clearCache() {
         cache.clear();
     }
-
-    public void invalidate(ID id) {
-        cache.remove(id);
-    }
-
-    // -------------------------------------------------------------------------
-    // Path helpers (package-visible for FileQueryExecutor)
-    // -------------------------------------------------------------------------
 
     public Path entityPath(@NotNull ID id) {
         String fileName = id + fileExtension;
@@ -397,6 +385,7 @@ public class FileEntityStore<T, ID> {
                 }
                 if (!attrs.isRegularFile()) continue;
 
+                //noinspection ObjectAllocationInLoop
                 try (InputStream raw      = Files.newInputStream(path);
                      InputStream buffered = new BufferedInputStream(raw, BUFFER_SIZE)) {
 
@@ -410,8 +399,8 @@ public class FileEntityStore<T, ID> {
         return results;
     }
 
-    private T deserialize(InputStream input) throws IOException {
-        var storedNode = objectMapper.readValue(input.readAllBytes());
+    private T deserialize(InputStream input) {
+        var storedNode = objectMapper.readValue(input);
         return MicroservicesJsonCodecBridge.readEntityFromStorageJson(
             objectMapper, resolverRegistry, repositoryModel, entityType, storedNode
         );

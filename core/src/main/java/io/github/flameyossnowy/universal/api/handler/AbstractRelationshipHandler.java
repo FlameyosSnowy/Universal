@@ -262,10 +262,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             throw new IllegalStateException("Missing adapter for " + parentInfo.getEntityClass());
         }
 
-        SelectQuery query = Query.select()
-            .where(repositoryModel.getPrimaryKey().columnName()).eq(primaryKeyValue)
-            .limit(1)
-            .build();
+        SelectQuery query = createQuery(primaryKeyValue, repositoryModel.getPrimaryKey().columnName(), repositoryModel);
 
         List<Object> result = adapter.find(query, policy);
         Object value = result.isEmpty() ? null : result.getFirst();
@@ -282,61 +279,121 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         return value;
     }
 
+    public SelectQuery createQuery(Object primaryKeyValue, String name, RepositoryModel<?, ?> model) {
+        return Query.select()
+            .where(name).eq(primaryKeyValue)
+            .limit(1)
+            .build();
+    }
+
+    private static final ThreadLocal<Set<String>> IN_PROGRESS =
+        ThreadLocal.withInitial(() -> new HashSet<>(8));
+
+
+    /**
+     * Called when the CURRENT entity owns the FK column (e.g. factions.warp = warpId).
+     * fkValue is the raw FK value already read from the result set.
+     * Queries: SELECT * FROM warps WHERE id = ?
+     */
+    @Override
+    public @Nullable Object handleOneToOneRelationshipOwning(Object fkValue, @NotNull FieldModel<T> field) {
+        if (fkValue == null) return null;
+
+        ReadPolicy policy = policyFor(field);
+        // Cache key uses the FK value, not the parent PK, since that's what identifies the target
+        String cacheKey = buildCacheKey(field.name() + "#fk", fkValue);
+
+        Object cached = getCached(cacheKey, policy);
+        if (cached != null) return cached == NULL_MARKER ? null : cached;
+
+        Set<String> inProgress = IN_PROGRESS.get();
+        if (!inProgress.add(cacheKey)) {
+            putCached(cacheKey, NULL_MARKER);
+            return null;
+        }
+
+        try {
+            cacheMisses.incrementAndGet();
+            incrementQueryCount(field.name());
+
+            RepositoryModel<?, ?> targetInfo = GeneratedMetadata.getByEntityClass(field.type());
+            if (targetInfo == null) throw new IllegalStateException("Unknown repository for type " + field.type());
+
+            RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, targetInfo);
+            if (adapter == null) {
+                putCached(cacheKey, NULL_MARKER);
+                return null;
+            }
+
+            // Owning side: we have the FK value, just load the target by its PK
+            SelectQuery query = createQuery(fkValue, targetInfo.getPrimaryKey().columnName(), targetInfo);
+
+            List<Object> results = adapter.find(query, policy);
+            Object result = (results.isEmpty()) ? null : results.getFirst();
+
+            if (policy.allowStale()) putCached(cacheKey, result == null ? NULL_MARKER : result);
+            if (autoDeepPrefetch && result != null) autoDeepPrefetchRelated(List.of(result), targetInfo, 1);
+
+            return result;
+        } finally {
+            inProgress.remove(cacheKey);
+        }
+    }
+
+    /**
+     * Called when the TARGET entity owns the FK (inverse side).
+     * Queries: SELECT * FROM warps WHERE faction_fk_col = parentId
+     */
     @Override
     public @Nullable Object handleOneToOneRelationship(ID primaryKeyValue, @NotNull FieldModel<T> field) {
         ReadPolicy policy = policyFor(field);
         String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
 
-        // Check tiered cache
         Object cached = getCached(cacheKey, policy);
-        if (cached != null) {
-            return cached == NULL_MARKER ? null : cached;
-        }
+        if (cached != null) return cached == NULL_MARKER ? null : cached;
 
-        cacheMisses.incrementAndGet();
-        incrementQueryCount(field.name());
-
-        // The field type is the "target" side (e.g. Warp for Faction.warp)
-        Class<?> targetType = field.type();
-        RepositoryModel<?, ?> targetInfo = GeneratedMetadata.getByEntityClass(targetType);
-        if (targetInfo == null) {
-            throw new IllegalStateException("Unknown repository for type " + targetType);
-        }
-
-        // Find the back-reference on the target that points back to this repository type
-        FieldModel<?> backRef = findOneToOneBackReference(targetInfo, repositoryModel.getEntityClass());
-        if (backRef == null) {
-            Logging.error("No OneToOne back-reference from " + targetInfo.tableName() +
-                " to " + repositoryModel.tableName() + " for field " + field.name());
+        Set<String> inProgress = IN_PROGRESS.get();
+        if (!inProgress.add(cacheKey)) {
             putCached(cacheKey, NULL_MARKER);
             return null;
         }
 
-        RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, targetInfo);
-        if (adapter == null) {
-            Logging.error("Missing adapter for type: " + targetType.getName());
-            putCached(cacheKey, NULL_MARKER);
-            return null;
-        }
+        try {
+            cacheMisses.incrementAndGet();
+            incrementQueryCount(field.name());
 
-        SelectQuery query = Query.select()
-            .where(backRef.columnName()).eq(primaryKeyValue)
+            RepositoryModel<?, ?> targetInfo = GeneratedMetadata.getByEntityClass(field.type());
+            if (targetInfo == null) throw new IllegalStateException("Unknown repository for type " + field.type());
+
+            FieldModel<?> backRef = findOneToOneBackReference(targetInfo, repositoryModel.getEntityClass());
+            if (backRef == null) { putCached(cacheKey, NULL_MARKER); return null; }
+
+            RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, targetInfo);
+            if (adapter == null) {
+                putCached(cacheKey, NULL_MARKER);
+                return null;
+            }
+
+            SelectQuery query = createBackRefQuery(primaryKeyValue, backRef);
+
+            List<Object> results = adapter.find(query, policy);
+            Object result = (results == null || results.isEmpty()) ? null : results.getFirst();
+
+            if (policy.allowStale()) putCached(cacheKey, result == null ? NULL_MARKER : result);
+            if (autoDeepPrefetch && result != null) autoDeepPrefetchRelated(List.of(result), targetInfo, 1);
+
+            return result;
+        } finally {
+            inProgress.remove(cacheKey);
+        }
+    }
+
+    public SelectQuery createBackRefQuery(ID primaryKeyValue, FieldModel<?> backRef) {
+        return Query.select()
+            .where(backRef.columnName())
+            .eq(primaryKeyValue)
             .limit(1)
             .build();
-
-        List<Object> results = adapter.find(query, policy);
-        Object result = (results == null || results.isEmpty()) ? null : results.getFirst();
-
-        if (policy.allowStale()) {
-            putCached(cacheKey, result == null ? NULL_MARKER : result);
-        }
-
-        // Auto deep prefetch if enabled
-        if (autoDeepPrefetch && result != null) {
-            autoDeepPrefetchRelated(List.of(result), targetInfo, 1);
-        }
-
-        return result;
     }
 
     @Override
@@ -421,9 +478,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         }
 
         List<Object> result = adapter.find(
-            Query.select()
-                .where(relationName).eq(primaryKeyValue)
-                .build(),
+            createQuery(primaryKeyValue, relationName, repositoryModel),
             policy
         );
 

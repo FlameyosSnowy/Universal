@@ -1,7 +1,8 @@
-package io.github.flameyossnowy.universal.checker;
+package io.github.flameyossnowy.universal.checker.generator;
 
 import com.squareup.javapoet.*;
 import io.github.flameyossnowy.universal.checker.FieldModel;
+import io.github.flameyossnowy.universal.checker.GeneratorUtils;
 import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
 import javax.lang.model.element.Modifier;

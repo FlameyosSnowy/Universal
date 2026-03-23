@@ -22,6 +22,10 @@ public enum CollectionKind {
         return factory.create(size);
     }
 
+    public <T> Collection<T> createEmpty() {
+        return factory.create(16);
+    }
+
     public interface CollectionFactory {
         <T> Collection<T> create(int size);
     }

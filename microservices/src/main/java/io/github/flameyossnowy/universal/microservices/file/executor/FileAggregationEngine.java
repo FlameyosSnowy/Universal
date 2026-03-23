@@ -2,9 +2,9 @@ package io.github.flameyossnowy.universal.microservices.file.executor;
 
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.*;
-import me.flame.uniform.json.JsonAdapter;
-import me.flame.uniform.json.dom.JsonArray;
-import me.flame.uniform.json.dom.JsonObject;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
+import io.github.flameyossnowy.uniform.json.dom.JsonArray;
+import io.github.flameyossnowy.uniform.json.dom.JsonObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -13,6 +13,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Stream;
 
+import static io.github.flameyossnowy.universal.microservices.file.executor.FileEntityStore.collectTask;
+
 /**
  * Executes read queries (find, count, findIds, stream) against the file store.
  * Delegates I/O to {@link FileEntityStore} and predicate evaluation to
@@ -77,14 +79,18 @@ public class FileQueryExecutor<T, ID> {
 
     private List<T> findParallel(@NotNull SelectQuery query) throws IOException {
         @SuppressWarnings("unchecked")
-        ForkJoinTask<List<T>>[] tasks = new ForkJoinTask[store.shardCount()];
+        CompletableFuture<List<T>>[] tasks = new CompletableFuture[store.shardCount()];
 
         for (int i = 0; i < store.shardCount(); i++) {
             final Path shardPath = store.basePath().resolve(String.valueOf(i));
-            tasks[i] = ForkJoinPool.commonPool().submit(() -> {
+            tasks[i] = CompletableFuture.supplyAsync(() -> {
                 if (!Files.exists(shardPath)) return List.of();
                 List<T> partial = new ArrayList<>(16);
-                scanDirectory(shardPath, query, partial);
+                try {
+                    scanDirectory(shardPath, query, partial);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 return partial;
             });
         }
@@ -378,23 +384,10 @@ public class FileQueryExecutor<T, ID> {
         });
     }
 
-    // -------------------------------------------------------------------------
-    // Private – task collection helper
-    // -------------------------------------------------------------------------
-
-    private static <R> List<R> collectTasks(ForkJoinTask<List<R>>[] tasks) throws IOException {
+    private static <R> List<R> collectTasks(CompletableFuture<List<R>>[] tasks) throws IOException {
         List<R> results = new ArrayList<>(tasks.length * 16);
-        for (ForkJoinTask<List<R>> task : tasks) {
-            try {
-                results.addAll(task.get());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Interrupted while reading shards", e);
-            } catch (ExecutionException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof IOException io) throw io;
-                throw new IOException("Failed to read shard", cause);
-            }
+        for (CompletableFuture<List<R>> task : tasks) {
+            collectTask(task, results);
         }
         return results;
     }
