@@ -5,6 +5,7 @@
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="25 (3)" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
@@ -19,6 +20,7 @@
             <option value="$PROJECT_DIR$/sqlite" />
           </set>
         </option>
+        <option name="myGradleHome" value="/usr/share/java/gradle" />
       </GradleProjectSettings>
     </option>
   </component>
