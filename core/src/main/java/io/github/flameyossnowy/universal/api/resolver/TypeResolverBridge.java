@@ -58,10 +58,6 @@ public final class TypeResolverBridge {
 
     private TypeResolverBridge() {}
 
-    // -------------------------------------------------------------------------
-    // Types already covered by CoreTypeResolverRegistry - skip these
-    // -------------------------------------------------------------------------
-
     private static final Set<Class<?>> BUILT_IN = Set.of(
         // Primitives & wrappers
         String.class,
@@ -84,10 +80,6 @@ public final class TypeResolverBridge {
         Year.class, YearMonth.class, MonthDay.class, Month.class,
         ZoneId.class, TimeZone.class
     );
-
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
 
     /**
      * Iterates all resolvers in {@code source} and registers each non-duplicate
@@ -124,9 +116,6 @@ public final class TypeResolverBridge {
         return registerIfAbsent(resolver, target);
     }
 
-    // -------------------------------------------------------------------------
-    // Internal
-    // -------------------------------------------------------------------------
     private static <T> boolean registerIfAbsent(
             TypeResolver<T> resolver,
             CoreTypeResolverRegistry target) {

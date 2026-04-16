@@ -172,7 +172,6 @@ public class TypeResolverRegistry {
 
         return (JsonCodec<T>) jsonCodecs.computeIfAbsent((Class<? extends JsonCodec<?>>) codecClass, c -> {
             try {
-                // Special-case DefaultJsonCodec(JsonAdapter)
                 if (DefaultJsonCodec.class.equals(c)) {
                     Supplier<JsonAdapter> supplier = this.objectMapperSupplier;
                     if (supplier == null) {
