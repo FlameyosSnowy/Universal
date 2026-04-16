@@ -12,4 +12,13 @@ public class MicroserviceRelationshipHandler<T, ID> extends AbstractRelationship
     ) {
         super(repositoryInformation, idClass, resolverRegistry);
     }
+
+    public MicroserviceRelationshipHandler(
+        RepositoryModel<T, ID> repositoryInformation,
+        Class<ID> idClass,
+        TypeResolverRegistry resolverRegistry,
+        CacheConfiguration cacheConfig
+    ) {
+        super(repositoryInformation, idClass, resolverRegistry, cacheConfig);
+    }
 }

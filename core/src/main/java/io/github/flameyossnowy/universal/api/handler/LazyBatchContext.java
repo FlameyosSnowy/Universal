@@ -14,6 +14,14 @@ public final class LazyBatchContext<ID> {
         return (LazyBatchContext<ID>) CTX.get();
     }
 
+    /**
+     * Clears the current thread's batch context and removes the ThreadLocal.
+     * Call this after batch operations complete to prevent memory leaks in pooled threads.
+     */
+    public static void clear() {
+        CTX.remove();
+    }
+
     private final Map<LazyBatchKey, List<ID>> ids =
         new HashMap<>();
 
@@ -28,5 +36,12 @@ public final class LazyBatchContext<ID> {
 
     public boolean hasPending() {
         return !ids.isEmpty();
+    }
+
+    /**
+     * Clears all pending IDs. Call this after processing all batches.
+     */
+    public void clearAll() {
+        ids.clear();
     }
 }

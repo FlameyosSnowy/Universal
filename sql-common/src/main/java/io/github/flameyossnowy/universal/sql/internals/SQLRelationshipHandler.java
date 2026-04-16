@@ -8,4 +8,9 @@ public class SQLRelationshipHandler<T, ID> extends AbstractRelationshipHandler<T
     SQLRelationshipHandler(RepositoryModel<T, ID> repositoryModel, Class<ID> idClass, TypeResolverRegistry resolverRegistry) {
         super(repositoryModel, idClass, resolverRegistry);
     }
+
+    SQLRelationshipHandler(RepositoryModel<T, ID> repositoryModel, Class<ID> idClass,
+                           TypeResolverRegistry resolverRegistry, CacheConfiguration cacheConfig) {
+        super(repositoryModel, idClass, resolverRegistry, cacheConfig);
+    }
 }

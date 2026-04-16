@@ -13,6 +13,7 @@ import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.api.options.SelectQuery;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
+import io.github.flameyossnowy.velocis.cache.algorithms.ConcurrentLRUCache;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,55 +47,124 @@ import java.util.regex.Pattern;
  */
 @SuppressWarnings({ "unchecked", "unused", "DuplicatedCode" })
 public abstract class AbstractRelationshipHandler<T, ID> implements RelationshipHandler<T, ID> {
+
+    /**
+     * Configuration for relationship handler caches.
+     * Use {@link #builder()} to create instances with custom settings.
+     */
+    public record CacheConfiguration(
+        int relationshipCacheSize,
+        int adapterCacheSize,
+        int queryResultCacheSize,
+        int cacheKeyPoolSize
+    ) {
+        public static final int DEFAULT_RELATIONSHIP_CACHE_SIZE = 10_000;
+        public static final int DEFAULT_ADAPTER_CACHE_SIZE = 1_000;
+        public static final int DEFAULT_QUERY_RESULT_CACHE_SIZE = 5_000;
+        public static final int DEFAULT_CACHE_KEY_POOL_SIZE = 1024;
+
+        public CacheConfiguration {
+            if (relationshipCacheSize < 1)
+                throw new IllegalArgumentException("relationshipCacheSize must be at least 1");
+            if (adapterCacheSize < 1)
+                throw new IllegalArgumentException("adapterCacheSize must be at least 1");
+            if (queryResultCacheSize < 1)
+                throw new IllegalArgumentException("queryResultCacheSize must be at least 1");
+            if (cacheKeyPoolSize < 1)
+                throw new IllegalArgumentException("cacheKeyPoolSize must be at least 1");
+        }
+
+        public CacheConfiguration() {
+            this(DEFAULT_RELATIONSHIP_CACHE_SIZE, DEFAULT_ADAPTER_CACHE_SIZE,
+                 DEFAULT_QUERY_RESULT_CACHE_SIZE, DEFAULT_CACHE_KEY_POOL_SIZE);
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public Builder toBuilder() {
+            return new Builder()
+                .relationshipCacheSize(relationshipCacheSize)
+                .adapterCacheSize(adapterCacheSize)
+                .queryResultCacheSize(queryResultCacheSize)
+                .cacheKeyPoolSize(cacheKeyPoolSize);
+        }
+
+        public static class Builder {
+            private int relationshipCacheSize = DEFAULT_RELATIONSHIP_CACHE_SIZE;
+            private int adapterCacheSize = DEFAULT_ADAPTER_CACHE_SIZE;
+            private int queryResultCacheSize = DEFAULT_QUERY_RESULT_CACHE_SIZE;
+            private int cacheKeyPoolSize = DEFAULT_CACHE_KEY_POOL_SIZE;
+
+            private Builder() {}
+
+            public Builder relationshipCacheSize(int size) {
+                this.relationshipCacheSize = size;
+                return this;
+            }
+
+            public Builder adapterCacheSize(int size) {
+                this.adapterCacheSize = size;
+                return this;
+            }
+
+            public Builder queryResultCacheSize(int size) {
+                this.queryResultCacheSize = size;
+                return this;
+            }
+
+            public Builder cacheKeyPoolSize(int size) {
+                this.cacheKeyPoolSize = size;
+                return this;
+            }
+
+            public CacheConfiguration build() {
+                return new CacheConfiguration(relationshipCacheSize, adapterCacheSize,
+                    queryResultCacheSize, cacheKeyPoolSize);
+            }
+        }
+    }
+
     protected final RepositoryModel<T, ID> repositoryModel;
     protected final Class<ID> idClass;
     protected final TypeResolverRegistry resolverRegistry;
 
     private final ExecutorService parallelExecutor;
 
-    // Static caches shared across all instances
-    private static final Map<String, String> nameCache = new ConcurrentHashMap<>(16);
+    // Static caches shared across all handlers - tunable via static methods
+    private static volatile int nameCacheSize = 1_000;
+    private static volatile int l1CacheInitialCapacity = 64;
+    private static Map<String, String> nameCache = new ConcurrentLRUCache<>(nameCacheSize);
 
-    // L2 cache: shared across threads
-    private final Map<String, Object> relationshipCache = new ConcurrentHashMap<>(64);
-
-    // L1 cache: thread-local for ultra-fast access
     private static final ThreadLocal<WeakReference<Map<String, Object>>> l1Cache =
-        ThreadLocal.withInitial(() -> new WeakReference<>(new HashMap<>(64)));
+        ThreadLocal.withInitial(() -> new WeakReference<>(new HashMap<>(l1CacheInitialCapacity)));
 
-    // Adapter cache to eliminate redundant lookups
-    private final Map<String, RepositoryAdapter<Object, Object, ?>> adapterCache =
-        new ConcurrentHashMap<>(32);
+    // Instance caches - configured via CacheConfiguration in constructor
+    private final Map<String, Object> relationshipCache;
+    private final Map<String, RepositoryAdapter<Object, Object, ?>> adapterCache;
+    private final Map<String, List<Object>> queryResultCache;
+    private final int cacheKeyPoolSizeInstance;
+    private final String[] cacheKeyPool;
 
-    // Query result cache for reusing identical queries
-    private final Map<String, List<Object>> queryResultCache = new ConcurrentHashMap<>(64);
-
-    // Cache key pool for reducing string allocations
-    private static final int CACHE_KEY_POOL_SIZE = 1024;
-    private final String[] cacheKeyPool = new String[CACHE_KEY_POOL_SIZE];
-
-    // Adaptive batch sizing
     private static final int MIN_BATCH_SIZE = 50;
     private static final int MAX_BATCH_SIZE = 1000;
     private final Map<String, Integer> optimalBatchSizes = new ConcurrentHashMap<>(32);
 
-    // Performance metrics
-    private final AtomicLong cacheHits = new AtomicLong();
-    private final AtomicLong cacheMisses = new AtomicLong();
-    private final AtomicLong l1CacheHits = new AtomicLong();
-    private final AtomicLong l2CacheHits = new AtomicLong();
+    private final AtomicLong cacheMisses   = new AtomicLong();
+    private final AtomicLong l1CacheHits   = new AtomicLong();
+    private final AtomicLong l2CacheHits   = new AtomicLong();
     private final Map<String, AtomicLong> queryCountByField = new ConcurrentHashMap<>(32);
 
     private static final Object NULL_MARKER = new Object();
 
     private final String entityPrefix;
 
-    // Configuration
-    private volatile boolean parallelPrefetchEnabled = false;
-    private volatile int prefetchThreadPoolSize = Runtime.getRuntime().availableProcessors();
-    private volatile boolean autoWarmCache = false;
-    private volatile boolean autoDeepPrefetch = false;
-    private volatile int autoDeepPrefetchDepth = 2;
+    private volatile boolean parallelPrefetchEnabled  = false;
+    private volatile int     prefetchThreadPoolSize    = Runtime.getRuntime().availableProcessors();
+    private volatile boolean autoWarmCache             = false;
+    private volatile boolean autoDeepPrefetch          = false;
+    private volatile int     autoDeepPrefetchDepth     = 2;
 
     private static final Pattern PATTERN = Pattern.compile("\\.");
 
@@ -103,10 +173,32 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         Class<ID> idClass,
         TypeResolverRegistry resolverRegistry
     ) {
+        this(repositoryModel, idClass, resolverRegistry, new CacheConfiguration());
+    }
+
+    /**
+     * Construct with custom cache configuration.
+     *
+     * @param repositoryModel the repository metadata
+     * @param idClass the ID type class
+     * @param resolverRegistry the type resolver registry
+     * @param cacheConfig cache tuning configuration
+     */
+    protected AbstractRelationshipHandler(
+        RepositoryModel<T, ID> repositoryModel,
+        Class<ID> idClass,
+        TypeResolverRegistry resolverRegistry,
+        CacheConfiguration cacheConfig
+    ) {
         this.repositoryModel = repositoryModel;
-        this.idClass = idClass;
+        this.idClass         = idClass;
         this.resolverRegistry = resolverRegistry;
-        this.entityPrefix = repositoryModel.entitySimpleName() + ":";
+        this.cacheKeyPoolSizeInstance = cacheConfig.cacheKeyPoolSize();
+        this.cacheKeyPool = new String[cacheKeyPoolSizeInstance];
+        this.relationshipCache = new ConcurrentLRUCache<>(cacheConfig.relationshipCacheSize());
+        this.adapterCache = new ConcurrentLRUCache<>(cacheConfig.adapterCacheSize());
+        this.queryResultCache = new ConcurrentLRUCache<>(cacheConfig.queryResultCacheSize());
+        this.entityPrefix    = repositoryModel.entitySimpleName() + ":";
         this.parallelExecutor = Executors.newFixedThreadPool(
             prefetchThreadPoolSize,
             new ThreadFactory() {
@@ -120,8 +212,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             }
         );
     }
-
-    // ========== Configuration Methods ==========
 
     /**
      * Enable or disable parallel prefetching.
@@ -137,11 +227,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         }
     }
 
-    /**
-     * Get the current parallel prefetch configuration.
-     *
-     * @return true if parallel prefetch is enabled
-     */
     public boolean isParallelPrefetchEnabled() {
         return parallelPrefetchEnabled;
     }
@@ -153,9 +238,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
      * @param size number of threads (default: number of processors)
      */
     public void setPrefetchThreadPoolSize(int size) {
-        if (size < 1) {
-            throw new IllegalArgumentException("Thread pool size must be at least 1");
-        }
+        if (size < 1) throw new IllegalArgumentException("Thread pool size must be at least 1");
         this.prefetchThreadPoolSize = size;
     }
 
@@ -173,11 +256,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         }
     }
 
-    /**
-     * Get the current auto-warm cache configuration.
-     *
-     * @return true if auto-warm cache is enabled
-     */
     public boolean isAutoWarmCache() {
         return autoWarmCache;
     }
@@ -197,11 +275,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         }
     }
 
-    /**
-     * Get the current auto-deep prefetch configuration.
-     *
-     * @return true if auto-deep prefetch is enabled
-     */
     public boolean isAutoDeepPrefetch() {
         return autoDeepPrefetch;
     }
@@ -213,68 +286,79 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
      * @param depth maximum relationship depth to prefetch (default: 2)
      */
     public void setAutoDeepPrefetchDepth(int depth) {
-        if (depth < 1) {
-            throw new IllegalArgumentException("Depth must be at least 1");
-        }
+        if (depth < 1) throw new IllegalArgumentException("Depth must be at least 1");
         this.autoDeepPrefetchDepth = depth;
     }
 
-    /**
-     * Get the current auto-deep prefetch depth.
-     *
-     * @return the maximum depth for automatic deep prefetch
-     */
     public int getAutoDeepPrefetchDepth() {
         return autoDeepPrefetchDepth;
     }
 
-    // ========== Core Relationship Handling ==========
+    // ==================== Global Cache Configuration ====================
+
+    /**
+     * Globally set the size of the static name cache shared across all handlers.
+     * This cache stores column name mappings.
+     * <p><strong>Warning:</strong> Calling this will clear the existing cache.
+     *
+     * @param size maximum number of entries (default: 1,000)
+     */
+    public static void setNameCacheSize(int size) {
+        if (size < 1) throw new IllegalArgumentException("Cache size must be at least 1");
+        nameCacheSize = size;
+        nameCache = new ConcurrentLRUCache<>(size);
+    }
+
+    public static int getNameCacheSize() {
+        return nameCacheSize;
+    }
+
+    /**
+     * Globally set the initial capacity for L1 thread-local caches.
+     * <p><strong>Note:</strong> This only affects new thread-local caches created after this call.
+     *
+     * @param capacity initial hash map capacity (default: 64)
+     */
+    public static void setL1CacheInitialCapacity(int capacity) {
+        if (capacity < 1) throw new IllegalArgumentException("Capacity must be at least 1");
+        l1CacheInitialCapacity = capacity;
+    }
+
+    public static int getL1CacheInitialCapacity() {
+        return l1CacheInitialCapacity;
+    }
 
     private static ReadPolicy policyFor(@NotNull FieldModel<?> field) {
         return switch (field.consistency()) {
-            case STRONG -> ReadPolicy.STRONG_READ_POLICY;
+            case STRONG   -> ReadPolicy.STRONG_READ_POLICY;
             case EVENTUAL -> ReadPolicy.EVENTUAL_READ_POLICY;
-            case NONE -> ReadPolicy.NO_READ_POLICY;
+            case NONE     -> ReadPolicy.NO_READ_POLICY;
         };
     }
 
     @Override
     public @Nullable Object handleManyToOneRelationship(ID primaryKeyValue, @NotNull FieldModel<T> field) {
-        ReadPolicy policy = policyFor(field);
-        String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
+        ReadPolicy policy   = policyFor(field);
+        String     cacheKey = buildCacheKey(field.name(), primaryKeyValue);
 
-        // Check tiered cache
         Object cached = getCached(cacheKey, policy);
-        if (cached != null) {
-            return cached == NULL_MARKER ? null : cached;
-        }
+        if (cached != null) return cached == NULL_MARKER ? null : cached;
 
         cacheMisses.incrementAndGet();
         incrementQueryCount(field.name());
 
         RepositoryModel<?, ?> parentInfo = GeneratedMetadata.getByEntityClass(field.type());
-        if (parentInfo == null) {
-            throw new IllegalStateException("Unknown repository for type " + field.type());
-        }
+        if (parentInfo == null) throw new IllegalStateException("Unknown repository for type " + field.type());
 
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, parentInfo);
-        if (adapter == null) {
-            throw new IllegalStateException("Missing adapter for " + parentInfo.getEntityClass());
-        }
+        if (adapter == null) throw new IllegalStateException("Missing adapter for " + parentInfo.getEntityClass());
 
-        SelectQuery query = createQuery(primaryKeyValue, repositoryModel.getPrimaryKey().columnName(), repositoryModel);
-
+        SelectQuery query  = createQuery(primaryKeyValue, repositoryModel.getPrimaryKey().columnName(), repositoryModel);
         List<Object> result = adapter.find(query, policy);
         Object value = result.isEmpty() ? null : result.getFirst();
 
-        if (policy.allowStale()) {
-            putCached(cacheKey, value == null ? NULL_MARKER : value);
-        }
-
-        // Auto deep prefetch if enabled
-        if (autoDeepPrefetch && value != null) {
-            autoDeepPrefetchRelated(List.of(value), parentInfo, 1);
-        }
+        if (policy.allowStale()) putCached(cacheKey, value == null ? NULL_MARKER : value);
+        if (autoDeepPrefetch && value != null) autoDeepPrefetchRelated(List.of(value), parentInfo, 1);
 
         return value;
     }
@@ -289,7 +373,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
     private static final ThreadLocal<Set<String>> IN_PROGRESS =
         ThreadLocal.withInitial(() -> new HashSet<>(8));
 
-
     /**
      * Called when the CURRENT entity owns the FK column (e.g. factions.warp = warpId).
      * fkValue is the raw FK value already read from the result set.
@@ -299,9 +382,8 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
     public @Nullable Object handleOneToOneRelationshipOwning(Object fkValue, @NotNull FieldModel<T> field) {
         if (fkValue == null) return null;
 
-        ReadPolicy policy = policyFor(field);
-        // Cache key uses the FK value, not the parent PK, since that's what identifies the target
-        String cacheKey = buildCacheKey(field.name() + "#fk", fkValue);
+        ReadPolicy policy   = policyFor(field);
+        String     cacheKey = buildCacheKey(field.name() + "#fk", fkValue);
 
         Object cached = getCached(cacheKey, policy);
         if (cached != null) return cached == NULL_MARKER ? null : cached;
@@ -320,16 +402,11 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             if (targetInfo == null) throw new IllegalStateException("Unknown repository for type " + field.type());
 
             RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, targetInfo);
-            if (adapter == null) {
-                putCached(cacheKey, NULL_MARKER);
-                return null;
-            }
+            if (adapter == null) { putCached(cacheKey, NULL_MARKER); return null; }
 
-            // Owning side: we have the FK value, just load the target by its PK
-            SelectQuery query = createQuery(fkValue, targetInfo.getPrimaryKey().columnName(), targetInfo);
-
+            SelectQuery  query   = createQuery(fkValue, targetInfo.getPrimaryKey().columnName(), targetInfo);
             List<Object> results = adapter.find(query, policy);
-            Object result = (results.isEmpty()) ? null : results.getFirst();
+            Object       result  = results.isEmpty() ? null : results.getFirst();
 
             if (policy.allowStale()) putCached(cacheKey, result == null ? NULL_MARKER : result);
             if (autoDeepPrefetch && result != null) autoDeepPrefetchRelated(List.of(result), targetInfo, 1);
@@ -346,8 +423,8 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
      */
     @Override
     public @Nullable Object handleOneToOneRelationship(ID primaryKeyValue, @NotNull FieldModel<T> field) {
-        ReadPolicy policy = policyFor(field);
-        String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
+        ReadPolicy policy   = policyFor(field);
+        String     cacheKey = buildCacheKey(field.name(), primaryKeyValue);
 
         Object cached = getCached(cacheKey, policy);
         if (cached != null) return cached == NULL_MARKER ? null : cached;
@@ -369,15 +446,11 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             if (backRef == null) { putCached(cacheKey, NULL_MARKER); return null; }
 
             RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, targetInfo);
-            if (adapter == null) {
-                putCached(cacheKey, NULL_MARKER);
-                return null;
-            }
+            if (adapter == null) { putCached(cacheKey, NULL_MARKER); return null; }
 
-            SelectQuery query = createBackRefQuery(primaryKeyValue, backRef);
-
+            SelectQuery  query   = createBackRefQuery(primaryKeyValue, backRef);
             List<Object> results = adapter.find(query, policy);
-            Object result = (results == null || results.isEmpty()) ? null : results.getFirst();
+            Object       result  = (results == null || results.isEmpty()) ? null : results.getFirst();
 
             if (policy.allowStale()) putCached(cacheKey, result == null ? NULL_MARKER : result);
             if (autoDeepPrefetch && result != null) autoDeepPrefetchRelated(List.of(result), targetInfo, 1);
@@ -398,30 +471,21 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
 
     @Override
     public List<Object> handleOneToManyRelationship(ID primaryKeyValue, FieldModel<T> field) {
-        ReadPolicy policy = policyFor(field);
+        ReadPolicy policy   = policyFor(field);
+        String     cacheKey = buildCacheKey(field.name(), primaryKeyValue);
 
-        // Check cache first
-        String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
         Object cached = getCached(cacheKey, policy);
-        if (cached != null) {
-            return (List<Object>) cached;
-        }
+        if (cached != null) return (List<Object>) cached;
 
         cacheMisses.incrementAndGet();
         incrementQueryCount(field.name());
 
-        // Get the target entity type from the field's element type
         Class<?> targetType = field.elementType();
-        if (targetType == null) {
-            throw new IllegalStateException("OneToMany field must have elementType: " + field.name());
-        }
+        if (targetType == null) throw new IllegalStateException("OneToMany field must have elementType: " + field.name());
 
         RepositoryModel<?, ?> relatedRepoInfo = GeneratedMetadata.getByEntityClass(targetType);
-        if (relatedRepoInfo == null) {
-            throw new IllegalStateException("Unknown repository for type " + targetType);
-        }
+        if (relatedRepoInfo == null) throw new IllegalStateException("Unknown repository for type " + targetType);
 
-        // Find the back-reference field name
         String relationName = findManyToOneFieldName(relatedRepoInfo, repositoryModel.getEntityClass());
         if (relationName == null) {
             throw new IllegalStateException(
@@ -431,30 +495,17 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         }
 
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, relatedRepoInfo);
-        if (adapter == null) {
-            throw new IllegalStateException("Missing adapter for " + relatedRepoInfo.getEntityClass());
-        }
+        if (adapter == null) throw new IllegalStateException("Missing adapter for " + relatedRepoInfo.getEntityClass());
 
         if (!field.lazy()) {
             List<Object> results = loadOneToManyResults(primaryKeyValue, adapter, relationName, cacheKey, policy);
-
-            // Auto deep prefetch if enabled
-            if (autoDeepPrefetch && !results.isEmpty()) {
-                autoDeepPrefetchRelated(results, relatedRepoInfo, 1);
-            }
-
+            if (autoDeepPrefetch && !results.isEmpty()) autoDeepPrefetchRelated(results, relatedRepoInfo, 1);
             return results;
         }
 
-        // Lazy loading
         return new LazyArrayList<>(() -> {
             List<Object> results = loadOneToManyResults(primaryKeyValue, adapter, relationName, cacheKey, policy);
-
-            // Auto deep prefetch if enabled (on lazy load)
-            if (autoDeepPrefetch && !results.isEmpty()) {
-                autoDeepPrefetchRelated(results, relatedRepoInfo, 1);
-            }
-
+            if (autoDeepPrefetch && !results.isEmpty()) autoDeepPrefetchRelated(results, relatedRepoInfo, 1);
             return results;
         });
     }
@@ -466,7 +517,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         String cacheKey,
         ReadPolicy policy
     ) {
-        // Check if we've already executed this exact query
         String queryKey = relationName + "=" + primaryKeyValue;
 
         if (policy.allowStale()) {
@@ -492,69 +542,38 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         return immutable;
     }
 
-    // ========== Helper Methods ==========
-
-    /**
-     * Automatically deep prefetch relationships for loaded entities.
-     * Called internally when autoDeepPrefetch is enabled.
-     *
-     * @param entities Entities to prefetch relationships for
-     * @param model Repository model of the entities
-     * @param currentDepth Current recursion depth
-     */
     private void autoDeepPrefetchRelated(List<Object> entities, RepositoryModel<?, ?> model, int currentDepth) {
-        if (entities.isEmpty() || currentDepth >= autoDeepPrefetchDepth) {
-            return;
-        }
+        if (entities.isEmpty() || currentDepth >= autoDeepPrefetchDepth) return;
 
-        // Get the handler for this entity type
         RelationshipHandler<?, ?> handler = getRelatedHandler(model);
-        if (!(handler instanceof AbstractRelationshipHandler<?, ?> abstractHandler)) {
-            return;
-        }
+        if (!(handler instanceof AbstractRelationshipHandler<?, ?> abstractHandler)) return;
 
-        // Collect all relationship fields
         List<? extends RelationshipModel<?, ?>> relationships = model.getRelationships();
         Set<String> relationshipFields = new HashSet<>(relationships.size());
         for (RelationshipModel<?, ?> field : relationships) {
             relationshipFields.add(field.getFieldModel().name());
         }
 
-        if (relationshipFields.isEmpty()) {
-            return;
-        }
+        if (relationshipFields.isEmpty()) return;
 
         Logging.deepInfo(() -> "Auto-deep prefetch at depth " + currentDepth +
             " for " + entities.size() + " " + model.entitySimpleName() +
             " entities, fields: " + relationshipFields);
 
-        // Prefetch all relationships for these entities
         abstractHandler.prefetch(entities, relationshipFields);
     }
 
-    // ========== Helper Methods ==========
-
-    /**
-     * Find the OneToOne back-reference field in the target repository
-     * that points back to the source entity type.
-     */
     @Nullable
     private static FieldModel<?> findOneToOneBackReference(
         @NotNull RepositoryModel<?, ?> targetInfo,
         @NotNull Class<?> sourceEntityType
     ) {
         for (FieldModel<?> field : targetInfo.getOneToOneCache().values()) {
-            if (sourceEntityType.isAssignableFrom(field.type())) {
-                return field;
-            }
+            if (sourceEntityType.isAssignableFrom(field.type())) return field;
         }
         return null;
     }
 
-    /**
-     * Find the ManyToOne field name in the target repository
-     * that points back to the parent type.
-     */
     @Nullable
     private static String findManyToOneFieldName(
         @NotNull RepositoryModel<?, ?> targetInfo,
@@ -564,12 +583,8 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
 
         return nameCache.computeIfAbsent(cacheKey, k -> {
             for (FieldModel<?> field : targetInfo.getManyToOneCache().values()) {
-                if (field.type() == parentType) {
-                    return field.columnName();
-                }
+                if (field.type() == parentType) return field.columnName();
             }
-
-            // If not found, log and return null
             Logging.deepInfo(() ->
                 "ManyToOne field for parent type " + parentType.getName() +
                     " not found in " + targetInfo.tableName()
@@ -578,10 +593,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         });
     }
 
-    /**
-     * Resolves the appropriate adapter for a field, supporting both local and external repositories.
-     * Results are cached to avoid repeated lookups.
-     */
     @SuppressWarnings("RedundantCast")
     @Nullable
     private RepositoryAdapter<Object, Object, ?> resolveAdapterCached(
@@ -595,7 +606,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
 
             if (adapterName != null) {
                 RepositoryAdapter<Object, Object, ?> externalAdapter = RepositoryRegistry.get(adapterName);
-
                 if (externalAdapter == null) {
                     Logging.error(
                         "External adapter '" + adapterName +
@@ -603,7 +613,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
                     );
                     return null;
                 }
-
                 Logging.deepInfo(() -> "Using external adapter '" + adapterName + "' for field " + field.name());
                 return externalAdapter;
             }
@@ -612,47 +621,29 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         });
     }
 
-    // ========== Batch Loading (Prefetching) ==========
-
     private void batchLoadOneToOne(FieldModel<T> field, List<ID> parentIds) {
         RepositoryModel<?, ?> target = GeneratedMetadata.getByEntityClass(field.type());
-        if (target == null) {
-            throw new IllegalStateException("Unknown repository for type " + field.type());
-        }
+        if (target == null) throw new IllegalStateException("Unknown repository for type " + field.type());
 
         FieldModel<Object> backRef = (FieldModel<Object>) findOneToOneBackReference(target, repositoryModel.getEntityClass());
-        if (backRef == null) {
-            Logging.error("No OneToOne back-reference for field: " + field.name());
-            return;
-        }
+        if (backRef == null) { Logging.error("No OneToOne back-reference for field: " + field.name()); return; }
 
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, target);
-        if (adapter == null) {
-            Logging.error("No adapter found for type: " + field.type());
-            return;
-        }
+        if (adapter == null) { Logging.error("No adapter found for type: " + field.type()); return; }
 
-        SelectQuery query = Query.select()
-            .where(backRef.columnName()).in(parentIds)
-            .build();
-
+        SelectQuery  query   = Query.select().where(backRef.columnName()).in(parentIds).build();
         List<Object> results = adapter.find(query, policyFor(field));
         Map<ID, Object> mapped = new HashMap<>(results.size());
 
         for (Object obj : results) {
             ID parentId = (ID) backRef.getValue(obj);
             if (mapped.put(parentId, obj) != null) {
-                throw new IllegalStateException(
-                    "Multiple one-to-one results for field " + field.name()
-                );
+                throw new IllegalStateException("Multiple one-to-one results for field " + field.name());
             }
         }
 
         for (ID id : parentIds) {
-            putCached(
-                buildCacheKey(field.name(), id),
-                mapped.getOrDefault(id, NULL_MARKER)
-            );
+            putCached(buildCacheKey(field.name(), id), mapped.getOrDefault(id, NULL_MARKER));
         }
 
         incrementQueryCount(field.name());
@@ -660,36 +651,26 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
 
     private void batchLoadOneToMany(FieldModel<T> field, List<ID> parentIds) {
         Class<?> targetType = field.elementType();
-        if (targetType == null) {
-            throw new IllegalStateException("OneToMany field must have elementType: " + field.name());
-        }
+        if (targetType == null) throw new IllegalStateException("OneToMany field must have elementType: " + field.name());
 
         RepositoryModel<?, ?> related = GeneratedMetadata.getByEntityClass(targetType);
-        if (related == null) {
-            throw new IllegalStateException("Unknown repository for type " + targetType);
-        }
+        if (related == null) throw new IllegalStateException("Unknown repository for type " + targetType);
 
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, related);
-        if (adapter == null) {
-            throw new IllegalStateException("No adapter found for type: " + targetType);
-        }
+        if (adapter == null) throw new IllegalStateException("No adapter found for type: " + targetType);
 
         String relationName = findManyToOneFieldName(related, repositoryModel.getEntityClass());
         if (relationName == null) {
-            throw new IllegalStateException(
-                "No ManyToOne back-reference found for OneToMany field: " + field.name()
-            );
+            throw new IllegalStateException("No ManyToOne back-reference found for OneToMany field: " + field.name());
         }
 
         List<Object> results = adapter.find(
-            Query.select()
-                .where(relationName).in(parentIds)
-                .build(),
+            Query.select().where(relationName).in(parentIds).build(),
             policyFor(field)
         );
 
-        Map<ID, List<Object>> grouped = new HashMap<>(parentIds.size());
-        FieldModel<Object> backRefField = (FieldModel<Object>) related.fieldByName(relationName);
+        Map<ID, List<Object>> grouped   = new HashMap<>(parentIds.size());
+        FieldModel<Object>    backRefField = (FieldModel<Object>) related.fieldByName(relationName);
 
         for (Object child : results) {
             ID parentId = (ID) backRefField.getValue(child);
@@ -698,50 +679,35 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         }
 
         for (ID id : parentIds) {
-            List<Object> list = grouped.getOrDefault(id, List.of());
-            putCached(buildCacheKey(field.name(), id), List.copyOf(list));
+            putCached(buildCacheKey(field.name(), id), List.copyOf(grouped.getOrDefault(id, List.of())));
         }
 
         incrementQueryCount(field.name());
     }
 
     private void batchLoadManyToOne(FieldModel<T> field, List<ID> childIds) {
-        RepositoryModel<Object, ?> parentInfo = (RepositoryModel<Object, ?>) GeneratedMetadata.getByEntityClass(field.type());
-        if (parentInfo == null) {
-            Logging.error("Unknown repository for type: " + field.type());
-            return;
-        }
+        RepositoryModel<Object, ?> parentInfo =
+            (RepositoryModel<Object, ?>) GeneratedMetadata.getByEntityClass(field.type());
+        if (parentInfo == null) { Logging.error("Unknown repository for type: " + field.type()); return; }
 
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, parentInfo);
-        if (adapter == null) {
-            Logging.error("No adapter found for type: " + field.type());
-            return;
-        }
+        if (adapter == null) { Logging.error("No adapter found for type: " + field.type()); return; }
 
-        // Fetch all parent entities in one query
         List<Object> parents = adapter.find(
-            Query.select()
-                .where(parentInfo.getPrimaryKey().columnName()).in(childIds)
-                .build(),
+            Query.select().where(parentInfo.getPrimaryKey().columnName()).in(childIds).build(),
             policyFor(field)
         );
 
-        // Map results to cache
-        FieldModel<Object> pkField = parentInfo.getPrimaryKey();
-        Map<ID, Object> parentMap = new HashMap<>(parents.size());
-
+        FieldModel<Object> pkField    = parentInfo.getPrimaryKey();
+        Map<ID, Object>    parentMap  = new HashMap<>(parents.size());
         for (Object parent : parents) {
             ID parentId = (ID) pkField.getValue(parent);
             parentMap.put(parentId, parent);
         }
 
-        // Cache each result
         for (ID childId : childIds) {
             Object parent = parentMap.get(childId);
-            putCached(
-                buildCacheKey(field.name(), childId),
-                parent == null ? NULL_MARKER : parent
-            );
+            putCached(buildCacheKey(field.name(), childId), parent == null ? NULL_MARKER : parent);
         }
 
         incrementQueryCount(field.name());
@@ -750,57 +716,41 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
     @SuppressWarnings("ObjectAllocationInLoop")
     @Override
     public void prefetch(Collection<Object> parents, Set<String> fields) {
-        // Collect all parent IDs first
         List<ID> parentIds = new ArrayList<>(parents.size());
         for (Object parent : parents) {
             parentIds.add(repositoryModel.getPrimaryKeyValue((T) parent));
         }
 
-        // If auto-warm is enabled, warm the cache first with just the IDs
-        // This can be more efficient as it avoids loading parent entities multiple times
         if (autoWarmCache && !parentIds.isEmpty()) {
             Logging.deepInfo(() -> "Auto-warming cache for " + parentIds.size() + " entities");
             warmCache(parentIds, fields);
-            return; // Cache is already warmed, no need to continue
+            return;
         }
 
-        // Standard prefetch logic
-        Map<FieldModel<T>, List<ID>> oneToMany = new HashMap<>(fields.size());
-        Map<FieldModel<T>, List<ID>> oneToOne = new HashMap<>(fields.size());
-        Map<FieldModel<T>, List<ID>> manyToOne = new HashMap<>(fields.size());
+        Map<FieldModel<T>, List<ID>> oneToMany  = new HashMap<>(fields.size());
+        Map<FieldModel<T>, List<ID>> oneToOne   = new HashMap<>(fields.size());
+        Map<FieldModel<T>, List<ID>> manyToOne  = new HashMap<>(fields.size());
 
         for (Object parent : parents) {
             ID id = repositoryModel.getPrimaryKeyValue((T) parent);
 
             for (String fieldName : fields) {
                 FieldModel<T> field = repositoryModel.fieldByName(fieldName);
-                if (field == null || !field.relationship()) {
-                    continue;
-                }
+                if (field == null || !field.relationship()) continue;
 
                 switch (field.relationshipKind()) {
-                    case ONE_TO_MANY -> oneToMany
-                        .computeIfAbsent(field, f -> new ArrayList<>(16))
-                        .add(id);
-                    case ONE_TO_ONE -> oneToOne
-                        .computeIfAbsent(field, f -> new ArrayList<>(16))
-                        .add(id);
-                    case MANY_TO_ONE -> manyToOne
-                        .computeIfAbsent(field, f -> new ArrayList<>(16))
-                        .add(id);
+                    case ONE_TO_MANY  -> oneToMany .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                    case ONE_TO_ONE   -> oneToOne  .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                    case MANY_TO_ONE  -> manyToOne .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
                 }
             }
         }
 
-        // Execute based on configuration
         prefetchAndBatchOptionallyParallel(oneToMany, oneToOne, manyToOne);
     }
 
     /**
      * Deep prefetch with recursive relationship loading using dot notation.
-     * Convenience method that automatically builds the nested field path structure.
-     * <p>
-     * Example: prefetchDeep(users, "faction.warp", "faction.members", "posts.comments.author")
      *
      * @param parents Parent entities to prefetch for
      * @param dotNotationFields Field paths in dot notation (e.g., "faction.warp.location")
@@ -809,44 +759,36 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
     public void prefetchDeep(Collection<Object> parents, String... dotNotationFields) {
         if (dotNotationFields.length == 0) return;
 
-        // Build the nested field path map from dot notation
         Map<String, Set<String>> fieldPaths = new HashMap<>(dotNotationFields.length);
 
         for (String dotPath : dotNotationFields) {
-            String[] parts = PATTERN.split(dotPath, 2);
-            String rootField = parts[0];
+            String[] parts     = PATTERN.split(dotPath, 2);
+            String   rootField = parts[0];
 
             if (parts.length == 1) {
-                // Simple field with no nesting
                 fieldPaths.computeIfAbsent(rootField, k -> new HashSet<>(32));
             } else {
-                // Nested field path - recursively add remaining path
-                String remainingPath = parts[1];
-                fieldPaths.computeIfAbsent(rootField, k -> new HashSet<>(32)).add(remainingPath);
+                fieldPaths.computeIfAbsent(rootField, k -> new HashSet<>(32)).add(parts[1]);
             }
         }
 
-        // Call the main prefetchDeep implementation
         prefetchDeep(parents, fieldPaths);
     }
 
     /**
      * Deep prefetch with recursive relationship loading.
-     * Loads multiple levels of relationships in a single call.
      *
-     * @param parents Parent entities to prefetch for
+     * @param parents    Parent entities to prefetch for
      * @param fieldPaths Map of field names to their nested fields
-     *                   Example: {"faction" -> {"warp", "members"}, "posts" -> {"comments"}}
      */
     public void prefetchDeep(Collection<Object> parents, Map<String, Set<String>> fieldPaths) {
         if (fieldPaths.isEmpty()) return;
 
-        // First prefetch immediate relationships
         prefetch(parents, fieldPaths.keySet());
 
-        // Then recursively prefetch nested relationships
-        Map<String, Set<String>> nestedPaths = new HashMap<>(32);
-        List<Object> relatedEntities = new ArrayList<>(32);
+        Map<String, Set<String>> nestedPaths    = new HashMap<>(32);
+        List<Object>             relatedEntities = new ArrayList<>(32);
+
         for (Map.Entry<String, Set<String>> entry : fieldPaths.entrySet()) {
             Set<String> nestedFields = entry.getValue();
             if (nestedFields.isEmpty()) continue;
@@ -854,11 +796,10 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             FieldModel<T> field = repositoryModel.fieldByName(entry.getKey());
             if (field == null || !field.relationship()) continue;
 
-            // Collect all related entities for next level
             for (Object parent : parents) {
-                ID parentId = repositoryModel.getPrimaryKeyValue((T) parent);
+                ID     parentId = repositoryModel.getPrimaryKeyValue((T) parent);
                 String cacheKey = buildCacheKey(field.name(), parentId);
-                Object related = relationshipCache.get(cacheKey);
+                Object related  = relationshipCache.get(cacheKey);
 
                 if (related != null && related != NULL_MARKER) {
                     if (related instanceof Collection) {
@@ -869,7 +810,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
                 }
             }
 
-            // Recursively prefetch for nested relationships
             if (!relatedEntities.isEmpty()) {
                 Class<?> relatedType = field.relationshipKind() == RelationshipKind.ONE_TO_MANY
                     ? field.elementType()
@@ -879,50 +819,34 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
 
                 RepositoryModel<?, ?> relatedModel = GeneratedMetadata.getByEntityClass(relatedType);
                 if (relatedModel != null) {
-                    // Get the handler for the related type
                     RelationshipHandler<?, ?> relatedHandler = getRelatedHandler(relatedModel);
 
                     if (relatedHandler instanceof AbstractRelationshipHandler<?, ?> abstractHandler) {
                         for (String nestedField : nestedFields) {
                             nestedPaths.put(nestedField, Set.of());
                         }
-
                         abstractHandler.prefetchDeep(relatedEntities, nestedPaths);
-                    } else {
-                        // Fallback to simple prefetch if handler doesn't support deep prefetch
-                        if (relatedHandler != null) {
-                            relatedHandler.prefetch(relatedEntities, nestedFields);
-                        }
+                    } else if (relatedHandler != null) {
+                        relatedHandler.prefetch(relatedEntities, nestedFields);
                     }
                 }
+
                 nestedFields.clear();
                 relatedEntities.clear();
             }
         }
     }
 
-    /**
-     * Get the relationship handler for a related entity type.
-     * This method should be overridden by implementations that maintain
-     * a registry of handlers, or it will attempt to use the resolver registry.
-     *
-     * @param relatedModel The repository model of the related entity
-     * @return The relationship handler for the related entity, or null if not found
-     */
     protected static RelationshipHandler<?, ?> getRelatedHandler(RepositoryModel<?, ?> relatedModel) {
-        // Try to get from RepositoryRegistry
         RepositoryAdapter<?, ?, ?> adapter = RepositoryRegistry.get(relatedModel.getEntityClass());
         Objects.requireNonNull(adapter);
-
         return adapter.getRelationshipHandler();
     }
 
     /**
-     * Warm cache for anticipated access patterns.
-     * Useful for preloading data before processing a batch of entities.
-     * This is more efficient than prefetch() when you only have IDs, not entity objects.
+     * Warm cache for anticipated access patterns using only IDs.
      *
-     * @param ids Entity IDs to warm cache for
+     * @param ids               Entity IDs to warm cache for
      * @param anticipatedFields Field names that will likely be accessed
      */
     public void warmCache(List<ID> ids, Set<String> anticipatedFields) {
@@ -931,40 +855,38 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         Logging.deepInfo(() -> "Warming cache for " + ids.size() +
             " entities, " + anticipatedFields.size() + " fields");
 
-        // Group fields by relationship type and assign the IDs list to each
-        Map<FieldModel<T>, List<ID>> oneToManyFields = new HashMap<>(anticipatedFields.size());
-        Map<FieldModel<T>, List<ID>> oneToOneFields = new HashMap<>(anticipatedFields.size());
-        Map<FieldModel<T>, List<ID>> manyToOneFields = new HashMap<>(anticipatedFields.size());
+        Map<FieldModel<T>, List<ID>> oneToManyFields  = new HashMap<>(anticipatedFields.size());
+        Map<FieldModel<T>, List<ID>> oneToOneFields   = new HashMap<>(anticipatedFields.size());
+        Map<FieldModel<T>, List<ID>> manyToOneFields  = new HashMap<>(anticipatedFields.size());
 
         for (String fieldName : anticipatedFields) {
             FieldModel<T> field = repositoryModel.fieldByName(fieldName);
             if (field == null || !field.relationship()) continue;
 
-            // Each field gets the same list of IDs
             switch (field.relationshipKind()) {
-                case ONE_TO_MANY -> oneToManyFields.put(field, ids);
-                case ONE_TO_ONE -> oneToOneFields.put(field, ids);
-                case MANY_TO_ONE -> manyToOneFields.put(field, ids);
+                case ONE_TO_MANY  -> oneToManyFields .put(field, ids);
+                case ONE_TO_ONE   -> oneToOneFields  .put(field, ids);
+                case MANY_TO_ONE  -> manyToOneFields .put(field, ids);
             }
         }
 
-        // Batch load all at once (respecting parallel configuration)
         prefetchAndBatchOptionallyParallel(oneToManyFields, oneToOneFields, manyToOneFields);
     }
 
-    private void prefetchAndBatchOptionallyParallel(Map<FieldModel<T>, List<ID>> oneToManyFields, Map<FieldModel<T>, List<ID>> oneToOneFields, Map<FieldModel<T>, List<ID>> manyToOneFields) {
+    private void prefetchAndBatchOptionallyParallel(
+        Map<FieldModel<T>, List<ID>> oneToManyFields,
+        Map<FieldModel<T>, List<ID>> oneToOneFields,
+        Map<FieldModel<T>, List<ID>> manyToOneFields
+    ) {
         if (parallelPrefetchEnabled) {
             try {
                 CompletableFuture<Void>[] futures = new CompletableFuture[3];
-                futures[0] = CompletableFuture.runAsync(() ->
-                    oneToManyFields.forEach(this::batchLoadOneToMany), parallelExecutor
-                );
-                futures[1] = CompletableFuture.runAsync(() ->
-                    oneToOneFields.forEach(this::batchLoadOneToOne), parallelExecutor
-                );
-                futures[2] = CompletableFuture.runAsync(() ->
-                    manyToOneFields.forEach(this::batchLoadManyToOne), parallelExecutor
-                );
+                futures[0] = CompletableFuture.runAsync(
+                    () -> oneToManyFields .forEach(this::batchLoadOneToMany),  parallelExecutor);
+                futures[1] = CompletableFuture.runAsync(
+                    () -> oneToOneFields  .forEach(this::batchLoadOneToOne),   parallelExecutor);
+                futures[2] = CompletableFuture.runAsync(
+                    () -> manyToOneFields .forEach(this::batchLoadManyToOne),  parallelExecutor);
 
                 CompletableFuture.allOf(futures).get(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
@@ -974,15 +896,14 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
                 throw new RuntimeException("Parallel prefetch failed", e);
             }
         } else {
-            // Sequential execution
-            oneToManyFields.forEach(this::batchLoadOneToMany);
-            oneToOneFields.forEach(this::batchLoadOneToOne);
-            manyToOneFields.forEach(this::batchLoadManyToOne);
+            oneToManyFields .forEach(this::batchLoadOneToMany);
+            oneToOneFields  .forEach(this::batchLoadOneToOne);
+            manyToOneFields .forEach(this::batchLoadManyToOne);
         }
     }
 
-    // Add cleanup method
     public void shutdown() {
+        clearThreadLocalCache();
         parallelExecutor.shutdown();
         try {
             if (!parallelExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -994,52 +915,12 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         }
     }
 
-    /**
-     * Get the size of a OneToMany relationship without loading the full collection.
-     * More efficient than loading all entities just to count them.
-     *
-     * @param primaryKeyValue The parent entity ID
-     * @param field The OneToMany field
-     * @return The number of related entities
-     */
-    public int getRelationshipSize(ID primaryKeyValue, FieldModel<T> field) {
-        if (field.relationshipKind() != RelationshipKind.ONE_TO_MANY) {
-            throw new IllegalArgumentException("Only ONE_TO_MANY supports size queries");
-        }
-
-        // Check if we already have the collection cached
-        String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
-        Object cached = relationshipCache.get(cacheKey);
-        if (cached instanceof List) {
-            return ((List<?>) cached).size();
-        }
-
-        Class<?> targetType = field.elementType();
-        RepositoryModel<?, ?> relatedRepoInfo = GeneratedMetadata.getByEntityClass(targetType);
-        Objects.requireNonNull(relatedRepoInfo);
-        String relationName = findManyToOneFieldName(relatedRepoInfo, repositoryModel.getEntityClass());
-
-        RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, relatedRepoInfo);
-        Objects.requireNonNull(adapter);
-
-        // Use count instead of fetching all records
-        return (int) adapter.count(
-            Query.select().where(relationName).eq(primaryKeyValue).build(),
-            policyFor(field)
-        );
-    }
-
-    // ========== Cache Management ==========
-
-    /**
-     * Builds a cache key for relationship caching with object pooling.
-     */
     @NotNull
     private String buildCacheKey(@NotNull String fieldName, Object id) {
         if (id instanceof Integer || id instanceof Long) {
-            String key = entityPrefix + id + ":" + fieldName;
-            int hash = key.hashCode();
-            int poolIndex = (hash & Integer.MAX_VALUE) % CACHE_KEY_POOL_SIZE;
+            String key      = entityPrefix + id + ":" + fieldName;
+            int    hash     = key.hashCode();
+            int    poolIndex = (hash & Integer.MAX_VALUE) % cacheKeyPoolSizeInstance;
 
             String pooled = cacheKeyPool[poolIndex];
             if (pooled == null || !pooled.equals(key)) {
@@ -1048,71 +929,57 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             }
             return pooled;
         }
-
         return entityPrefix + id + ":" + fieldName;
     }
 
     private static Map<String, Object> getOrCreateL1Cache() {
         WeakReference<Map<String, Object>> ref = l1Cache.get();
         Map<String, Object> map = ref.get();
-
         if (map == null) {
             map = new HashMap<>(64);
             l1Cache.set(new WeakReference<>(map));
         }
-
         return map;
     }
 
     /**
      * Get cached value using tiered caching strategy.
      * Checks L1 (thread-local) cache first, then L2 (shared) cache.
+     * Increments the appropriate hit counter on success.
      */
     @Nullable
     private Object getCached(String cacheKey, ReadPolicy policy) {
-        if (!policy.allowStale()) {
-            return null;
-        }
+        if (!policy.allowStale()) return null;
 
-        // Check L1 cache first (thread-local, very fast)
-        Map<String, Object> l1Cache = getOrCreateL1Cache();
-        Object l1Result = l1Cache.get(cacheKey);
+        Map<String, Object> l1 = getOrCreateL1Cache();
+        Object l1Result = l1.get(cacheKey);
         if (l1Result != null) {
-            cacheHits.incrementAndGet();
             l1CacheHits.incrementAndGet();
             return l1Result;
         }
 
-        // Fall back to L2 cache (shared, slower)
         Object l2Result = relationshipCache.get(cacheKey);
         if (l2Result != null) {
-            cacheHits.incrementAndGet();
             l2CacheHits.incrementAndGet();
-            // Promote to L1
-            l1Cache.put(cacheKey, l2Result);
+            l1.put(cacheKey, l2Result);
             return l2Result;
         }
 
         return null;
     }
 
-    /**
-     * Put value in both L1 and L2 cache.
-     */
+    /** Put value in both L1 and L2 cache. */
     private void putCached(String cacheKey, Object value) {
         relationshipCache.put(cacheKey, value);
-
-        Map<String, Object> l1Cache = getOrCreateL1Cache();
-        l1Cache.put(cacheKey, value);
+        getOrCreateL1Cache().put(cacheKey, value);
     }
 
     /**
      * Clear thread-local L1 cache.
-     * Call this periodically in long-running threads to prevent memory buildup.
+     * Call periodically in long-running threads to prevent memory buildup.
      */
     public static void clearThreadLocalCache() {
-        Map<String, Object> l1Cache = getOrCreateL1Cache();
-        l1Cache.clear();
+        l1Cache.remove();
     }
 
     @Override
@@ -1120,11 +987,9 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         String prefix = entityPrefix + id + ":";
         relationshipCache.keySet().removeIf(key -> key.startsWith(prefix));
 
-        // Also clear from L1 cache
-        Map<String, Object> l1Cache = getOrCreateL1Cache();
-        l1Cache.keySet().removeIf(key -> key.startsWith(prefix));
+        Map<String, Object> l1 = getOrCreateL1Cache();
+        l1.keySet().removeIf(key -> key.startsWith(prefix));
 
-        // Clear related query results
         queryResultCache.keySet().removeIf(key -> key.contains("=" + id));
     }
 
@@ -1132,45 +997,85 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
     public void clear() {
         relationshipCache.clear();
         queryResultCache.clear();
-
         clearThreadLocalCache();
-
-        // Also clear adapter cache and other caches
         adapterCache.clear();
         Arrays.fill(cacheKeyPool, null);
     }
 
-    /**
-     * Clear all caches including static shared caches.
-     * Use with caution as this affects all instances.
-     */
+    /** Clear all caches including static shared caches. Use with caution. */
     public void clearAll() {
         clear();
         nameCache.clear();
     }
-
-    // ========== Performance Metrics ==========
 
     private void incrementQueryCount(String fieldName) {
         queryCountByField.computeIfAbsent(fieldName, k -> new AtomicLong()).incrementAndGet();
     }
 
     /**
-     * Get performance metrics for this handler.
-     * Useful for monitoring and optimization.
+     * Overall cache hit rate across both tiers: (l1Hits + l2Hits) / (l1Hits + l2Hits + misses).
+     * Returns 0.0 when no lookups have occurred yet.
+     */
+    public double getCacheHitRate() {
+        long l1Hits  = l1CacheHits.get();
+        long l2Hits  = l2CacheHits.get();
+        long misses  = cacheMisses.get();
+        long total   = l1Hits + l2Hits + misses;
+        return total == 0 ? 0.0 : (double) (l1Hits + l2Hits) / total;
+    }
+
+    /**
+     * Get the size of a OneToMany relationship without loading the full collection.
+     *
+     * @param primaryKeyValue The parent entity ID
+     * @param field           The OneToMany field
+     * @return The number of related entities
+     */
+    public int getRelationshipSize(ID primaryKeyValue, FieldModel<T> field) {
+        if (field.relationshipKind() != RelationshipKind.ONE_TO_MANY) {
+            throw new IllegalArgumentException("Only ONE_TO_MANY supports size queries");
+        }
+
+        String cacheKey = buildCacheKey(field.name(), primaryKeyValue);
+        Object cached   = relationshipCache.get(cacheKey);
+        if (cached instanceof List<?> list) return list.size();
+
+        Class<?>              targetType      = field.elementType();
+        RepositoryModel<?, ?> relatedRepoInfo = GeneratedMetadata.getByEntityClass(targetType);
+        Objects.requireNonNull(relatedRepoInfo);
+        String relationName = findManyToOneFieldName(relatedRepoInfo, repositoryModel.getEntityClass());
+
+        RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, relatedRepoInfo);
+        Objects.requireNonNull(adapter);
+
+        return (int) adapter.count(
+            Query.select().where(relationName).eq(primaryKeyValue).build(),
+            policyFor(field)
+        );
+    }
+
+    /**
+     * Snapshot of all performance counters at a point in time.
+     *
+     * @return an immutable {@link RelationshipMetrics} record
      */
     public RelationshipMetrics getMetrics() {
+        long l1Hits = l1CacheHits.get();
+        long l2Hits = l2CacheHits.get();
+        long misses = cacheMisses.get();
+
         Map<String, Long> queryCountsCopy = new HashMap<>();
         queryCountByField.forEach((field, count) -> queryCountsCopy.put(field, count.get()));
 
-        Map<String, Object> l1Cache = getOrCreateL1Cache();
+        Map<String, Object> l1 = getOrCreateL1Cache();
+
         return new RelationshipMetrics(
-            cacheHits.get(),
-            cacheMisses.get(),
-            l1CacheHits.get(),
-            l2CacheHits.get(),
+            misses,
+            l1Hits,
+            l2Hits,
+            l1Hits + l2Hits,
             relationshipCache.size(),
-            l1Cache.size(),
+            l1.size(),
             queryResultCache.size(),
             adapterCache.size(),
             queryCountsCopy,
@@ -1181,32 +1086,88 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         );
     }
 
-    /**
-     * Reset all metrics counters.
-     */
+    /** Reset all metrics counters. Does not affect cached data. */
     public void resetMetrics() {
-        cacheHits.set(0);
-        cacheMisses.set(0);
-        l1CacheHits.set(0);
-        l2CacheHits.set(0);
+        cacheMisses .set(0);
+        l1CacheHits .set(0);
+        l2CacheHits .set(0);
         queryCountByField.clear();
     }
 
     /**
-     * Container for performance metrics.
+     * Immutable snapshot of relationship handler performance counters.
+     *
+     * <h3>Cache hit rates</h3>
+     * <ul>
+     *   <li>{@link #overallHitRate()} — fraction of all lookups satisfied by either cache tier.</li>
+     *   <li>{@link #l1HitRate()} — fraction of <em>cache hits</em> that were served from L1
+     *       (thread-local). High values indicate good thread locality.</li>
+     *   <li>{@link #l2HitRate()} — fraction of <em>cache hits</em> that fell through to L2
+     *       (shared LRU). High values with low L1 rate may indicate thread churn.</li>
+     * </ul>
+     *
+     * @param cacheMisses            Lookups that found nothing in either cache tier.
+     * @param l1CacheHits            Lookups satisfied by the thread-local L1 cache.
+     * @param l2CacheHits            Lookups satisfied by the shared L2 LRU cache.
+     * @param totalCacheHits         {@code l1CacheHits + l2CacheHits} — precomputed for convenience.
+     * @param l2CacheSize            Current number of entries in the shared L2 cache.
+     * @param l1CacheSize            Current number of entries in the calling thread's L1 cache.
+     * @param queryResultCacheSize   Current number of cached query result lists.
+     * @param adapterCacheSize       Current number of cached adapter lookups.
+     * @param queryCountsByField     Total queries issued per relationship field name.
+     * @param parallelPrefetchEnabled Whether parallel prefetch is active.
+     * @param autoWarmCache          Whether automatic cache warming is active.
+     * @param autoDeepPrefetch       Whether automatic deep prefetch is active.
+     * @param autoDeepPrefetchDepth  Configured maximum depth for automatic deep prefetch.
      */
-    public record RelationshipMetrics(long cacheHits, long cacheMisses, long l1CacheHits, long l2CacheHits,
-                                      int l2CacheSize, int l1CacheSize, int queryResultCacheSize, int adapterCacheSize,
-                                      Map<String, Long> queryCountsByField, boolean parallelPrefetchEnabled,
-                                      boolean autoWarmCache, boolean autoDeepPrefetch, int autoDeepPrefetchDepth) {
-
-        public double getCacheHitRate() {
-            long total = cacheHits + cacheMisses;
-            return total == 0 ? 0.0 : (double) cacheHits / total;
+    public record RelationshipMetrics(
+        long cacheMisses,
+        long l1CacheHits,
+        long l2CacheHits,
+        long totalCacheHits,
+        int  l2CacheSize,
+        int  l1CacheSize,
+        int  queryResultCacheSize,
+        int  adapterCacheSize,
+        Map<String, Long> queryCountsByField,
+        boolean parallelPrefetchEnabled,
+        boolean autoWarmCache,
+        boolean autoDeepPrefetch,
+        int     autoDeepPrefetchDepth
+    ) {
+        /**
+         * Fraction of all cache lookups satisfied by either tier.
+         * {@code totalCacheHits / (totalCacheHits + cacheMisses)}.
+         * Returns {@code 0.0} when no lookups have occurred.
+         */
+        public double overallHitRate() {
+            long total = totalCacheHits + cacheMisses;
+            return total == 0 ? 0.0 : (double) totalCacheHits / total;
         }
 
-        public double getL1HitRate() {
-            return cacheHits == 0 ? 0.0 : (double) l1CacheHits / cacheHits;
+        /**
+         * Fraction of cache hits served by L1 (thread-local).
+         * {@code l1CacheHits / totalCacheHits}.
+         * Returns {@code 0.0} when there are no cache hits at all.
+         *
+         * <p>High values (&gt; 0.8) indicate good thread locality — most
+         * repeated accesses stay within the same thread's working set.
+         */
+        public double l1HitRate() {
+            return totalCacheHits == 0 ? 0.0 : (double) l1CacheHits / totalCacheHits;
+        }
+
+        /**
+         * Fraction of cache hits served by L2 (shared LRU).
+         * {@code l2CacheHits / totalCacheHits}.
+         * Returns {@code 0.0} when there are no cache hits at all.
+         *
+         * <p>High values with low {@link #l1HitRate()} suggest significant
+         * cross-thread access patterns; consider reviewing thread affinity
+         * or increasing L1 warm-up strategies.
+         */
+        public double l2HitRate() {
+            return totalCacheHits == 0 ? 0.0 : (double) l2CacheHits / totalCacheHits;
         }
     }
 }

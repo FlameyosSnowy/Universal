@@ -13,6 +13,11 @@ public class MongoRelationshipHandler<T, ID> extends AbstractRelationshipHandler
         super(repositoryModel, idClass, resolverRegistry);
     }
 
+    protected MongoRelationshipHandler(RepositoryModel<T, ID> repositoryModel, Class<ID> idClass,
+                                       TypeResolverRegistry resolverRegistry, CacheConfiguration cacheConfig) {
+        super(repositoryModel, idClass, resolverRegistry, cacheConfig);
+    }
+
     @Override
     public SelectQuery createQuery(Object primaryKeyValue, String name, RepositoryModel<?, ?> model) {
         return Query.select()

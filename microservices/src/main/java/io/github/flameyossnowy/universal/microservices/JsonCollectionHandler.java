@@ -38,10 +38,6 @@ public final class JsonCollectionHandler implements CollectionHandler {
         this.entityNode   = entityNode;
     }
 
-    // =========================================================================
-    // Collection — fetch
-    // =========================================================================
-
     @Override
     @SuppressWarnings("unchecked")
     public <T, ID, C extends Collection<T>> C fetchCollection(
@@ -67,10 +63,6 @@ public final class JsonCollectionHandler implements CollectionHandler {
         }
         return (C) result;
     }
-
-    // =========================================================================
-    // Array — fetch
-    // =========================================================================
 
     @Override
     @SuppressWarnings("unchecked")
@@ -98,10 +90,6 @@ public final class JsonCollectionHandler implements CollectionHandler {
         return result;
     }
 
-    // =========================================================================
-    // Map — fetch
-    // =========================================================================
-
     @Override
     public <K, V, ID> Map<K, V> fetchMap(
         ID parentId,
@@ -126,10 +114,6 @@ public final class JsonCollectionHandler implements CollectionHandler {
         }
         return result;
     }
-
-    // =========================================================================
-    // MultiMap — fetch
-    // =========================================================================
 
     @Override
     @SuppressWarnings("unchecked")
@@ -166,14 +150,6 @@ public final class JsonCollectionHandler implements CollectionHandler {
         }
         return result;
     }
-
-    // =========================================================================
-    // All mutating operations — no-ops
-    //
-    // File storage is document-oriented: the entire entity (including all inline
-    // collections) is written atomically by FileEntityStore.write(). There is no
-    // concept of inserting or deleting individual collection rows separately.
-    // =========================================================================
 
     @Override
     public <T, ID> void insertCollection(ID parentId, String fieldName, java.util.Collection<?> values,

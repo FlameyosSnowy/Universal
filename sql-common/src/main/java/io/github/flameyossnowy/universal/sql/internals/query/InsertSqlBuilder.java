@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 
+import static io.github.flameyossnowy.universal.sql.internals.query.RepositoryDdlBuilder.hasPhysicalColumn;
+
 public final class InsertSqlBuilder<T, ID> {
     private final QueryParseEngine.SQLType sqlType;
     private final RepositoryModel<T, ID> repositoryInformation;
@@ -22,7 +24,7 @@ public final class InsertSqlBuilder<T, ID> {
     public ParameterizedSql parseInsert() {
         StringJoiner columnJoiner = new StringJoiner(", ");
         StringJoiner placeholderJoiner = new StringJoiner(", ");
-        List<String> paramNames = new ArrayList<>();
+        List<String> paramNames = new ArrayList<>(8);
 
         for (FieldModel<T> data : repositoryInformation.fields()) {
             if (Collection.class.isAssignableFrom(data.type()) || Map.class.isAssignableFrom(data.type())) continue;
@@ -30,7 +32,7 @@ public final class InsertSqlBuilder<T, ID> {
             // Add companion version column for @JsonVersioned fields BEFORE the main column.
             if (data.isJson() && data.jsonVersioned()) {
                 String versionColumn = data.columnName() + "_version";
-                if (!hasPhysicalColumn(versionColumn)) {
+                if (!hasPhysicalColumn(versionColumn, repositoryInformation)) {
                     columnJoiner.add(versionColumn);
                     placeholderJoiner.add("?");
                     paramNames.add(versionColumn);
@@ -56,14 +58,5 @@ public final class InsertSqlBuilder<T, ID> {
             + " (" + columnJoiner + ") VALUES (" + placeholderJoiner + ");";
 
         return ParameterizedSql.of(sql, paramNames);
-    }
-
-    private boolean hasPhysicalColumn(String columnName) {
-        for (FieldModel<T> field : repositoryInformation.fields()) {
-            if (field == null) continue;
-            String col = field.columnName();
-            if (col != null && col.equalsIgnoreCase(columnName)) return true;
-        }
-        return false;
     }
 }

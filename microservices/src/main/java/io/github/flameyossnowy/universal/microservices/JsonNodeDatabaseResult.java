@@ -42,10 +42,6 @@ public final class JsonNodeDatabaseResult implements DatabaseResult {
         this.columns = List.copyOf(node.keys());
     }
  
-    // -------------------------------------------------------------------------
-    // DatabaseResult
-    // -------------------------------------------------------------------------
- 
     @Override
     public CollectionHandler getCollectionHandler() {
         return collectionHandler;
@@ -84,12 +80,10 @@ public final class JsonNodeDatabaseResult implements DatabaseResult {
  
         JsonValue field = node.getRaw(columnName);
  
-        // Null node → return null (the caller must accept null for the given type).
         if (field == null || field.isNull()) {
             return null;
         }
  
-        // Delegate all type coercion to Uniform's JsonAdapter.
         return objectMapper.readValue(field, type);
     }
  
@@ -115,10 +109,6 @@ public final class JsonNodeDatabaseResult implements DatabaseResult {
         }
         return columns.get(columnIndex - 1);
     }
- 
-    // -------------------------------------------------------------------------
-    // Package-visible extras (useful for debugging / testing)
-    // -------------------------------------------------------------------------
  
     /** Returns the raw {@link JsonObject} this result wraps. */
     public JsonObject rawNode() {
