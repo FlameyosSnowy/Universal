@@ -1,5 +1,6 @@
 plugins {
     id("java")
+    id("java-library")
     id("me.champeau.jmh") version "0.7.2"
     id("com.gradleup.shadow") version("9.3.1")
 }
@@ -13,10 +14,8 @@ dependencies {
     compileOnly("org.jetbrains:annotations:24.0.1")
 
     compileOnly("org.postgresql:postgresql:42.7.2")
-    compileOnly("io.github.flameyossnowy:uniform-json:1.5.7")
-    compileOnly("io.github.flameyossnowy:uniform-core:1.5.7")
-    testCompileOnly("io.github.flameyossnowy:uniform-core:1.5.7")
-    testCompileOnly("io.github.flameyossnowy:uniform-json:1.5.7")
+    compileOnly("io.github.flameyossnowy:uniform-json:1.5.9")
+    testCompileOnly("io.github.flameyossnowy:uniform-json:1.5.9")
 
     testImplementation("org.postgresql:postgresql:42.7.2")
     testImplementation(project(":core"))

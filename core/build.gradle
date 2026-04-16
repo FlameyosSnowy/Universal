@@ -1,7 +1,6 @@
 plugins {
     id "java"
     id "java-library"
-    id "maven-publish"
     id("com.gradleup.shadow") version "9.3.1"
 }
 
@@ -10,8 +9,8 @@ dependencies {
 
     api "org.slf4j:slf4j-api:2.1.0-alpha1"
 
-    api "io.github.flameyossnowy:velocis:1.1.2"
-    implementation "io.github.flameyossnowy:uniform-json:1.5.7"
+    api "io.github.flameyossnowy:velocis:1.2.1"
+    api "io.github.flameyossnowy:uniform-json:1.5.9"
 
     testImplementation platform("org.junit:junit-bom:5.10.2")
     testImplementation "org.junit.jupiter:junit-jupiter"

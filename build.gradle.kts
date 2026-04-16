@@ -2,14 +2,14 @@ plugins {
     `java-library`
     signing
     id("com.vanniktech.maven.publish") version "0.33.0"
-    kotlin("jvm") version "1.9.23" apply false
+    kotlin("jvm") version "2.3.20" apply false
 }
 
 group = "io.github.flameyossnowy"
-version = "7.1.2"
+version = "7.1.5"
 
 allprojects {
-    tasks.withType<JavaCompile> {
+    tasks.withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
     }
 }
@@ -24,14 +24,19 @@ subprojects {
     group = rootProject.group
     version = rootProject.version
 
-    tasks.withType<JavaCompile> {
+    tasks.withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
     }
 
     java {
-        toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(25))
+        }
+
+        tasks.withType<JavaCompile>().configureEach {
+            options.release.set(25)
+        }
         withSourcesJar()
-        withJavadocJar()
     }
 
     tasks.withType<JavaExec>().configureEach {
@@ -42,6 +47,9 @@ subprojects {
 
     configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
         coordinates(group as String, "universal-${name}", version as String)
+
+        publishToMavenCentral()
+        signAllPublications()
 
         pom {
             name.set("Universal")
@@ -68,20 +76,16 @@ subprojects {
                 developerConnection.set("scm:git:ssh://git@github.com/FlameyosSnowy/Universal.git")
             }
         }
-
-        configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
-            publishToMavenCentral()
-            signAllPublications()
-        }
-
-        tasks.withType<JavaCompile> {
-            options.encoding = "UTF-8"
-            options.compilerArgs.add("-parameters")
-        }
     }
 
     signing {
         useGpgCmd()
+    }
+
+    afterEvaluate {
+        tasks.matching { it.name.contains("generateMetadataFileFor") }.configureEach {
+            dependsOn(tasks.matching { it.name == "plainJavadocJar" })
+        }
     }
 
     tasks.withType<Test>().configureEach {
@@ -89,21 +93,8 @@ subprojects {
         jvmArgs("--add-modules", "jdk.incubator.vector")
     }
 
-    afterEvaluate {
-        tasks.named<com.vanniktech.maven.publish.tasks.JavadocJar>("plainJavadocJar") {
-            dependsOn(tasks.named("javadoc"))
-            archiveClassifier.set("javadoc")
-            from(tasks.named<Javadoc>("javadoc"))
-        }
-
-        // Ensure metadata generation depends on Javadoc
-        tasks.named("generateMetadataFileForMavenPublication") {
-            dependsOn(tasks.named("plainJavadocJar"))
-        }
-
-        // Make publish depend on the Javadoc artifact
-        tasks.named("publish") {
-            dependsOn(tasks.named("plainJavadocJar"))
-        }
+    tasks.withType<JavaCompile>().configureEach {
+        options.encoding = "UTF-8"
+        options.compilerArgs.add("-parameters")
     }
 }

@@ -1,6 +1,5 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
     id("com.gradleup.shadow") version "9.3.1"
 }
 
@@ -9,5 +8,5 @@ dependencies {
 
     compileOnly 'org.jetbrains:annotations:24.0.1'
 
-    compileOnly "io.github.flameyossnowy:uniform-json:1.5.7"
+    compileOnly("io.github.flameyossnowy:uniform-json:1.5.9")
 }

@@ -1,7 +1,6 @@
 plugins {
     id "java"
     id "java-library"
-    id "maven-publish"
     id("com.gradleup.shadow") version "9.3.1"
 }
 
@@ -16,7 +15,7 @@ dependencies {
     // jackson datatypes
     compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.2"
     compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2"*/
-    compileOnly "io.github.flameyossnowy:uniform-json:1.5.7"
+    compileOnly "io.github.flameyossnowy:uniform-json:1.5.9"
     // error prone
     compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"
 

@@ -1,10 +1,17 @@
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.23"
+    id("java-library")
+    id("org.jetbrains.kotlin.jvm") version "2.3.20"
 }
 
 kotlin {
     jvmToolchain(21)
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
 }
 
 dependencies {
