@@ -16,10 +16,12 @@ It provides a unified API to handle database interactions efficiently, making it
     - **Query parsing**: We cache query building to ensure you never build something more than one time
     - **Connection pooling support**: Allowing connection pools is a primary goal for Universal to thrive on high concurrency.
     - **Codegen and validation**:
-        - in **v7**, we have replaced **99% of ALL reflection** with code generated classes, which leads to significantly faster startup, better performance, less memory usage and compile-time validation!
+        - in **v7**, we have replaced **almost ALL reflection** with code generated classes, which leads to significantly faster startup, better performance, less memory usage and compile-time validation!
         - **Before v7**: There is only compile-time validation and reflection, though we takes extreme measures to ensure that reflection is not a big overhead by caching metadata and being [ASM](https://github.com/daniellansun/fast-reflection)-based.
     - **Batched relationships**: Universal tries to batch all relationship data, to use as little queries and achieve the highest throughput.
     - **Caching support**: Lots of caching, from Session caches, to Result caches, to Global caches, all being evicted and controlled.
+ 
+- **GraalVM Supported**: Due to the lack of reflection usages like `Class.forName`
 
 ## Supported Types
 ```java
@@ -78,14 +80,13 @@ public class Example {
 
     private List<String> list;
     private Set<Integer> set;
+    private Queue<Integer> set;
+    private Deque<Integer> set;
     private Map<String, String> map;
     private Map<String, List<String>> mapList;
-    private Map<String, Map<String, String>> mapMap;
-    private List<Map<String, String>> listMap;
-    private Set<List<String>> setList;
-    private List<List<String>> listList;
-    private Set<Set<Integer>> setSet;
     private Map<String, Set<Integer>> mapSet;
+    private Map<String, Queue<String>> mapList;
+    private Map<String, Deque<String>> mapList;
 
     public enum EnumType { A, B, C }
 }
@@ -98,15 +99,15 @@ To include Universal in your project, add it as a dependency in your `pom.xml` (
 
 ```xml
 <dependency>
-  <groupId>com.github.FlameyosSnowy.Universal</groupId>
-  <artifact>core</artifactId>
-  <version>7.0.0</version>
-</dependency>
+  <groupId>io.github.flameyossnowy</groupId>
+  <artifact>universal-core</artifactId>
+  <version>7.1.5</version>
+</dependency> <!-- + sql-common if you'd like to use SQL -->
 
 <dependency>
-  <groupId>com.github.FlameyosSnowy.Universal</groupId>
-  <artifactId>PLATFORM</artifactId>
-  <version>7.0.0</version>
+  <groupId>io.github.flameyossnowy</groupId>
+  <artifactId>universal-PLATFORM</artifactId>
+  <version>7.1.5</version>
 </dependency>
 ```
 
@@ -116,9 +117,9 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.FlameyosSnowy.Universal:core:7.0.0")
-    implementation("com.github.FlameyosSnowy.Universal:PLATFORM:7.0.0") // + sql-common if you'd like to use SQL
-    annotationProcessor("com.github.FlameyosSnowy.Universal:compile-time-checker:7.0.0")
+    implementation("io.github.flameyossnowy:universal-core:7.1.5")
+    implementation("io.github.flameyossnowy:universal-PLATFORM:7.1.5") // + sql-common if you'd like to use SQL
+    annotationProcessor("io.github.flameyossnowy:universal-compile-time-checker:7.1.5")
 }
 ```
 
@@ -244,6 +245,7 @@ PathEntry cache = user.getCachePath(); // Automatically fetched from MongoDB!
 ## Supported Databases
 - **SQL Databases**: MySQL, PostgreSQL, SQLite
 - **NoSQL Databases**: MongoDB
+- **Microservices**: File (JSON) and Networks
 
 ## Contributing
 
