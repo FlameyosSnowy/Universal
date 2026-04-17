@@ -1064,7 +1064,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         long l2Hits = l2CacheHits.get();
         long misses = cacheMisses.get();
 
-        Map<String, Long> queryCountsCopy = new HashMap<>();
+        Map<String, Long> queryCountsCopy = new HashMap<>(queryCountByField.size());
         queryCountByField.forEach((field, count) -> queryCountsCopy.put(field, count.get()));
 
         Map<String, Object> l1 = getOrCreateL1Cache();
@@ -1088,9 +1088,9 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
 
     /** Reset all metrics counters. Does not affect cached data. */
     public void resetMetrics() {
-        cacheMisses .set(0);
-        l1CacheHits .set(0);
-        l2CacheHits .set(0);
+        cacheMisses.set(0);
+        l1CacheHits.set(0);
+        l2CacheHits.set(0);
         queryCountByField.clear();
     }
 
