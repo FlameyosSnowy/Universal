@@ -164,7 +164,7 @@ public class TypeResolverRegistry {
         return supplier != null ? supplier.get() : null;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public <T> @NotNull JsonCodec<T> getJsonCodec(Class<? extends JsonCodec> codecClass) {
         if (codecClass == null) {
             throw new IllegalArgumentException("codecClass cannot be null");

@@ -20,9 +20,7 @@ public final class CollectionLoaderMethodGenerator {
 
     public CollectionLoaderMethodGenerator() {}
 
-    // ------------------------------------------------------------------
-
-    public MethodSpec generateLoadList(RepositoryModel repo, TypeName idType) {
+    public static MethodSpec generateLoadList(RepositoryModel repo, TypeName idType) {
         TypeVariableName e  = TypeVariableName.get("E");
         ClassName collection = ClassName.get(Collection.class);
 
@@ -40,7 +38,7 @@ public final class CollectionLoaderMethodGenerator {
         return m.build();
     }
 
-    public MethodSpec generateLoadSet(RepositoryModel repo, TypeName idType) {
+    public static MethodSpec generateLoadSet(RepositoryModel repo, TypeName idType) {
         TypeVariableName e  = TypeVariableName.get("E");
         ClassName collection = ClassName.get(Collection.class);
 
@@ -58,7 +56,7 @@ public final class CollectionLoaderMethodGenerator {
         return m.build();
     }
 
-    public MethodSpec generateLoadMap(RepositoryModel repo, TypeName idType) {
+    public static MethodSpec generateLoadMap(RepositoryModel repo, TypeName idType) {
         TypeVariableName e = TypeVariableName.get("E");
         TypeVariableName k = TypeVariableName.get("K");
         ClassName map       = ClassName.get(Map.class);
@@ -93,7 +91,7 @@ public final class CollectionLoaderMethodGenerator {
         return m.build();
     }
 
-    public MethodSpec generateLoadArray(RepositoryModel repo, TypeName idType) {
+    public static MethodSpec generateLoadArray(RepositoryModel repo, TypeName idType) {
         TypeVariableName e = TypeVariableName.get("E");
 
         MethodSpec.Builder m = MethodSpec.methodBuilder("loadArray")
@@ -122,8 +120,6 @@ public final class CollectionLoaderMethodGenerator {
         m.endControlFlow();
         return m.build();
     }
-
-    // ------------------------------------------------------------------ helpers
 
     private static MethodSpec.Builder collectionLoaderBase(String methodName,
                                                             TypeVariableName e,

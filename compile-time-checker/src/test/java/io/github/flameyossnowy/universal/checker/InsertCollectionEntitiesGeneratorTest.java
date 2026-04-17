@@ -21,8 +21,6 @@ import javax.lang.model.type.TypeMirror;
 import java.util.List;
 import java.lang.reflect.Proxy;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 class InsertCollectionEntitiesGeneratorTest {
 
     private static TypeMirror typeMirror(String name) {
@@ -36,7 +34,7 @@ class InsertCollectionEntitiesGeneratorTest {
                 if (method.getName().equals("getKind")) {
                     return TypeKind.DECLARED;
                 }
-                throw new UnsupportedOperationException(method.toString());
+                return method.invoke(proxy, args);
             }
         );
     }
@@ -156,7 +154,7 @@ class InsertCollectionEntitiesGeneratorTest {
             List.of(elementType)
         );
 
-        MethodSpec m = new InsertCollectionEntitiesGenerator().generate(
+        MethodSpec m = InsertCollectionEntitiesGenerator.generate(
             repo(List.of(field("tags", listType, false))),
             ClassName.get("io.example", "Entity"),
             TypeName.INT
@@ -190,7 +188,7 @@ class InsertCollectionEntitiesGeneratorTest {
             List.of(mmKeyType, mmValueType)
         );
 
-        MethodSpec m = new InsertCollectionEntitiesGenerator().generate(
+        MethodSpec m = InsertCollectionEntitiesGenerator.generate(
             repo(List.of(
                 field("counts", mapType, false),
                 field("multi", multiMapType, false)
@@ -215,7 +213,7 @@ class InsertCollectionEntitiesGeneratorTest {
         TypeMirror component = typeMirror("java.lang.String");
         ArrayType arrayType = arrayType("java.lang.String[]", component);
 
-        MethodSpec m = new InsertCollectionEntitiesGenerator().generate(
+        MethodSpec m = InsertCollectionEntitiesGenerator.generate(
             repo(List.of(field("names", arrayType, false))),
             ClassName.get("io.example", "Entity"),
             TypeName.INT
@@ -235,7 +233,7 @@ class InsertCollectionEntitiesGeneratorTest {
             List.of(typeMirror("java.lang.String"))
         );
 
-        MethodSpec m = new InsertCollectionEntitiesGenerator().generate(
+        MethodSpec m = InsertCollectionEntitiesGenerator.generate(
             repo(List.of(field("tags", listType, true))),
             ClassName.get("io.example", "Entity"),
             TypeName.INT

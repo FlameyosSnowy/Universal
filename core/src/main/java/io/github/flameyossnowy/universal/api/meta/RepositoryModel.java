@@ -121,8 +121,9 @@ public interface RepositoryModel<T, ID> {
     }
 
     default List<FieldModel<T>> getJsonFields() {
-        List<FieldModel<T>> list = new ArrayList<>();
-        for (FieldModel<T> tFieldModel : fields()) {
+        List<FieldModel<T>> fields = fields();
+        List<FieldModel<T>> list = new ArrayList<>(fields.size());
+        for (FieldModel<T> tFieldModel : fields) {
             if (tFieldModel.isJson()) {
                 list.add(tFieldModel);
             }

@@ -90,7 +90,7 @@ public final class ObjectModelGenerator {
             .addMethod(generatePopulateRelationships(repo, entityType, idType))
             .addMethod(insertEntity.generate(repo, entityType));
 
-        builder.addMethod(insertCollections.generate(repo, entityType, idType))
+        builder.addMethod(InsertCollectionEntitiesGenerator.generate(repo, entityType, idType))
             .addMethod(generateGetId(repo, entityType, idType))
             .addMethod(generateGetIdType(idType))
             .addMethod(generateGetEntityType(entityType))

@@ -101,14 +101,12 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         this.entityType = entityType;
         this.idType     = idType;
 
-        // --- Repository model ---
         this.repositoryModel = GeneratedMetadata.getByEntityClass(entityType);
         if (repositoryModel == null) {
             throw new IllegalArgumentException(
                 "Entity " + entityType.getName() + " must be annotated with @Repository");
         }
 
-        // --- Type resolvers ---
         this.resolverRegistry = new TypeResolverRegistry();
         for (Class<? extends TypeResolver<?>> resolverClass : repositoryModel.getRequiredResolvers()) {
             try {
@@ -118,7 +116,6 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             }
         }
 
-        // --- Jackson ---
         JsonConfigBuilder jsonConfigBuilder = JsonAdapter.configBuilder()
             .addReadFeatures(JsonReadFeature.ALLOW_JAVA_COMMENTS)
             .addWriteFeatures(JsonWriteFeature.ESCAPE_UNICODE);
@@ -129,7 +126,6 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         resolverRegistry.setJsonAdapterSupplier(() -> objectMapper);
         this.objectMapper = objectMapper;
 
-        // --- Relationships ---
         this.relationshipHandler = new MicroserviceRelationshipHandler<>(repositoryModel, idType, resolverRegistry);
         ObjectModel<T, ID> objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
         RelationshipLoader<T, ID> relationshipLoader =

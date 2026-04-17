@@ -10,7 +10,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
-import org.jetbrains.annotations.Contract;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
@@ -41,7 +41,6 @@ public final class RepositoryDdlBuilder<T, ID> {
         this.connectionProvider = connectionProvider;
     }
 
-    @SuppressWarnings({ "RedundantOperationOnEmptyContainer", "ConstantValue" })
     public @NotNull String parseRepository(boolean ifNotExists) {
         Logging.deepInfo(() -> "Starting repository parse: " + repositoryInformation.tableName());
         Logging.deepInfo(() -> "IF NOT EXISTS = " + ifNotExists);
@@ -161,7 +160,7 @@ public final class RepositoryDdlBuilder<T, ID> {
             // Add companion version column for @JsonVersioned JSON fields (unless explicitly declared).
             if (data.isJson() && data.jsonVersioned()) {
                 String versionColumn = data.columnName() + "_version";
-                if (!hasPhysicalColumn(versionColumn)) {
+                if (!hasPhysicalColumn(versionColumn, repositoryInformation)) {
                     joiner.add(versionColumn + " INT NOT NULL DEFAULT 1");
                 }
             }
@@ -230,9 +229,9 @@ public final class RepositoryDdlBuilder<T, ID> {
 
         String resolvedType = resolverRegistry.getType(type, data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
 
-        RepositoryModel<T, ID> metadata;
-        if (resolvedType == null && (metadata = (RepositoryModel<T, ID>) GeneratedMetadata.getByEntityClass(type)) != null) {
-            FieldModel<T> metadataPrimaryKey = metadata.getPrimaryKey();
+        RepositoryModel<?, ?> metadata;
+        if (resolvedType == null && (metadata = GeneratedMetadata.getByEntityClass(type)) != null) {
+            FieldModel<?> metadataPrimaryKey = metadata.getPrimaryKey();
             Objects.requireNonNull(metadataPrimaryKey, "Primary key must not be null");
             resolvedType = resolverRegistry.getType(metadataPrimaryKey.type(), data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
         }
@@ -323,7 +322,7 @@ public final class RepositoryDdlBuilder<T, ID> {
 
     private void addPotentialManyToOne(@NotNull FieldModel<T> data, String name, StringJoiner relationshipsJoiner) {
         if (data.relationshipKind() != RelationshipKind.MANY_TO_ONE && data.relationshipKind() != RelationshipKind.ONE_TO_ONE) return;
-        RepositoryModel<T, ID> parent = (RepositoryModel<T, ID>) GeneratedMetadata.getByEntityClass(data.type());
+        RepositoryModel<?, ?> parent = GeneratedMetadata.getByEntityClass(data.type());
         Objects.requireNonNull(parent, "Parent should not be null");
 
         String table = parent.tableName();
@@ -339,7 +338,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         relationshipsJoiner.add(fkBuilder);
     }
 
-    private boolean hasPhysicalColumn(String columnName) {
+    static <T> boolean hasPhysicalColumn(String columnName, RepositoryModel<T, ?> repositoryInformation) {
         for (FieldModel<T> field : repositoryInformation.fields()) {
             if (field == null) continue;
             String col = field.columnName();

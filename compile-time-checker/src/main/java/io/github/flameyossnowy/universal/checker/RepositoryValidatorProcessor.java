@@ -15,6 +15,7 @@ import io.github.flameyossnowy.universal.api.annotations.Id;
 import io.github.flameyossnowy.universal.api.annotations.Index;
 import io.github.flameyossnowy.universal.api.annotations.JsonField;
 import io.github.flameyossnowy.universal.api.annotations.JsonIndex;
+import io.github.flameyossnowy.universal.api.annotations.JsonVersioned;
 import io.github.flameyossnowy.universal.api.annotations.ManyToOne;
 import io.github.flameyossnowy.universal.api.annotations.Named;
 import io.github.flameyossnowy.universal.api.annotations.NonNull;
@@ -125,6 +126,9 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         ResolveWith.class.getCanonicalName()
     );
 
+    private PrimitiveType primitiveBoolean;
+    private TypeMirror boxedBoolean;
+
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
@@ -140,6 +144,10 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         this.set = TypeMirrorUtils.typeOf(Set.class, elements);
         this.queue = TypeMirrorUtils.typeOf(Queue.class, elements);
         this.deque = TypeMirrorUtils.typeOf(Deque.class, elements);
+
+
+        this.primitiveBoolean = types.getPrimitiveType(TypeKind.BOOLEAN);
+        this.boxedBoolean = elements.getTypeElement("java.lang.Boolean").asType();
     }
 
     private final Map<String, ResolverInfo> globalTypeResolvers = new HashMap<>(16);
@@ -385,13 +393,34 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             }
 
             if (!field.getModifiers().contains(Modifier.FINAL)) {
-                ExecutableElement setter = methods.get("set" + cap);
-                if (setter == null || setter.getParameters().size() != 1) {
-                    messager.printMessage(Diagnostic.Kind.ERROR,
-                        "Missing setter set" + cap + "(..) for field " + name, field);
-                }
+                TypeMirror typeMirror = field.asType();
+                boolean isPrimitive = types.isSameType(typeMirror, primitiveBoolean);
+                boolean isBoxed    = types.isSameType(typeMirror, boxedBoolean);
+
+                detectUnapplicableSetter(methods, cap, isPrimitive, isBoxed, name, field);
             }
         }
+    }
+
+    private void detectUnapplicableSetter(Map<String, ExecutableElement> methods, String cap, boolean isPrimitive, boolean isBoxed, String name, VariableElement field) {
+        ExecutableElement setter = methods.get("set" + cap);
+        if (isPrimitive || isBoxed) {
+            ExecutableElement commonSetter = methods.get("is" + cap);
+            if (bothSettersUnapplicable(setter, commonSetter)) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Missing setter set" + cap + "(..) for field " + name, field);
+            }
+        } else {
+            if (setter == null || setter.getParameters().size() != 1) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Missing setter set" + cap + "(..) for field " + name, field);
+            }
+        }
+    }
+
+    private static boolean bothSettersUnapplicable(ExecutableElement setter, ExecutableElement commonSetter) {
+        return (setter == null || setter.getParameters().size() != 1)
+            && (commonSetter == null || commonSetter.getParameters().size() != 1);
     }
 
     private void checkIndexAndConstraintReferences(TypeElement type) {
@@ -516,7 +545,6 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
             VariableElement field = (VariableElement) enclosed;
 
-            // ========== Basic Metadata ==========
             boolean isId = AnnotationUtils.hasAnnotation(field, Id.class.getCanonicalName());
             if (isId) {
                 idType = field.asType();
@@ -670,8 +698,21 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             boolean jsonPartialUpdate = false;
             boolean jsonVersioned = false;
 
+            String getterGet = "get" + capitalized;
+            String getterIs = "is" + capitalized;
+            String getter = getGetterName(entity, getterGet, getterIs, fieldName);
+
+            String setterSet = "set" + capitalized;
+            String setterWithoutIs = "set" + (capitalized.startsWith("Is") ? capitalized.substring(2) : capitalized);
+            String setter = getSetterName(entity, setterSet, setterWithoutIs, fieldName);
+
+            if (getter == null) {
+                error("Missing getter method for field " + field, field);
+                continue;
+            }
+
             if (isJson) {
-                jsonVersioned = field.getAnnotation(io.github.flameyossnowy.universal.api.annotations.JsonVersioned.class) != null;
+                jsonVersioned = field.getAnnotation(JsonVersioned.class) != null;
 
                 String storageName = AnnotationUtils.getEnumValueName(jsonField, "storage");
                 if ("TABLE".equals(storageName)) {
@@ -716,8 +757,8 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 rel != null,
                 rel == null ? null : rel.relationshipKind(),
                 rel == null ? Consistency.NONE : rel.consistency(),
-                "get" + capitalized,
-                "set" + capitalized,
+                getter,
+                setter,
                 rel != null && rel.lazy(),
                 insertable,
                 updatable,
@@ -787,6 +828,49 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             exceptionHandlerType,
             lifecycleListenerType
         );
+    }
+
+    private static String getGetterName(TypeElement entity, String getterGet, String getterIs, String fieldName) {
+        for (Element typeEntity : entity.getEnclosedElements()) {
+            if (typeEntity.getKind() != ElementKind.METHOD) {
+                continue;
+            }
+
+            String name = typeEntity.getSimpleName().toString();
+            if (name.equals(getterGet)) {
+                return getterGet;
+            }
+
+            if (name.equals(getterIs)) {
+                return getterIs;
+            }
+
+            if (name.equals(fieldName)) {
+                return fieldName;
+            }
+        }
+        return null;
+    }
+    private static String getSetterName(TypeElement entity, String setterSet, String setterWithoutIs, String fieldName) {
+        for (Element typeEntity : entity.getEnclosedElements()) {
+            if (typeEntity.getKind() != ElementKind.METHOD) {
+                continue;
+            }
+
+            String name = typeEntity.getSimpleName().toString();
+            if (name.equals(setterSet)) {
+                return setterSet;
+            }
+
+            if (name.equals(setterWithoutIs)) {
+                return setterWithoutIs;
+            }
+
+            if (name.equals(fieldName)) {
+                return fieldName;
+            }
+        }
+        return null;
     }
 
     private static boolean checkIfIndexed(Collection<io.github.flameyossnowy.universal.checker.IndexModel> indexes, String fieldName) {

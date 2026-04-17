@@ -89,10 +89,10 @@ public final class RelationshipLoaderGenerator {
         builder.addMethod(relationshipMethods.generateOneToMany(repo, idType));
         builder.addMethod(relationshipMethods.generateManyToOne(repo, idType, entityType));
 
-        builder.addMethod(collectionMethods.generateLoadList(repo, idType));
-        builder.addMethod(collectionMethods.generateLoadSet(repo, idType));
-        builder.addMethod(collectionMethods.generateLoadMap(repo, idType));
-        builder.addMethod(collectionMethods.generateLoadArray(repo, idType));
+        builder.addMethod(CollectionLoaderMethodGenerator.generateLoadList(repo, idType));
+        builder.addMethod(CollectionLoaderMethodGenerator.generateLoadSet(repo, idType));
+        builder.addMethod(CollectionLoaderMethodGenerator.generateLoadMap(repo, idType));
+        builder.addMethod(CollectionLoaderMethodGenerator.generateLoadArray(repo, idType));
 
         builder.addMethod(invalidateMethod(idType));
         builder.addMethod(clearMethod());

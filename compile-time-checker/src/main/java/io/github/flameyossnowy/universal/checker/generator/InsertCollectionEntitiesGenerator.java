@@ -23,7 +23,7 @@ public final class InsertCollectionEntitiesGenerator {
 
     public InsertCollectionEntitiesGenerator() {}
 
-    public MethodSpec generate(RepositoryModel repo, ClassName entityType, TypeName idType) {
+    public static MethodSpec generate(RepositoryModel repo, ClassName entityType, TypeName idType) {
         ClassName dbParams         = ClassName.get("io.github.flameyossnowy.universal.api.params",   "DatabaseParameters");
         ClassName collectionHandler = ClassName.get("io.github.flameyossnowy.universal.api.handler", "CollectionHandler");
 
@@ -70,10 +70,18 @@ public final class InsertCollectionEntitiesGenerator {
 
             if (typeName.startsWith("java.util.Map")) {
                 hasCollections = true;
-                TypeMirror keyMirror   = GeneratorUtils.genericArg(fieldType, 0);
+                TypeMirror keyMirror = GeneratorUtils.genericArg(fieldType, 0);
                 TypeMirror valueMirror = GeneratorUtils.genericArg(fieldType, 1);
-                ClassName  keyClass    = ClassName.bestGuess(keyMirror   != null ? keyMirror.toString()   : "Object");
-                ClassName  valueClass  = ClassName.bestGuess(valueMirror != null ? valueMirror.toString() : "Object");
+
+                TypeName keyType =
+                    keyMirror != null
+                        ? TypeName.get(keyMirror)
+                        : TypeName.OBJECT;
+
+                TypeName valueType =
+                    valueMirror != null
+                        ? TypeName.get(valueMirror)
+                        : TypeName.OBJECT;
 
                 if (GeneratorUtils.isMultiMap(valueMirror)) {
                     TypeMirror colValueMirror = GeneratorUtils.genericArg(valueMirror, 0);
@@ -81,11 +89,11 @@ public final class InsertCollectionEntitiesGenerator {
                         colValueMirror != null ? colValueMirror.toString() : "Object");
                     m.addStatement(
                         "handler.insertMultiMap(id, $S, $L, $T.class, $T.class, this.repositoryModel)",
-                        fieldName, getterCall, keyClass, colValueClass);
+                        fieldName, getterCall, keyType, colValueClass);
                 } else {
                     m.addStatement(
                         "handler.insertMap(id, $S, $L, $T.class, $T.class, this.repositoryModel)",
-                        fieldName, getterCall, keyClass, valueClass);
+                        fieldName, getterCall, keyType, valueType);
                 }
                 continue;
             }
