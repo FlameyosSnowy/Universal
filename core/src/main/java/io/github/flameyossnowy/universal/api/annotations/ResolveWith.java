@@ -1,4 +1,6 @@
-package io.github.flameyossnowy.universal.api.resolver;
+package io.github.flameyossnowy.universal.api.annotations;
+
+import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -9,7 +11,7 @@ import java.lang.annotation.Target;
  * Annotation to specify a custom type resolver for a field.
  * This can be used to handle custom type conversions between the application and the database.
  */
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.FIELD)
 public @interface ResolveWith {
     /**

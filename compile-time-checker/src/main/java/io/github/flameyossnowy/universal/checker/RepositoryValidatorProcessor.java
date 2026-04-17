@@ -36,7 +36,7 @@ import io.github.flameyossnowy.universal.api.cache.CacheConfig;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
-import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
+import io.github.flameyossnowy.universal.api.annotations.ResolveWith;
 import io.github.flameyossnowy.universal.checker.generator.UnifiedFactoryGenerator;
 import io.github.flameyossnowy.universal.checker.processor.AnnotationUtils;
 import io.github.flameyossnowy.universal.checker.processor.TypeMirrorUtils;

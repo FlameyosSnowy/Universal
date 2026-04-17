@@ -47,9 +47,9 @@ public class Main {
                 .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
                 .build();
 
-        users.executeRawQuery("DROP TABLE IF EXISTS factionUsers;");
-        warps.executeRawQuery("DROP TABLE IF EXISTS warps;");
-        factions.executeRawQuery("DROP TABLE IF EXISTS factions;");
+        users.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS factionUsers;");
+        warps.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS warps;");
+        factions.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS factions;");
         factions.createRepository(true);
         warps.createRepository(true);
         users.createRepository(true);

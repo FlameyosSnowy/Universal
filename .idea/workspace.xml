@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="JVM Change">
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Improve performance, cache eviction behavior and made it tunable">
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/md5-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/9.3.1/checksums/sha1-checksums.bin" afterDir="false" />
@@ -21,7 +21,6 @@
       <change afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gradle/vcs-1/gc.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/Universal-new.iml" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/buildOutputCleanup.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/executionHistory.bin" afterDir="false" />
@@ -35,24 +34,14 @@
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/resourceHashesCache.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/sha1-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/shelved.patch" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/DeleteRepositoryException.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/FindRepositoryException.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/InsertRepositoryException.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/UpdateRepositoryException.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/sketch/first_sketch.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/CollectionLoaderMethodGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/CollectionLoaderMethodGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/InsertCollectionEntitiesGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/InsertCollectionEntitiesGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RelationshipLoaderGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RelationshipLoaderGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/test/java/io/github/flameyossnowy/universal/checker/InsertCollectionEntitiesGeneratorTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/test/java/io/github/flameyossnowy/universal/checker/InsertCollectionEntitiesGeneratorTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core-ktx/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/core-ktx/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/RepositoryModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/RepositoryModel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TypeResolverRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TypeResolverRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mysql/src/test/java/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/mysql/src/test/java/Main.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresJsonAndNamedIntegrationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresJsonAndNamedIntegrationTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/RepositoryDdlBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/RepositoryDdlBuilder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sqlite/src/test/java/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/sqlite/src/test/java/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/handler/DefaultExceptionHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/exceptions/handler/DefaultExceptionHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mysql/src/jmh/java/io/github/flameyossnowy/universal/jmh/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/mysql/src/jmh/java/io/github/flameyossnowy/universal/jmh/Main.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -174,6 +163,7 @@
         <option value="AnnotationType" />
         <option value="Interface" />
         <option value="Class" />
+        <option value="Exception" />
       </list>
     </option>
   </component>
@@ -673,31 +663,7 @@
       <workItem from="1775806189750" duration="1198000" />
       <workItem from="1776020258760" duration="8911000" />
       <workItem from="1776144899860" duration="8318000" />
-      <workItem from="1776376222486" duration="6039000" />
-    </task>
-    <task id="LOCAL-00153" summary="Aggregation support">
-      <option name="closed" value="true" />
-      <created>1771149177253</created>
-      <option name="number" value="00153" />
-      <option name="presentableId" value="LOCAL-00153" />
-      <option name="project" value="LOCAL" />
-      <updated>1771149177253</updated>
-    </task>
-    <task id="LOCAL-00154" summary="Add junit platform launcher">
-      <option name="closed" value="true" />
-      <created>1771149207983</created>
-      <option name="number" value="00154" />
-      <option name="presentableId" value="LOCAL-00154" />
-      <option name="project" value="LOCAL" />
-      <updated>1771149207983</updated>
-    </task>
-    <task id="LOCAL-00155" summary="Cache batch loading and aggregation support">
-      <option name="closed" value="true" />
-      <created>1771149561311</created>
-      <option name="number" value="00155" />
-      <option name="presentableId" value="LOCAL-00155" />
-      <option name="project" value="LOCAL" />
-      <updated>1771149561311</updated>
+      <workItem from="1776376222486" duration="9998000" />
     </task>
     <task id="LOCAL-00156" summary="Update .idea">
       <option name="closed" value="true" />
@@ -1067,15 +1033,37 @@
       <option name="project" value="LOCAL" />
       <updated>1776378224408</updated>
     </task>
-    <option name="localTasksCounter" value="202" />
+    <task id="LOCAL-00202" summary="Fix compile time processing issues">
+      <option name="closed" value="true" />
+      <created>1776413919105</created>
+      <option name="number" value="00202" />
+      <option name="presentableId" value="LOCAL-00202" />
+      <option name="project" value="LOCAL" />
+      <updated>1776413919105</updated>
+    </task>
+    <task id="LOCAL-00203" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1776414006443</created>
+      <option name="number" value="00203" />
+      <option name="presentableId" value="LOCAL-00203" />
+      <option name="project" value="LOCAL" />
+      <updated>1776414006444</updated>
+    </task>
+    <task id="LOCAL-00204" summary="Improve performance, cache eviction behavior and made it tunable">
+      <option name="closed" value="true" />
+      <created>1776414026772</created>
+      <option name="number" value="00204" />
+      <option name="presentableId" value="LOCAL-00204" />
+      <option name="project" value="LOCAL" />
+      <updated>1776414026774</updated>
+    </task>
+    <option name="localTasksCounter" value="205" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Many optimizations and fixes&#10;&#10;L1 cache, query result cache, adapter cache, cache key pooling, MANY_TO_ONE prefetch, parallel batch loading, deep/recursive prefetch, cache warming by ID, auto-behaviours, metrics, getRelationshipSize, and proper clear/shutdown lifecycle." />
-    <MESSAGE value="Add benchmarks" />
     <MESSAGE value="Fix a few issues" />
     <MESSAGE value="Fix missing functionality in DefaultSession, NetworkSession and FileSession&#10;&#10;- NO_CACHE, BUFFERED_WRITE, LOG_OPERATIONS and CASCADE support in FileSession and NetworkSession&#10;- New methods like insertAll, updateAll, deleteAll, findAllById, async versions, etc in both Sessions" />
     <MESSAGE value="Fix missing JSON functioanlity" />
@@ -1085,7 +1073,6 @@
     <MESSAGE value="Fix @Named issues and JSON issues, add features&#10;&#10;- Add JsonVersioned&#10;- Remove JsonIgnoreNulls" />
     <MESSAGE value="Add tests" />
     <MESSAGE value="Add GeneratedRepositoryFactory" />
-    <MESSAGE value="Update tests" />
     <MESSAGE value="Add getTargetPrimaryKeyType" />
     <MESSAGE value="Improve the performance of SQLDatabaseParameters and loadFromDatabase" />
     <MESSAGE value="Fix loadFromDatabaseBatch not using addResultAndAddToCache" />
@@ -1099,7 +1086,10 @@
     <MESSAGE value="Remove maven-publish from gradle" />
     <MESSAGE value="Update" />
     <MESSAGE value="JVM Change" />
-    <option name="LAST_COMMIT_MESSAGE" value="JVM Change" />
+    <MESSAGE value="Fix compile time processing issues" />
+    <MESSAGE value="Update tests" />
+    <MESSAGE value="Improve performance, cache eviction behavior and made it tunable" />
+    <option name="LAST_COMMIT_MESSAGE" value="Improve performance, cache eviction behavior and made it tunable" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
