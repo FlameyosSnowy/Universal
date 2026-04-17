@@ -1,6 +1,7 @@
 package testapp;
 
 import io.github.flameyossnowy.universal.api.Optimizations;
+import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
 import io.github.flameyossnowy.universal.api.options.Query;
 import io.github.flameyossnowy.universal.postgresql.PostgreSQLRepositoryAdapter;
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
@@ -28,11 +29,11 @@ class PostgresJsonAndNamedIntegrationTest {
             .build();
 
         adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS \"postgres-json-entity\" CASCADE;");
-        adapter.createRepository(true).expect("Should have been able to create repository.");
+        adapter.createRepository(true);
 
         String id = UUID.randomUUID().toString();
         PostgresJsonEntity entity = new PostgresJsonEntity(id, new Payload("Flow", 21));
-        adapter.insert(entity).ifError(Throwable::printStackTrace);
+        adapter.insert(entity);
 
         List<PostgresJsonEntity> found = adapter.find(Query.select().where("id").eq(id).build());
         assertEquals(1, found.size());
@@ -72,7 +73,7 @@ class PostgresJsonAndNamedIntegrationTest {
             .build();
 
         adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS \"postgres-json-versioned-entity\" CASCADE;");
-        adapter.createRepository(true).expect("Should have been able to create repository.");
+        adapter.createRepository(true);
 
         String id = UUID.randomUUID().toString();
         PostgresJsonVersionedEntity e = new PostgresJsonVersionedEntity(
@@ -81,11 +82,11 @@ class PostgresJsonAndNamedIntegrationTest {
             null
         );
 
-        adapter.insert(e).expect("insert should succeed");
+        adapter.insert(e);
         assertEquals(1, e.getPayloadVersion());
 
         e.setPayload(new PostgresJsonVersionedEntity.Payload("v2"));
-        adapter.updateAll(e).expect("update should succeed");
+        adapter.updateAll(e);
         assertEquals(2, e.getPayloadVersion());
 
         PostgresJsonVersionedEntity stale = new PostgresJsonVersionedEntity(
@@ -93,7 +94,7 @@ class PostgresJsonAndNamedIntegrationTest {
             new PostgresJsonVersionedEntity.Payload("stale"),
             1
         );
-        assertTrue(adapter.updateAll(stale).isError());
+        assertThrows(RepositoryException.class, () -> adapter.updateAll(stale));
     }
 
     @Test
@@ -107,7 +108,7 @@ class PostgresJsonAndNamedIntegrationTest {
             .build();
 
         adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS postgres_named_entity CASCADE;");
-        adapter.createRepository(true).expect("Should have been able to create repository.");
+        adapter.createRepository(true);
 
         String url = "jdbc:postgresql://" + credentials.getHost() + ":" + credentials.getPort() + "/" + credentials.getDatabase();
         try (Connection c = DriverManager.getConnection(url, credentials.getUsername(), credentials.getPassword());
@@ -134,7 +135,7 @@ class PostgresJsonAndNamedIntegrationTest {
 
         PostgresNamedEntity e = new PostgresNamedEntity();
         e.setName("abc");
-        adapter.insert(e).ifError(Throwable::printStackTrace);
+        adapter.insert(e);
         assertNotNull(e.getId());
 
         try (Connection c = DriverManager.getConnection(url, credentials.getUsername(), credentials.getPassword());

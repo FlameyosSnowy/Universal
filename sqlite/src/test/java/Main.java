@@ -5,105 +5,103 @@ import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sqlite.SQLiteRepositoryAdapter;
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-public class Main {
-    public static void main(String[] args) {
-        Logging.ENABLED = true;
-        //Logging.DEEP = true;
-        SQLiteRepositoryAdapter<User, UUID> adapter = SQLiteRepositoryAdapter
-                .builder(User.class, UUID.class)
-                .withCredentials(new SQLiteCredentials("/home/flameyosflow/newdb.db"))
-                .build();
+void main() {
+    Logging.ENABLED = true;
+    //Logging.DEEP = true;
+    SQLiteRepositoryAdapter<User, UUID> adapter = SQLiteRepositoryAdapter
+        .builder(User.class, UUID.class)
+        .withCredentials(new SQLiteCredentials("/home/flameyosflow/newdb.db"))
+        .build();
 
-        adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS users;");
-        adapter.createRepository(true);
-        adapter.clear();
+    adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS users;");
+    adapter.createRepository(true);
+    adapter.clear();
 
-        adapter.insert(new User(UUID.randomUUID(), "Flameyos", 17, new Password("123456"), List.of("Coding", "Sleeping")));
-        System.out.println("Finding users");
-        List<User> users = adapter.find();
+    adapter.insert(new User(UUID.randomUUID(), "Flameyos", 17, new Password("123456"), List.of("Coding", "Sleeping")));
+    IO.println("Finding users");
+    List<User> users = adapter.find();
 
-        for (User user : users) {
-            System.out.println(user);
-        }
-        System.out.println("Found users");
+    for (User user : users) {
+        IO.println(user);
+    }
+    IO.println("Found users");
+}
+
+@SuppressWarnings("unused")
+@Repository(name = "users")
+public static class User {
+    @Id
+    private UUID id;
+
+    private String username;
+    private int age;
+
+    @ResolveWith(PasswordConverter.class)
+    private Password password;
+
+    private List<String> hobbies;
+
+    public User(UUID id, String username, int age, Password password, List<String> hobbies) {
+        this.id = id;
+        this.username = username;
+        this.age = age;
+        this.password = password;
+        this.hobbies = hobbies;
     }
 
-    @SuppressWarnings("unused")
-    @Repository(name = "users")
-    public static class User {
-        @Id
-        private UUID id;
+    public User() {
+    }
 
-        private String username;
-        private int age;
+    public UUID getId() {
+        return id;
+    }
 
-        @ResolveWith(PasswordConverter.class)
-        private Password password;
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-        private List<String> hobbies;
+    public String getUsername() {
+        return username;
+    }
 
-        public User(UUID id, String username, int age, Password password, List<String> hobbies) {
-            this.id = id;
-            this.username = username;
-            this.age = age;
-            this.password = password;
-            this.hobbies = hobbies;
-        }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-        public User() {}
+    public int getAge() {
+        return age;
+    }
 
-        public UUID getId() {
-            return id;
-        }
+    public void setAge(int age) {
+        this.age = age;
+    }
 
-        public void setId(UUID id) {
-            this.id = id;
-        }
+    public List<String> getHobbies() {
+        return hobbies;
+    }
 
-        public String getUsername() {
-            return username;
-        }
+    public void setHobbies(List<String> hobbies) {
+        this.hobbies = hobbies;
+    }
 
-        public void setUsername(String username) {
-            this.username = username;
-        }
+    public Password getPassword() {
+        return password;
+    }
 
-        public int getAge() {
-            return age;
-        }
+    public void setPassword(Password password) {
+        this.password = password;
+    }
 
-        public void setAge(int age) {
-            this.age = age;
-        }
-
-        public List<String> getHobbies() {
-            return hobbies;
-        }
-
-        public void setHobbies(List<String> hobbies) {
-            this.hobbies = hobbies;
-        }
-
-        public Password getPassword() {
-            return password;
-        }
-
-        public void setPassword(Password password) {
-            this.password = password;
-        }
-
-        public String toString() {
-            return "User{" +
-                    "id=" + id +
-                    ", username='" + username + '\'' +
-                    ", age=" + age +
-                    ", password=" + password +
-                    ", hobbies=" + hobbies +
-                    '}';
-        }
+    public String toString() {
+        return "User{" +
+            "id=" + id +
+            ", username='" + username + '\'' +
+            ", age=" + age +
+            ", password=" + password +
+            ", hobbies=" + hobbies +
+            '}';
     }
 }

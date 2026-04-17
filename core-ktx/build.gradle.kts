@@ -21,7 +21,7 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Kotlin compileOnly
-    compileOnly("org.jetbrains.kotlin:kotlin-stdlib:1.9.23")
+    compileOnly("org.jetbrains.kotlin:kotlin-stdlib:2.3.20")
     compileOnly(project(":core"))
 
     compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
