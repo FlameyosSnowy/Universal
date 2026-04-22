@@ -96,6 +96,12 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     private static final String RESOURCE =
         "META-INF/services/io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory";
 
+    private static final String ANN_KEY_VALUE    = "value";
+    private static final String ANN_KEY_PRIORITY = "priority";
+    private static final String ANN_KEY_FIELDS   = "fields";
+    private static final String ANN_KEY_NAME     = "name";
+    private static final String ANN_KEY_TYPE     = "type";
+
     private final List<String> qualifiedNames = new ArrayList<>(16);
 
     private final Set<String> repositoryNames = new HashSet<>(16);
@@ -106,9 +112,16 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     private TypeMirror queue;
     private TypeMirror deque;
 
+    private TypeMirror localDateTime;
+    private TypeMirror localDate;
+    private TypeMirror instant;
+    private TypeMirror zonedDateTime;
+    private TypeMirror offsetDateTime;
+    private TypeMirror utilDate;
+    private TypeMirror sqlTimestamp;
+
     private static final List<String> FIELD_ANNOTATIONS = List.of(
         ManyToOne.class.getCanonicalName(),
-        OneToOne.class.getCanonicalName(),
         OneToOne.class.getCanonicalName(),
         Unique.class.getCanonicalName(),
         NonNull.class.getCanonicalName(),
@@ -139,18 +152,48 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         Elements elements = processingEnv.getElementUtils();
         this.elements = elements;
 
-        this.map = TypeMirrorUtils.typeOf(Map.class, elements);
-        this.list = TypeMirrorUtils.typeOf(List.class, elements);
-        this.set = TypeMirrorUtils.typeOf(Set.class, elements);
+        this.map   = TypeMirrorUtils.typeOf(Map.class,   elements);
+        this.list  = TypeMirrorUtils.typeOf(List.class,  elements);
+        this.set   = TypeMirrorUtils.typeOf(Set.class,   elements);
         this.queue = TypeMirrorUtils.typeOf(Queue.class, elements);
         this.deque = TypeMirrorUtils.typeOf(Deque.class, elements);
 
-
         this.primitiveBoolean = types.getPrimitiveType(TypeKind.BOOLEAN);
         this.boxedBoolean = elements.getTypeElement("java.lang.Boolean").asType();
+
+        this.localDateTime   = resolveType("java.time.LocalDateTime");
+        this.localDate       = resolveType("java.time.LocalDate");
+        this.instant         = resolveType("java.time.Instant");
+        this.zonedDateTime   = resolveType("java.time.ZonedDateTime");
+        this.offsetDateTime  = resolveType("java.time.OffsetDateTime");
+        this.utilDate        = resolveType("java.util.Date");
+        this.sqlTimestamp    = resolveType("java.sql.Timestamp");
+    }
+
+    private TypeMirror resolveType(String fqcn) {
+        TypeElement te = elements.getTypeElement(fqcn);
+        return te == null ? null : te.asType();
+    }
+
+    /**
+     * Returns true if {@code type} is assignable to any of the known temporal types.
+     * Uses the Types API — no string matching.
+     */
+    private boolean isTemporalType(TypeMirror type) {
+        TypeMirror erased = types.erasure(type);
+        for (TypeMirror temporal : new TypeMirror[]{
+            localDateTime, localDate, instant,
+            zonedDateTime, offsetDateTime, utilDate, sqlTimestamp
+        }) {
+            if (temporal != null && types.isAssignable(erased, types.erasure(temporal))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private final Map<String, ResolverInfo> globalTypeResolvers = new HashMap<>(16);
+    private final Set<String> scannedResolvers = new HashSet<>(16);
 
     private record ResolverInfo(String resolverClassName, int priority) {
     }
@@ -161,7 +204,11 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 continue;
             }
 
-            // Verify it implements TypeResolver
+            String resolverFqcn = resolverClass.getQualifiedName().toString();
+            if (!scannedResolvers.add(resolverFqcn)) {
+                continue;
+            }
+
             if (!implementsTypeResolver(resolverClass)) {
                 messager.printMessage(
                     Diagnostic.Kind.ERROR,
@@ -178,38 +225,33 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
             if (resolvesMirror == null) continue;
 
-            // Extract types and priority
             List<TypeMirror> handledTypes = new ArrayList<>(16);
             int priority = 0;
 
             for (var entry : resolvesMirror.getElementValues().entrySet()) {
                 String key = entry.getKey().getSimpleName().toString();
 
-                if ("value".equals(key)) {
+                if (ANN_KEY_VALUE.equals(key)) {
                     @SuppressWarnings("unchecked")
                     List<AnnotationValue> values = (List<AnnotationValue>) entry.getValue().getValue();
                     for (AnnotationValue val : values) {
                         TypeMirror type = (TypeMirror) val.getValue();
                         handledTypes.add(type);
                     }
-                } else if ("priority".equals(key)) {
+                } else if (ANN_KEY_PRIORITY.equals(key)) {
                     priority = (int) entry.getValue().getValue();
                 }
             }
 
-            String resolverQualifiedName = resolverClass.getQualifiedName().toString();
-
-            // Register each type
             for (TypeMirror handledType : handledTypes) {
                 String typeQualifiedName = TypeMirrorUtils.qualifiedName(handledType);
 
                 ResolverInfo existing = globalTypeResolvers.get(typeQualifiedName);
                 if (existing != null) {
                     if (priority > existing.priority) {
-                        // Higher priority wins
                         globalTypeResolvers.put(
                             typeQualifiedName,
-                            new ResolverInfo(resolverQualifiedName, priority)
+                            new ResolverInfo(resolverFqcn, priority)
                         );
                     } else if (priority == existing.priority) {
                         messager.printMessage(
@@ -221,16 +263,13 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 } else {
                     globalTypeResolvers.put(
                         typeQualifiedName,
-                        new ResolverInfo(resolverQualifiedName, priority)
+                        new ResolverInfo(resolverFqcn, priority)
                     );
                 }
             }
         }
     }
 
-    /**
-     * Check if a TypeElement implements TypeResolver interface.
-     */
     private boolean implementsTypeResolver(TypeElement element) {
         TypeMirror typeResolverType = TypeMirrorUtils.typeOf(
             io.github.flameyossnowy.universal.api.resolver.TypeResolver.class,
@@ -248,7 +287,6 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             }
         }
 
-        // Check superclass recursively
         TypeMirror superclass = element.getSuperclass();
         if (superclass.getKind() != TypeKind.NONE) {
             TypeElement superElement = (TypeElement) types.asElement(superclass);
@@ -267,37 +305,48 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         }
         for (Element element : roundEnv.getElementsAnnotatedWith(Repository.class)) {
             if (!(element instanceof TypeElement type)) continue;
-            handleRepository(type, type.getKind());
-            boolean hasNoArgCtor = false;
-            boolean hasId = false;
-            boolean hasRelationship = false;
-            for (Element e : type.getEnclosedElements()) {
-                if (e.getKind() == ElementKind.CONSTRUCTOR) {
-                    if (((ExecutableElement) e).getParameters().isEmpty()) {
-                        hasNoArgCtor = true;
-                    }
-                }
-                if (e.getKind() == ElementKind.FIELD) {
-                    if (AnnotationUtils.hasAnnotation(e, Id.class.getCanonicalName())) hasId = true;
-                    if (AnnotationUtils.hasAnnotation(e, OneToOne.class.getCanonicalName())
-                        || AnnotationUtils.hasAnnotation(e, OneToMany.class.getCanonicalName()) ||
-                        AnnotationUtils.hasAnnotation(e, ManyToOne.class.getCanonicalName())) {
-                        hasRelationship = true;
-                    }
 
-                    handleField((VariableElement) e);
+            List<VariableElement> fields  = new ArrayList<>(16);
+            List<ExecutableElement> methods = new ArrayList<>(16);
+            boolean hasNoArgCtor = false;
+
+            for (Element e : type.getEnclosedElements()) {
+                switch (e.getKind()) {
+                    case CONSTRUCTOR -> {
+                        if (((ExecutableElement) e).getParameters().isEmpty()) {
+                            hasNoArgCtor = true;
+                        }
+                    }
+                    case FIELD  -> fields.add((VariableElement) e);
+                    case METHOD -> methods.add((ExecutableElement) e);
+                    default -> { /* ignored */ }
                 }
             }
 
+            boolean valid = handleRepository(type, type.getKind(), fields, methods);
+            if (!valid) continue;
+
+            boolean hasId = false;
+            boolean hasRelationship = false;
+            for (VariableElement f : fields) {
+                if (AnnotationUtils.hasAnnotation(f, Id.class.getCanonicalName())) hasId = true;
+                if (AnnotationUtils.hasAnnotation(f, OneToOne.class.getCanonicalName())
+                    || AnnotationUtils.hasAnnotation(f, OneToMany.class.getCanonicalName())
+                    || AnnotationUtils.hasAnnotation(f, ManyToOne.class.getCanonicalName())) {
+                    hasRelationship = true;
+                }
+                handleField(f);
+            }
+
             if (hasRelationship && !hasId) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
+                error(
                     "@Repository " + type.getSimpleName() +
                         " has relationship fields but no @Id field.",
                     type);
             }
 
             if (!hasNoArgCtor && type.getKind() != ElementKind.RECORD) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
+                error(
                     "@Repository " + type.getSimpleName() +
                         " must have a no-arg constructor",
                     type);
@@ -309,37 +358,51 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         return true;
     }
 
-    private void handleRepository(TypeElement element, ElementKind kind) {
-        if (!kind.isClass()) return;
+    /**
+     * Validates the repository-level constraints and triggers codegen.
+     *
+     * @return false if any validation error was emitted (caller should skip codegen)
+     */
+    private boolean handleRepository(TypeElement element, ElementKind kind,
+                                     List<VariableElement> fields,
+                                     List<ExecutableElement> methods) {
+        if (!kind.isClass()) return false;
 
         Repository repo = element.getAnnotation(Repository.class);
-        if (repo == null) return;
+        if (repo == null) return false;
+
+        boolean valid = true;
 
         if (repo.name().isBlank()) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
+            error(
                 "@Repository name cannot be empty", element);
-            return;
+            valid = false;
         }
 
         if (!repositoryNames.add(repo.name())) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
+            error(
                 "@Repository name must be unique", element);
+            valid = false;
         }
 
         if (element.getModifiers().contains(Modifier.ABSTRACT)) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
+            error(
                 "@Repository cannot be abstract", element);
+            valid = false;
         }
 
         if (kind == ElementKind.INTERFACE || kind == ElementKind.ENUM) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
+            error(
                 "@Repository cannot be enum or interface", element);
+            valid = false;
         }
 
-        checkIndexAndConstraintReferences(element);
-        checkAccessors(element);
+        if (!valid) return false;
 
-        RepositoryModel model = buildRepositoryModel(element);
+        checkIndexAndConstraintReferences(element, fields);
+        checkAccessors(element, fields, methods);
+
+        RepositoryModel model = buildRepositoryModel(element, fields);
 
         Set<String> fieldNames = new HashSet<>(16);
         for (FieldModel field : model.fields()) {
@@ -351,6 +414,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         UnifiedFactoryGenerator gen = new UnifiedFactoryGenerator(processingEnv, processingEnv.getFiler());
         gen.generate(model);
         qualifiedNames.addAll(gen.getQualifiedNames());
+        return true;
     }
 
     public void writeResource() {
@@ -368,35 +432,30 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         }
     }
 
-    private void checkAccessors(TypeElement entity) {
+    private void checkAccessors(TypeElement entity,
+                                List<VariableElement> fields,
+                                List<ExecutableElement> methodList) {
         if (entity.getKind() == ElementKind.RECORD) return;
 
-        Map<String, ExecutableElement> methods = new HashMap<>(16);
-
-        for (Element e : entity.getEnclosedElements()) {
-            if (e.getKind() == ElementKind.METHOD) {
-                methods.put(e.getSimpleName().toString(), (ExecutableElement) e);
-            }
+        Map<String, ExecutableElement> methods = new HashMap<>(methodList.size() * 2);
+        for (ExecutableElement m : methodList) {
+            methods.put(m.getSimpleName().toString(), m);
         }
 
-        for (Element e : entity.getEnclosedElements()) {
-            if (e.getKind() != ElementKind.FIELD) continue;
-
-            VariableElement field = (VariableElement) e;
+        for (VariableElement field : fields) {
             String name = field.getSimpleName().toString();
             String cap = Character.toUpperCase(name.charAt(0)) + name.substring(1);
 
             ExecutableElement getter = methods.get("get" + cap);
             if (getter == null || !getter.getParameters().isEmpty()) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
+                error(
                     "Missing getter get" + cap + "() for field " + name, field);
             }
 
             if (!field.getModifiers().contains(Modifier.FINAL)) {
                 TypeMirror typeMirror = field.asType();
                 boolean isPrimitive = types.isSameType(typeMirror, primitiveBoolean);
-                boolean isBoxed    = types.isSameType(typeMirror, boxedBoolean);
-
+                boolean isBoxed     = types.isSameType(typeMirror, boxedBoolean);
                 detectUnapplicableSetter(methods, cap, isPrimitive, isBoxed, name, field);
             }
         }
@@ -407,12 +466,12 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         if (isPrimitive || isBoxed) {
             ExecutableElement commonSetter = methods.get("is" + cap);
             if (bothSettersUnapplicable(setter, commonSetter)) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
+                error(
                     "Missing setter set" + cap + "(..) for field " + name, field);
             }
         } else {
             if (setter == null || setter.getParameters().size() != 1) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
+                error(
                     "Missing setter set" + cap + "(..) for field " + name, field);
             }
         }
@@ -423,21 +482,19 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             && (commonSetter == null || commonSetter.getParameters().size() != 1);
     }
 
-    private void checkIndexAndConstraintReferences(TypeElement type) {
-        Set<String> fields = new HashSet<>(16);
-
-        for (Element e : type.getEnclosedElements()) {
-            if (e.getKind() == ElementKind.FIELD) {
-                fields.add(e.getSimpleName().toString());
-            }
+    private void checkIndexAndConstraintReferences(TypeElement type,
+                                                   List<VariableElement> fields) {
+        Set<String> fieldNames = new HashSet<>(fields.size() * 2);
+        for (VariableElement f : fields) {
+            fieldNames.add(f.getSimpleName().toString());
         }
 
-        for (Element e : type.getEnclosedElements()) {
-            for (AnnotationMirror am : AnnotationUtils.getAnnotations(e, Index.class.getCanonicalName())) {
-                validateColumns("Index", AnnotationUtils.getStringArrayValue(am), fields, e);
+        for (VariableElement f : fields) {
+            for (AnnotationMirror am : AnnotationUtils.getAnnotations(f, Index.class.getCanonicalName())) {
+                validateColumns("Index", AnnotationUtils.getStringArrayValue(am), fieldNames, f);
             }
-            for (AnnotationMirror am : AnnotationUtils.getAnnotations(e, Constraint.class.getCanonicalName())) {
-                validateColumns("Constraint", AnnotationUtils.getStringArrayValue(am), fields, e);
+            for (AnnotationMirror am : AnnotationUtils.getAnnotations(f, Constraint.class.getCanonicalName())) {
+                validateColumns("Constraint", AnnotationUtils.getStringArrayValue(am), fieldNames, f);
             }
         }
     }
@@ -450,7 +507,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     ) {
         for (String c : cols) {
             if (!valid.contains(c)) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
+                error(
                     "@" + kind + " refers to unknown field '" + c + "'",
                     target);
             }
@@ -465,19 +522,29 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
         if (field.getModifiers().contains(Modifier.FINAL)
             && !field.getModifiers().contains(Modifier.STATIC)) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
+            error(
                 "Final fields are not allowed", field);
         }
 
         checkRelationshipFieldAnnotations(field);
+
+        boolean hasResolver =
+            field.getAnnotation(ResolveWith.class) != null ||
+                globalTypeResolvers.containsKey(TypeMirrorUtils.qualifiedName(field.asType()));
+
+        if (hasResolver) {
+            // Resolvers handle serialization, but structural constraints still apply.
+            // Raw type check is intentionally skipped as the resolver owns the type.
+            return;
+        }
+
         checkRawTypes(field);
     }
 
     private void checkFieldAnnotations(VariableElement field) {
         for (String ann : FIELD_ANNOTATIONS) {
             if (AnnotationUtils.hasAnnotation(field, ann)) {
-                messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field " + field.getSimpleName() +
+                error("Field " + field.getSimpleName() +
                         " cannot have @" + ann, field);
             }
         }
@@ -490,8 +557,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         if (AnnotationUtils.hasAnnotation(field, ManyToOne.class.getCanonicalName())) count++;
 
         if (count > 1) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
-                "Multiple relationship annotations", field);
+            error("Multiple relationship annotations", field);
         }
     }
 
@@ -505,19 +571,19 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         }
 
         if (dt.getTypeArguments().isEmpty()) {
-            messager.printMessage(Diagnostic.Kind.ERROR,
+            error(
                 "Raw generic type not allowed - please specify type parameters", field);
         }
     }
 
-    private RepositoryModel buildRepositoryModel(TypeElement entity) {
+    private RepositoryModel buildRepositoryModel(TypeElement entity,
+                                                 List<VariableElement> enclosedFields) {
         String packageName =
             elements.getPackageOf(entity).getQualifiedName().toString();
 
         Repository repo = entity.getAnnotation(Repository.class);
         FetchPageSize fetchPageSize = entity.getAnnotation(FetchPageSize.class);
 
-        // Extract entity-level caching annotations
         Cacheable cacheable = entity.getAnnotation(Cacheable.class);
         GlobalCacheable globalCacheable = entity.getAnnotation(GlobalCacheable.class);
 
@@ -538,13 +604,17 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         List<ConstraintModel> constraints = extractConstraints(entity);
         List<RelationshipModel> relationships = new ArrayList<>(8);
 
+        // Build method map once for getter/setter lookup
+        Map<String, ExecutableElement> methodMap = new HashMap<>(32);
+        for (Element e : entity.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.METHOD) {
+                methodMap.put(e.getSimpleName().toString(), (ExecutableElement) e);
+            }
+        }
+
         TypeMirror idType = null;
 
-        for (Element enclosed : entity.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.FIELD) continue;
-
-            VariableElement field = (VariableElement) enclosed;
-
+        for (VariableElement field : enclosedFields) {
             boolean isId = AnnotationUtils.hasAnnotation(field, Id.class.getCanonicalName());
             if (isId) {
                 idType = field.asType();
@@ -559,7 +629,34 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             }
 
             TypeMirror type = field.asType();
+
             String fieldName = field.getSimpleName().toString();
+            String resolveWithClass = null;
+            ResolveWith resolveWith = field.getAnnotation(ResolveWith.class);
+
+            if (resolveWith != null) {
+                AnnotationMirror resolveWithMirror = AnnotationUtils.getAnnotationMirror(
+                    field,
+                    ResolveWith.class.getCanonicalName()
+                );
+                if (resolveWithMirror != null) {
+                    TypeMirror resolverType = AnnotationUtils.getClassValue(resolveWithMirror, ANN_KEY_VALUE);
+                    if (resolverType != null) {
+                        resolveWithClass = TypeMirrorUtils.qualifiedName(resolverType);
+                    }
+                }
+            }
+
+            if (resolveWithClass == null) {
+                String fieldTypeQualifiedName = TypeMirrorUtils.qualifiedName(type);
+                ResolverInfo globalResolver = globalTypeResolvers.get(fieldTypeQualifiedName);
+
+                if (globalResolver != null) {
+                    resolveWithClass = globalResolver.resolverClassName;
+                }
+            }
+
+            boolean hasCustomResolver = resolveWithClass != null;
 
             String capitalized =
                 Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
@@ -590,11 +687,10 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                     DefaultValueProvider.class.getCanonicalName()
                 );
                 if (providerMirror != null) {
-                    TypeMirror providerType = AnnotationUtils.getClassValue(providerMirror, "value");
+                    TypeMirror providerType = AnnotationUtils.getClassValue(providerMirror, ANN_KEY_VALUE);
                     if (providerType != null) {
                         defaultValueProviderClass = TypeMirrorUtils.qualifiedName(providerType);
 
-                        // Validate it's not void.class
                         if ("java.lang.Void".equals(defaultValueProviderClass)) {
                             error("@DefaultValueProvider cannot be void.class", field);
                             defaultValueProviderClass = null;
@@ -613,26 +709,21 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 error("Field cannot have both @DefaultValue and @DefaultValueProvider", field);
             }
 
-            if (hasNow) {
-                String typeName = type.toString();
-                if (!typeName.contains("LocalDateTime") &&
-                    !typeName.contains("LocalDate") &&
-                    !typeName.contains("Instant") &&
-                    !typeName.contains("ZonedDateTime") &&
-                    !typeName.contains("OffsetDateTime") &&
-                    !typeName.contains("Date") &&
-                    !typeName.contains("Timestamp")) {
-                    error("@Now can only be used on temporal types (LocalDateTime, Date, etc.)", field);
+            if (!hasCustomResolver) {
+                if (hasNow) {
+                    if (!isTemporalType(type)) {
+                        error("@Now can only be used on temporal types (LocalDateTime, Date, etc.)", field);
+                    }
                 }
-            }
 
-            if (enumAsOrdinal) {
-                TypeElement typeElement = null;
-                if (type instanceof DeclaredType dt) {
-                    typeElement = (TypeElement) dt.asElement();
-                }
-                if (typeElement == null || typeElement.getKind() != ElementKind.ENUM) {
-                    error("@EnumAsOrdinal can only be used on enum fields", field);
+                if (enumAsOrdinal) {
+                    TypeElement typeElement = null;
+                    if (type instanceof DeclaredType dt) {
+                        typeElement = (TypeElement) dt.asElement();
+                    }
+                    if (typeElement == null || typeElement.getKind() != ElementKind.ENUM) {
+                        error("@EnumAsOrdinal can only be used on enum fields", field);
+                    }
                 }
             }
 
@@ -640,54 +731,37 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             OnDelete onDelete = field.getAnnotation(OnDelete.class);
             OnUpdate onUpdate = field.getAnnotation(OnUpdate.class);
 
-            String resolveWithClass = null;
-            ResolveWith resolveWith = field.getAnnotation(ResolveWith.class);
-            if (resolveWith != null) {
-                AnnotationMirror resolveWithMirror = AnnotationUtils.getAnnotationMirror(
-                    field,
-                    ResolveWith.class.getCanonicalName()
-                );
-                if (resolveWithMirror != null) {
-                    TypeMirror resolverType = AnnotationUtils.getClassValue(resolveWithMirror, "value");
-                    if (resolverType != null) {
-                        resolveWithClass = TypeMirrorUtils.qualifiedName(resolverType);
-                    }
-                }
-            }
-
-            if (resolveWithClass == null) {
-                String fieldTypeQualifiedName = TypeMirrorUtils.qualifiedName(type);
-                ResolverInfo globalResolver = globalTypeResolvers.get(fieldTypeQualifiedName);
-
-                if (globalResolver != null) {
-                    resolveWithClass = globalResolver.resolverClassName;
-                }
-            }
-
-            TypeMirror elementType = resolveElementTypeMirror(type);
-            TypeMirror mapKeyType = resolveMapKeyTypeMirror(type);
-            TypeMirror mapValueType = resolveMapValueTypeMirror(type);
-
-            boolean indexed = checkIfIndexed(indexModelSet, fieldName);
+            TypeMirror elementType = null;
+            TypeMirror mapKeyType = null;
+            TypeMirror mapValueType = null;
 
             CollectionKind collectionKind = CollectionKind.OTHER;
+            RelationshipModel rel = null;
 
-            if (TypeMirrorUtils.isList(types, elements, type)) {
-                collectionKind = CollectionKind.LIST;
-            } else if (TypeMirrorUtils.isSet(types, elements, type)) {
-                collectionKind = CollectionKind.SET;
-            } else if (TypeMirrorUtils.isMap(types, elements, type)) {
-                if (TypeMirrorUtils.isCollectionValueMap(types, elements, type)) {
-                    collectionKind = CollectionKind.MULTIMAP; // Map<K, Collection<V>>
-                } else {
-                    collectionKind = CollectionKind.MAP;
+            if (!hasCustomResolver) {
+                elementType = resolveElementTypeMirror(type);
+                mapKeyType = resolveMapKeyTypeMirror(type);
+                mapValueType = resolveMapValueTypeMirror(type);
+
+                if (TypeMirrorUtils.isList(types, elements, type)) {
+                    collectionKind = CollectionKind.LIST;
+                } else if (TypeMirrorUtils.isSet(types, elements, type)) {
+                    collectionKind = CollectionKind.SET;
+                } else if (TypeMirrorUtils.isMap(types, elements, type)) {
+                    if (TypeMirrorUtils.isCollectionValueMap(types, elements, type)) {
+                        collectionKind = CollectionKind.MULTIMAP;
+                    } else {
+                        collectionKind = CollectionKind.MAP;
+                    }
+                }
+
+                rel = extractRelationship(field);
+                if (rel != null) {
+                    relationships.add(rel);
                 }
             }
 
-            RelationshipModel rel = extractRelationship(field);
-            if (rel != null) {
-                relationships.add(rel);
-            }
+            boolean indexed = checkIfIndexed(indexModelSet, fieldName);
 
             AnnotationMirror jsonField = AnnotationUtils.getAnnotationMirror(field, JsonField.class.getCanonicalName());
             boolean isJson = jsonField != null;
@@ -700,11 +774,11 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
             String getterGet = "get" + capitalized;
             String getterIs = "is" + capitalized;
-            String getter = getGetterName(entity, getterGet, getterIs, fieldName);
+            String getter = getGetterName(methodMap, getterGet, getterIs, fieldName);
 
             String setterSet = "set" + capitalized;
             String setterWithoutIs = "set" + (capitalized.startsWith("Is") ? capitalized.substring(2) : capitalized);
-            String setter = getSetterName(entity, setterSet, setterWithoutIs, fieldName);
+            String setter = getSetterName(methodMap, setterSet, setterWithoutIs, fieldName);
 
             if (getter == null) {
                 error("Missing getter method for field " + field, field);
@@ -801,9 +875,24 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         AnnotationMirror lifecycleListener =
             AnnotationUtils.getAnnotationMirror(entity, RepositoryEventLifecycleListener.class.getCanonicalName());
 
-        TypeMirror auditLoggerType = AnnotationUtils.getClassValue(auditLogger, "value");
-        TypeMirror exceptionHandlerType = AnnotationUtils.getClassValue(exceptionHandler, "value");
-        TypeMirror lifecycleListenerType = AnnotationUtils.getClassValue(lifecycleListener, "value");
+        TypeMirror auditLoggerType = AnnotationUtils.getClassValue(auditLogger, ANN_KEY_VALUE);
+        TypeMirror exceptionHandlerType = AnnotationUtils.getClassValue(exceptionHandler, ANN_KEY_VALUE);
+        TypeMirror lifecycleListenerType = AnnotationUtils.getClassValue(lifecycleListener, ANN_KEY_VALUE);
+
+        // Extract credentialsProvider from @NetworkRepository if present
+        AnnotationMirror networkRepo =
+            AnnotationUtils.getAnnotationMirror(entity, "io.github.flameyossnowy.universal.api.annotations.NetworkRepository");
+        TypeMirror credentialsProviderType = null;
+        if (networkRepo != null) {
+            credentialsProviderType = AnnotationUtils.getClassValue(networkRepo, "credentialsProvider");
+            // Check if it's void.class (default value)
+            if (credentialsProviderType != null) {
+                String qn = TypeMirrorUtils.qualifiedName(credentialsProviderType);
+                if ("java.lang.Void".equals(qn)) {
+                    credentialsProviderType = null;
+                }
+            }
+        }
 
         //noinspection unchecked
         return new RepositoryModel(
@@ -826,50 +915,24 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             globalCacheable != null ? (Class<? extends SessionCache<?, ?>>) globalCacheable.sessionCache() : null,
             auditLoggerType,
             exceptionHandlerType,
-            lifecycleListenerType
+            lifecycleListenerType,
+            credentialsProviderType
         );
     }
 
-    private static String getGetterName(TypeElement entity, String getterGet, String getterIs, String fieldName) {
-        for (Element typeEntity : entity.getEnclosedElements()) {
-            if (typeEntity.getKind() != ElementKind.METHOD) {
-                continue;
-            }
-
-            String name = typeEntity.getSimpleName().toString();
-            if (name.equals(getterGet)) {
-                return getterGet;
-            }
-
-            if (name.equals(getterIs)) {
-                return getterIs;
-            }
-
-            if (name.equals(fieldName)) {
-                return fieldName;
-            }
-        }
+    private static String getGetterName(Map<String, ExecutableElement> methods,
+                                        String getterGet, String getterIs, String fieldName) {
+        if (methods.containsKey(getterGet)) return getterGet;
+        if (methods.containsKey(getterIs)) return getterIs;
+        if (methods.containsKey(fieldName)) return fieldName;
         return null;
     }
-    private static String getSetterName(TypeElement entity, String setterSet, String setterWithoutIs, String fieldName) {
-        for (Element typeEntity : entity.getEnclosedElements()) {
-            if (typeEntity.getKind() != ElementKind.METHOD) {
-                continue;
-            }
 
-            String name = typeEntity.getSimpleName().toString();
-            if (name.equals(setterSet)) {
-                return setterSet;
-            }
-
-            if (name.equals(setterWithoutIs)) {
-                return setterWithoutIs;
-            }
-
-            if (name.equals(fieldName)) {
-                return fieldName;
-            }
-        }
+    private static String getSetterName(Map<String, ExecutableElement> methods,
+                                        String setterSet, String setterWithoutIs, String fieldName) {
+        if (methods.containsKey(setterSet)) return setterSet;
+        if (methods.containsKey(setterWithoutIs)) return setterWithoutIs;
+        if (methods.containsKey(fieldName)) return fieldName;
         return null;
     }
 
@@ -936,7 +999,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             return null;
         }
 
-        String columnName = AnnotationUtils.getStringValue(named, "value");
+        String columnName = AnnotationUtils.getStringValue(named, ANN_KEY_VALUE);
         if (columnName == null) {
             columnName = field.getSimpleName().toString();
         }
@@ -976,32 +1039,18 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         );
     }
 
-    private CollectionKind collectionKind(
-        TypeMirror mirror
-    ) {
+    private CollectionKind collectionKind(TypeMirror mirror) {
         if (!(mirror instanceof DeclaredType declared)) {
             return CollectionKind.OTHER;
         }
 
         TypeMirror raw = types.erasure(declared);
 
-        if (types.isAssignable(raw, deque)) {
-            return CollectionKind.DEQUE;
-        }
-        if (types.isAssignable(raw, queue)) {
-            return CollectionKind.QUEUE;
-        }
-        if (types.isAssignable(raw, set)) {
-            return CollectionKind.SET;
-        }
-
-        if (types.isAssignable(raw, list)) {
-            return CollectionKind.LIST;
-        }
-
-        if (types.isAssignable(raw, map)) {
-            return CollectionKind.MAP;
-        }
+        if (types.isAssignable(raw, deque))  return CollectionKind.DEQUE;
+        if (types.isAssignable(raw, queue))  return CollectionKind.QUEUE;
+        if (types.isAssignable(raw, set))    return CollectionKind.SET;
+        if (types.isAssignable(raw, list))   return CollectionKind.LIST;
+        if (types.isAssignable(raw, map))    return CollectionKind.MAP;
 
         return CollectionKind.OTHER;
     }
@@ -1024,39 +1073,39 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             return null;
         }
 
-         String mappedBy = AnnotationUtils.getStringValue(oto, "mappedBy");
-         if (mappedBy != null) {
-             mappedBy = mappedBy.trim();
-             if (mappedBy.isEmpty()) {
-                 mappedBy = null;
-             }
-         }
+        String mappedBy = AnnotationUtils.getStringValue(oto, "mappedBy");
+        if (mappedBy != null) {
+            mappedBy = mappedBy.trim();
+            if (mappedBy.isEmpty()) {
+                mappedBy = null;
+            }
+        }
 
-         if (mappedBy != null) {
-             boolean found = false;
-             for (Element e : targetElement.getEnclosedElements()) {
-                 if (e.getKind() != ElementKind.FIELD) continue;
-                 if (!e.getSimpleName().contentEquals(mappedBy)) continue;
+        if (mappedBy != null) {
+            boolean found = false;
+            for (Element e : targetElement.getEnclosedElements()) {
+                if (e.getKind() != ElementKind.FIELD) continue;
+                if (!e.getSimpleName().contentEquals(mappedBy)) continue;
 
-                 found = true;
-                 if (!(AnnotationUtils.hasAnnotation(e, ManyToOne.class.getCanonicalName())
-                     || AnnotationUtils.hasAnnotation(e, OneToOne.class.getCanonicalName()))) {
-                     error("@OneToOne mappedBy must refer to a ManyToOne or OneToOne field", field);
-                     return null;
-                 }
+                found = true;
+                if (!(AnnotationUtils.hasAnnotation(e, ManyToOne.class.getCanonicalName())
+                    || AnnotationUtils.hasAnnotation(e, OneToOne.class.getCanonicalName()))) {
+                    error("@OneToOne mappedBy must refer to a ManyToOne or OneToOne field", field);
+                    return null;
+                }
 
-                 if (!typesMatch(e.asType(), field.getEnclosingElement().asType())) {
-                     error("@OneToOne mappedBy field type does not match source entity type", field);
-                     return null;
-                 }
-                 break;
-             }
+                if (!typesMatch(e.asType(), field.getEnclosingElement().asType())) {
+                    error("@OneToOne mappedBy field type does not match source entity type", field);
+                    return null;
+                }
+                break;
+            }
 
-             if (!found) {
-                 error("@OneToOne mappedBy field not found on target entity: " + mappedBy, field);
-                 return null;
-             }
-         }
+            if (!found) {
+                error("@OneToOne mappedBy field not found on target entity: " + mappedBy, field);
+                return null;
+            }
+        }
 
         return RelationshipModel.create(
             ONE_TO_ONE,
@@ -1075,14 +1124,12 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         VariableElement field,
         AnnotationMirror otm,
         String columnName) {
-        // Must be a parameterized collection
         if (!(field.asType() instanceof DeclaredType dt)
             || dt.getTypeArguments().size() != 1) {
             error("@OneToMany field must be a generic collection", field);
             return null;
         }
 
-        // mappedBy
         TypeMirror mappedByMirror = AnnotationUtils.getClassValue(otm, "mappedBy");
         if (mappedByMirror == null) {
             error("@OneToMany must define mappedBy", field);
@@ -1096,7 +1143,6 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             return null;
         }
 
-        // mappedBy must be a @Repository
         TypeElement mappedByElement =
             (TypeElement) ((DeclaredType) mappedByMirror).asElement();
 
@@ -1105,7 +1151,6 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             return null;
         }
 
-        // Validate inverse field exists
         boolean inverseFound = false;
         for (Element e : mappedByElement.getEnclosedElements()) {
             if (e.getKind() != ElementKind.FIELD) continue;
@@ -1174,22 +1219,18 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
     private static ConstraintModel parseConstraint(AnnotationMirror am) {
         String name = null;
-        List<String> fields = List.of();
 
-        for (var e : am.getElementValues().entrySet()) {
+        Set<? extends Map.Entry<? extends ExecutableElement, ? extends AnnotationValue>> entries = am.getElementValues().entrySet();
+        List<String> fields = new ArrayList<>(entries.size());
+
+        for (var e : entries) {
             String k = e.getKey().getSimpleName().toString();
             Object v = e.getValue().getValue();
 
-            if (k.equals("name")) {
+            if (k.equals(ANN_KEY_NAME)) {
                 name = v.toString();
-            } else if (k.equals("fields")) {
-                @SuppressWarnings("unchecked")
-                List<AnnotationValue> vals = (List<AnnotationValue>) v;
-                List<String> result = new ArrayList<>(16);
-                for (AnnotationValue x : vals) {
-                    result.add(x.getValue().toString());
-                }
-                fields = result;
+            } else if (k.equals(ANN_KEY_FIELDS)) {
+                fields = stringifyResult((List<AnnotationValue>) v);
             }
         }
 
@@ -1249,18 +1290,13 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 Object v = e.getValue().getValue();
 
                 switch (key) {
-                    case "name" -> name = v.toString();
-                    case "fields" -> {
+                    case ANN_KEY_NAME   -> name = v.toString();
+                    case ANN_KEY_FIELDS -> {
                         @SuppressWarnings("unchecked")
-                        List<AnnotationValue> vals = (List<AnnotationValue>) v;
-                        List<String> result = new ArrayList<>(16);
-                        for (AnnotationValue x : vals) {
-                            String string = x.getValue().toString();
-                            result.add(string);
-                        }
-                        fields = result;
+                        List<AnnotationValue> value = (List<AnnotationValue>) v;
+                        fields = stringifyResult(value);
                     }
-                    case "type" -> type = IndexType.valueOf(v.toString());
+                    case ANN_KEY_TYPE -> type = IndexType.valueOf(v.toString());
                 }
             }
 
@@ -1272,6 +1308,12 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         }
 
         return out;
+    }
+
+    private static List<String> stringifyResult(List<AnnotationValue> v) {
+        List<String> fields = new ArrayList<>(16);
+        for (AnnotationValue x : v) fields.add(x.getValue().toString());
+        return fields;
     }
 
     private void error(String msg, Element e) {
