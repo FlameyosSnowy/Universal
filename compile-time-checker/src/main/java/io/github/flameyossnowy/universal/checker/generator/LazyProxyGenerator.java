@@ -36,8 +36,6 @@ public final class LazyProxyGenerator {
         this.filer    = filer;
     }
 
-    // ------------------------------------------------------------------
-
     public void generateEntityProxy(RepositoryModel repo, RelationshipModel rel) {
         String proxyName  = entityProxyName(repo, rel);
         TypeName idType   = ClassName.get(repo.primaryKeys().getFirst().type()).box();

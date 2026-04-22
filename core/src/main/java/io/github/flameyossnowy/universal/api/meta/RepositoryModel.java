@@ -10,6 +10,7 @@ import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Represents metadata about a repository/entity.
@@ -109,11 +110,20 @@ public interface RepositoryModel<T, ID> {
     }
 
     /**
-     * Returns list of TypeResolver classes that must be registered
+     * Returns list of TypeResolver suppliers that must be registered
      * for this repository to function properly.
+     * This avoids reflection-based instantiation at runtime.
      */
-    default List<Class<? extends TypeResolver<?>>> getRequiredResolvers() {
+    default List<Supplier<TypeResolver<?>>> getRequiredResolvers() {
         return List.of();
+    }
+
+    /**
+     * Returns the credentials provider for network repositories, or null if not configured.
+     * This avoids reflection-based instantiation at runtime.
+     */
+    default Supplier<String> credentialsProvider() {
+        return null;
     }
 
     default SessionCache<ID, T> createGlobalSessionCache() {

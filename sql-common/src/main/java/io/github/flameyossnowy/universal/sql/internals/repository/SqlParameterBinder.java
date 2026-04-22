@@ -134,7 +134,9 @@ public final class SqlParameterBinder<T, ID> {
         boolean isWholeJsonValue = jsonField.isJson() && jsonField.type().isInstance(rawValue);
         Object bindValue = rawValue;
 
-        JsonCodec<Object> codec = resolverRegistry.getJsonCodec(jsonField.jsonCodec());
+        JsonCodec<Object> codec = resolverRegistry.getJsonCodecFromSupplier(
+                jsonField.jsonCodec(),
+                jsonField.jsonCodecSupplier());
         if (isWholeJsonValue) {
             bindValue = codec.serialize(rawValue, (Class<Object>) jsonField.type());
         }

@@ -35,7 +35,8 @@ public record RepositoryModel(
 
     TypeMirror auditLoggerType,              // nullable
     TypeMirror exceptionHandlerType,          // nullable
-    TypeMirror entityLifecycleListenerType    // nullable
+    TypeMirror entityLifecycleListenerType,    // nullable
+    TypeMirror credentialsProviderType       // nullable, for @NetworkRepository
 ) {
     public boolean hasAuditLogger() {
         return auditLoggerType != null;
@@ -59,5 +60,13 @@ public record RepositoryModel(
 
     public String lifecycleListenerQualifiedName() {
         return entityLifecycleListenerType == null ? null : entityLifecycleListenerType.toString();
+    }
+
+    public boolean hasCredentialsProvider() {
+        return credentialsProviderType != null;
+    }
+
+    public String credentialsProviderQualifiedName() {
+        return credentialsProviderType == null ? null : credentialsProviderType.toString();
     }
 }

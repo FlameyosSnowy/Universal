@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 @SuppressWarnings("unchecked")
@@ -138,12 +139,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         Logging.deepInfo(() -> "Repository information: " + repositoryModel);
 
         this.resolverRegistry = new TypeResolverRegistry();
-        for (Class<? extends TypeResolver<?>> resolverClass : repositoryModel.getRequiredResolvers()) {
-            try {
-                this.resolverRegistry.register(resolverClass.getDeclaredConstructor().newInstance());
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to instantiate TypeResolver: " + resolverClass, e);
-            }
+        for (Supplier<TypeResolver<?>> resolverSupplier : repositoryModel.getRequiredResolvers()) {
+            resolverRegistry.register(resolverSupplier.get());
         }
 
         TypeResolverBridge.registerAll(resolverRegistry, CoreTypeResolverRegistry.INSTANCE);

@@ -34,7 +34,9 @@ public final class MicroservicesJsonCodecBridge {
             if (fieldNode == null || fieldNode.isNull()) continue;
 
             Object typedValue = objectMapper.treeToValue(fieldNode, field.type());
-            JsonCodec<Object> codec = resolverRegistry.getJsonCodec(field.jsonCodec());
+            JsonCodec<Object> codec = resolverRegistry.getJsonCodecFromSupplier(
+                    field.jsonCodec(),
+                    field.jsonCodecSupplier());
 
             String json = codec.serialize(typedValue, (Class<Object>) field.type());
             try {
@@ -65,7 +67,9 @@ public final class MicroservicesJsonCodecBridge {
 
             try {
                 String json = objectMapper.writeValue(fieldNode);
-                JsonCodec<Object> codec = resolverRegistry.getJsonCodec(field.jsonCodec());
+                JsonCodec<Object> codec = resolverRegistry.getJsonCodecFromSupplier(
+                        field.jsonCodec(),
+                        field.jsonCodecSupplier());
                 Object typedValue = codec.deserialize(json, (Class<Object>) field.type());
                 obj.put(field.name(), objectMapper.valueToTree(typedValue));
             } catch (JsonException e) {

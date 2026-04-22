@@ -227,18 +227,9 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             }
         }
 
-        Supplier<String> credentialsProvider = null;
-        if (annotation.credentialsProvider() != void.class) {
-            try {
-                @SuppressWarnings("unchecked")
-                Supplier<String> provider = (Supplier<String>) annotation.credentialsProvider()
-                        .getDeclaredConstructor()
-                        .newInstance();
-                credentialsProvider = provider;
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to instantiate credentials provider", e);
-            }
-        }
+        // Get credentials provider from the generated RepositoryModel (avoids reflection)
+        RepositoryModel<T, ID> model = GeneratedMetadata.getByEntityClass(entityType);
+        Supplier<String> credentialsProvider = model != null ? model.credentialsProvider() : null;
 
         EndpointConfig endpointConfig = getEndpointConfig(entityType);
 

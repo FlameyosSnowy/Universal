@@ -1,6 +1,6 @@
 import io.github.flameyossnowy.universal.api.annotations.Id;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
-import io.github.flameyossnowy.universal.api.resolver.ResolveWith;
+import io.github.flameyossnowy.universal.api.annotations.ResolveWith;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sqlite.SQLiteRepositoryAdapter;
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;

@@ -215,6 +215,47 @@ public class TypeResolverRegistry {
         });
     }
 
+    /**
+     * Get or create a JsonCodec using a pre-configured supplier.
+     * This avoids reflection and is the preferred method for code-generated scenarios.
+     *
+     * @param codecClass the codec class (used as cache key)
+     * @param supplier the supplier that instantiates the codec (may return null for DefaultJsonCodec)
+     * @return the JsonCodec instance
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public <T> @NotNull JsonCodec<T> getJsonCodecFromSupplier(
+            Class<? extends JsonCodec> codecClass,
+            java.util.function.Supplier<JsonCodec<?>> supplier) {
+        if (codecClass == null) {
+            throw new IllegalArgumentException("codecClass cannot be null");
+        }
+
+        return (JsonCodec<T>) jsonCodecs.computeIfAbsent((Class<? extends JsonCodec<?>>) codecClass, c -> {
+            // First try the supplier - if it returns non-null, use it
+            JsonCodec<?> supplied = supplier.get();
+            if (supplied != null) {
+                return supplied;
+            }
+
+            // Fall back to DefaultJsonCodec if supplier returns null
+            if (DefaultJsonCodec.class.equals(c)) {
+                Supplier<JsonAdapter> adapterSupplier = this.objectMapperSupplier;
+                if (adapterSupplier == null) {
+                    throw new IllegalStateException(
+                        "DefaultJsonCodec requires a JsonAdapter, but no JsonAdapter supplier was configured"
+                    );
+                }
+                return new DefaultJsonCodec<>(adapterSupplier.get());
+            }
+
+            // For custom codecs where supplier returned null, this is an error
+            throw new IllegalStateException(
+                "JsonCodec supplier returned null for: " + c.getName()
+            );
+        });
+    }
+
     @Nullable
     public String getType(TypeResolver<?> resolver) {
         if (resolver == null) return null;

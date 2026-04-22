@@ -108,12 +108,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         }
 
         this.resolverRegistry = new TypeResolverRegistry();
-        for (Class<? extends TypeResolver<?>> resolverClass : repositoryModel.getRequiredResolvers()) {
-            try {
-                resolverRegistry.register(resolverClass.getDeclaredConstructor().newInstance());
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to instantiate TypeResolver: " + resolverClass, e);
-            }
+        for (java.util.function.Supplier<TypeResolver<?>> resolverSupplier : repositoryModel.getRequiredResolvers()) {
+            resolverRegistry.register(resolverSupplier.get());
         }
 
         JsonConfigBuilder jsonConfigBuilder = JsonAdapter.configBuilder()

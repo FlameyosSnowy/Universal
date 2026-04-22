@@ -201,7 +201,10 @@ public class ValueReaderGenerator {
                         .beginControlFlow("if (__json == null)")
                         .addStatement("return null")
                         .endControlFlow()
-                        .addStatement("$T __codec = registry.getJsonCodec($T.class)",
+                        .addStatement("$T __field = model.fieldByName($S)",
+                            ParameterizedTypeName.get(ClassName.get("io.github.flameyossnowy.universal.api.meta", "FieldModel"), WildcardTypeName.subtypeOf(TypeName.OBJECT)),
+                            field.name())
+                        .addStatement("$T __codec = registry.getJsonCodecFromSupplier($T.class, __field.jsonCodecSupplier())",
                             ParameterizedTypeName.get(jsonCodec, WildcardTypeName.subtypeOf(TypeName.OBJECT)),
                             codecClass)
                         .addStatement("return (T) (($T) __codec).deserialize(__json, (Class) $T.class)",

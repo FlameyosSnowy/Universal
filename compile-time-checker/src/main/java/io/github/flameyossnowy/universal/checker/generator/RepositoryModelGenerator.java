@@ -113,6 +113,7 @@ public final class RepositoryModelGenerator {
             .returns(TypeName.BOOLEAN).addStatement("return $L", repo.globalCacheable()).build());
 
         addRequiredResolvers(type, repo);
+        addCredentialsProviderMethod(type, repo);
         addCacheConfigMethod(type, repo);
 
         type.addMethod(MethodSpec.methodBuilder("constraints")
@@ -148,9 +149,10 @@ public final class RepositoryModelGenerator {
         }
 
         ClassName typeResolverClass  = ClassName.get("io.github.flameyossnowy.universal.api.resolver", "TypeResolver");
+        ClassName supplierClass      = ClassName.get("java.util.function", "Supplier");
         TypeName  typeResolverWild   = ParameterizedTypeName.get(typeResolverClass, WildcardTypeName.subtypeOf(Object.class));
-        TypeName  classOfResolver    = ParameterizedTypeName.get(ClassName.get(Class.class), WildcardTypeName.subtypeOf(typeResolverWild));
-        TypeName  returnType         = ParameterizedTypeName.get(ClassName.get(List.class), classOfResolver);
+        TypeName  supplierOfResolver = ParameterizedTypeName.get(supplierClass, typeResolverWild);
+        TypeName  returnType         = ParameterizedTypeName.get(ClassName.get(List.class), supplierOfResolver);
 
         MethodSpec.Builder m = MethodSpec.methodBuilder("getRequiredResolvers")
             .addAnnotation(Override.class).addModifiers(Modifier.PUBLIC)
@@ -163,10 +165,30 @@ public final class RepositoryModelGenerator {
             boolean first = true;
             for (String qname : resolverClasses) {
                 if (!first) init.add(",\n");
-                init.add("    $T.class", RepositoryFieldModelGenerator.parseClassName(qname));
+                // Generate lambda: () -> new ResolverClass()
+                init.add("    () -> new $T()", RepositoryFieldModelGenerator.parseClassName(qname));
                 first = false;
             }
             m.addStatement(init.add("\n)").build());
+        }
+        type.addMethod(m.build());
+    }
+
+    private static void addCredentialsProviderMethod(TypeSpec.Builder type, RepositoryModel repo) {
+        ClassName supplierClass = ClassName.get("java.util.function", "Supplier");
+        TypeName returnType = ParameterizedTypeName.get(supplierClass, ClassName.get(String.class));
+
+        MethodSpec.Builder m = MethodSpec.methodBuilder("credentialsProvider")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(returnType);
+
+        if (!repo.hasCredentialsProvider()) {
+            m.addStatement("return null");
+        } else {
+            // Generate lambda: () -> new CredentialsProviderClass().get()
+            m.addStatement("return () -> new $T().get()",
+                RepositoryFieldModelGenerator.parseClassName(repo.credentialsProviderQualifiedName()));
         }
         type.addMethod(m.build());
     }

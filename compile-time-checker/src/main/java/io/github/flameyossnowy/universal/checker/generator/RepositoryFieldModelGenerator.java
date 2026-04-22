@@ -132,9 +132,10 @@ public class RepositoryFieldModelGenerator {
         classBuilder.addMethod(createJsonStorageKindMethod(field.jsonStorageKind()));
         classBuilder.addMethod(createNullableStringMethod("jsonColumnDefinition", field.jsonColumnDefinition()));
         classBuilder.addMethod(createJsonCodecMethod(field.jsonCodecClass()));
+        classBuilder.addMethod(createJsonCodecSupplierMethod(field.jsonCodecClass()));
         classBuilder.addMethod(createBooleanMethod("jsonQueryable", field.jsonQueryable()));
         classBuilder.addMethod(createBooleanMethod("jsonPartialUpdate", field.jsonPartialUpdate()));
-		classBuilder.addMethod(createBooleanMethod("jsonVersioned", field.jsonVersioned()));
+        classBuilder.addMethod(createBooleanMethod("jsonVersioned", field.jsonVersioned()));
         classBuilder.addMethod(createJsonIndexesMethod(field.jsonIndexes()));
 
 
@@ -196,6 +197,28 @@ public class RepositoryFieldModelGenerator {
 
         ClassName codecClass = parseClassName(codecClassName);
         method.addStatement("return (Class) $T.class", codecClass);
+        return method.build();
+    }
+
+    public static MethodSpec createJsonCodecSupplierMethod(String codecClassName) {
+        ClassName jsonCodec = ClassName.get("io.github.flameyossnowy.universal.api.json", "JsonCodec");
+        ClassName supplierClass = ClassName.get("java.util.function", "Supplier");
+        TypeName jsonCodecWildcard = ParameterizedTypeName.get(jsonCodec, WildcardTypeName.subtypeOf(Object.class));
+        TypeName returnType = ParameterizedTypeName.get(supplierClass, jsonCodecWildcard);
+
+        MethodSpec.Builder method = MethodSpec.methodBuilder("jsonCodecSupplier")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(returnType);
+
+        if (codecClassName == null) {
+            // Return a supplier that returns null - DefaultJsonCodec will be handled by TypeResolverRegistry
+            method.addStatement("return () -> null");
+            return method.build();
+        }
+
+        ClassName codecClass = parseClassName(codecClassName);
+        method.addStatement("return () -> new $T()", codecClass);
         return method.build();
     }
 

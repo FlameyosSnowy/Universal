@@ -54,6 +54,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -185,12 +186,8 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         this.entityLifecycleListener = repositoryModel.getEntityLifecycleListener();
         this.auditLogger = repositoryModel.getAuditLogger();
 
-        for (Class<? extends TypeResolver<?>> resolverClass : repositoryModel.getRequiredResolvers()) {
-            try {
-                this.typeResolverRegistry.register(resolverClass.getDeclaredConstructor().newInstance());
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to instantiate TypeResolver: " + resolverClass, e);
-            }
+        for (Supplier<TypeResolver<?>> resolverSupplier : repositoryModel.getRequiredResolvers()) {
+            this.typeResolverRegistry.register(resolverSupplier.get());
         }
 
         DelegatingMongoCodecProvider delegatingProvider = new DelegatingMongoCodecProvider();
@@ -633,7 +630,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
             Object bindValue = rawValue;
             FieldModel<?> jsonField = repositoryModel.fieldByName(field);
             if (jsonField != null && jsonField.isJson() && rawValue != null && jsonField.type().isInstance(rawValue)) {
-                JsonCodec<Object> codec = typeResolverRegistry.getJsonCodec(jsonField.jsonCodec());
+                JsonCodec<Object> codec = typeResolverRegistry.getJsonCodecFromSupplier(
+                        jsonField.jsonCodec(),
+                        jsonField.jsonCodecSupplier());
                 String json = codec.serialize(rawValue, (Class<Object>) jsonField.type());
                 bindValue = MongoJsonCodecBridge.jsonToBsonFriendly(json);
             }

@@ -170,7 +170,9 @@ public class SQLDatabaseParameters implements DatabaseParameters {
             if (field != null && field.isJson()) {
                 Object toBind = value;
                 if (field.type().isInstance(value)) {
-                    JsonCodec<Object> codec = typeRegistry.getJsonCodec(field.jsonCodec());
+                    JsonCodec<Object> codec = typeRegistry.getJsonCodecFromSupplier(
+                            field.jsonCodec(),
+                            field.jsonCodecSupplier());
                     toBind = codec.serialize(value, (Class<Object>) field.type());
                 }
                 try {
