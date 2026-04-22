@@ -7,6 +7,7 @@ import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Represents metadata about a field in an entity.
@@ -160,6 +161,13 @@ public interface FieldModel<T> {
     String jsonColumnDefinition(); // nullable
 
     Class<? extends JsonCodec<?>> jsonCodec();
+
+    /**
+     * Returns a supplier that instantiates the JsonCodec for this field.
+     * This avoids reflection-based instantiation at runtime.
+     * The supplier may return null if no custom codec is configured.
+     */
+    Supplier<JsonCodec<?>> jsonCodecSupplier();
 
     boolean jsonQueryable();
 
