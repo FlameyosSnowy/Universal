@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.github.flameyossnowy"
-version = "7.1.5"
+version = "7.1.6"
 
 allprojects {
     tasks.withType<JavaCompile>().configureEach {

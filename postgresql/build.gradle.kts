@@ -14,8 +14,8 @@ dependencies {
     compileOnly("org.jetbrains:annotations:24.0.1")
 
     compileOnly("org.postgresql:postgresql:42.7.2")
-    compileOnly("io.github.flameyossnowy:uniform-json:1.5.9")
-    testCompileOnly("io.github.flameyossnowy:uniform-json:1.5.9")
+    compileOnly("io.github.flameyossnowy:uniform-json:1.5.13")
+    testCompileOnly("io.github.flameyossnowy:uniform-json:1.5.13")
 
     testImplementation("org.postgresql:postgresql:42.7.2")
     testImplementation(project(":core"))

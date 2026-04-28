@@ -15,7 +15,7 @@ dependencies {
     // jackson datatypes
     compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.15.2"
     compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2"*/
-    compileOnly "io.github.flameyossnowy:uniform-json:1.5.9"
+    compileOnly "io.github.flameyossnowy:uniform-json:1.5.13"
     // error prone
     compileOnly "com.google.errorprone:error_prone_annotations:2.18.0"
 
