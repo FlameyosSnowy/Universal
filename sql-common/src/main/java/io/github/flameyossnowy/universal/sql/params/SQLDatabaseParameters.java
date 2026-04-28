@@ -148,11 +148,11 @@ public class SQLDatabaseParameters implements DatabaseParameters {
     /**
      * Extracts the column name from a JSON path expression.
      * Handles PostgreSQL #>> and MySQL JSON_EXTRACT patterns.
-     * 
+     *
      * Examples:
      * - "payload #>> '{n}'" -> "payload"
      * - "JSON_UNQUOTE(JSON_EXTRACT(payload, '$.n'))" -> "payload"
-     * 
+     *
      * @param key the full JSON expression used as parameter key
      * @return the extracted column name, or null if not a JSON expression
      */

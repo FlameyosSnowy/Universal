@@ -22,6 +22,12 @@ class PostgresCacheCorrectnessTests {
             .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
             .build();
 
+        var somethingAdapter = PostgreSQLRepositoryAdapter
+            .builder(Something.class, Long.class)
+            .withCredentials(credentials)
+            .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
+            .build();
+
         adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS Factions CASCADE;");
         adapter.createRepository(true);
 
@@ -45,6 +51,12 @@ class PostgresCacheCorrectnessTests {
 
         var adapter = PostgreSQLRepositoryAdapter
             .builder(Faction.class, Long.class)
+            .withCredentials(credentials)
+            .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
+            .build();
+
+        var somethingAdapter = PostgreSQLRepositoryAdapter
+            .builder(Something.class, Long.class)
             .withCredentials(credentials)
             .withOptimizations(Optimizations.RECOMMENDED_SETTINGS)
             .build();

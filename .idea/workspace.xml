@@ -4,9 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Update versions and dependencies">
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" afterDir="false" />
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Offload hot-path work to compile time generated code and fix JSON parameter issues">
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/buildOutputCleanup.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/executionHistory.bin" afterDir="false" />
@@ -20,61 +18,12 @@
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/resourceHashesCache.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/sha1-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/shelved.patch" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/CombinedEntity.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/ConstraintEntity.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/DbOrder.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/DbOrderCollectionTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/DbProduct.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresAnnotationInteractionTests.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresCacheCorrectnessTests.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresConstraintTests.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresDbProductCollectionTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresRelationshipIntegrityTests.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresTransactionTests.java" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/sketch/first_sketch.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/DbProduct.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/DbProductCollectionTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/DbUser.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/DbUserCollectionTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/Main.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/UserJsonFieldTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/InsertCollectionEntitiesGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/InsertCollectionEntitiesGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/InsertEntityGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/InsertEntityGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryFieldModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryFieldModelGenerator.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryModelGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/UnifiedFactoryGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/UnifiedFactoryGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ValueReaderGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ValueReaderGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/processor/TypeMirrorUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/processor/TypeMirrorUtils.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/ValueReader.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/ValueReader.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/json/DefaultJsonCodec.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/json/DefaultJsonCodec.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/FieldModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/FieldModel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedValueReaders.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/GeneratedValueReaders.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TypeResolverRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TypeResolverRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/MicroservicesJsonCodecBridge.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/MicroservicesJsonCodecBridge.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/MongoRepositoryAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/testapp/Payload.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/Payload.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PayloadWithNulls.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PayloadWithNulls.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresJsonVersionedEntity.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresJsonVersionedEntity.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresPayloadCodec.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresPayloadCodec.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/QueryParseEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/QueryParseEngine.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/SQLCollectionHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/SQLCollectionHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/SQLCollections.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/SQLCollections.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/InsertSqlBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/InsertSqlBuilder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/RepositoryDdlBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/query/RepositoryDdlBuilder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlParameterBinder.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlParameterBinder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlQueryExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlQueryExecutor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/RepositoryRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/RepositoryRegistry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresCacheCorrectnessTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresCacheCorrectnessTests.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/params/SQLDatabaseParameters.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/params/SQLDatabaseParameters.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/CollectionTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/CollectionTypeResolver.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/MapTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/MapTypeResolver.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/MultiMapTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/resolvers/MultiMapTypeResolver.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sqlite/src/test/java/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/User.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sqlite/src/test/java/Password.java" beforeDir="false" afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/Password.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sqlite/src/test/java/PasswordConverter.java" beforeDir="false" afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/PasswordConverter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sqlite/src/test/java/SqliteJsonFilterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/sqlite/src/test/java/testapp/SqliteJsonFilterTest.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -289,6 +238,8 @@
     "Gradle.PostgreSQLOneToOneUuidTest.executor": "Run",
     "Gradle.PostgresAnnotationInteractionTests.executor": "Run",
     "Gradle.PostgresAnnotationsTest.executor": "Run",
+    "Gradle.PostgresAnnotationsTest.sql_parameter_binder_sets_now_value_on_update_and_mutates_entity.executor": "Run",
+    "Gradle.PostgresCacheCorrectnessTests.cache_should_return_consistent_results.executor": "Run",
     "Gradle.PostgresCacheCorrectnessTests.executor": "Run",
     "Gradle.PostgresConstraintTests.executor": "Run",
     "Gradle.PostgresDbProductCollectionTest.executor": "Run",
@@ -400,8 +351,8 @@
       <recent name="io.github.flameyossnow.universal" />
     </key>
   </component>
-  <component name="RunManager" selected="Gradle.DbOrderCollectionTest (1)">
-    <configuration name="DbOrderCollectionTest (1)" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+  <component name="RunManager" selected="Gradle.PostgresCacheCorrectnessTests">
+    <configuration name="NormalTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
@@ -414,7 +365,7 @@
           <list>
             <option value=":postgresql:test" />
             <option value="--tests" />
-            <option value="&quot;testapp.DbOrderCollectionTest&quot;" />
+            <option value="&quot;testapp.NormalTest&quot;" />
           </list>
         </option>
         <option name="vmOptions" />
@@ -428,34 +379,7 @@
       <GradleCoverageDisabled>false</GradleCoverageDisabled>
       <method v="2" />
     </configuration>
-    <configuration name="DbOrderCollectionTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value=":sqlite:test" />
-            <option value="--tests" />
-            <option value="&quot;testapp.DbOrderCollectionTest&quot;" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
-      <GradleProfilingDisabled>false</GradleProfilingDisabled>
-      <GradleCoverageDisabled>false</GradleCoverageDisabled>
-      <method v="2" />
-    </configuration>
-    <configuration name="DbProductCollectionTest (1)" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+    <configuration name="PostgresAnnotationsTest.sql_parameter_binder_sets_now_value_on_update_and_mutates_entity" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
@@ -468,7 +392,7 @@
           <list>
             <option value=":postgresql:test" />
             <option value="--tests" />
-            <option value="&quot;testapp.DbProductCollectionTest&quot;" />
+            <option value="&quot;testapp.PostgresAnnotationsTest.sql_parameter_binder_sets_now_value_on_update_and_mutates_entity&quot;" />
           </list>
         </option>
         <option name="vmOptions" />
@@ -482,34 +406,7 @@
       <GradleCoverageDisabled>false</GradleCoverageDisabled>
       <method v="2" />
     </configuration>
-    <configuration name="DbProductCollectionTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value=":sqlite:test" />
-            <option value="--tests" />
-            <option value="&quot;testapp.DbProductCollectionTest&quot;" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
-      <GradleProfilingDisabled>false</GradleProfilingDisabled>
-      <GradleCoverageDisabled>false</GradleCoverageDisabled>
-      <method v="2" />
-    </configuration>
-    <configuration name="PostgresDbProductCollectionTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+    <configuration name="PostgresCacheCorrectnessTests" type="GradleRunConfiguration" factoryName="Gradle">
       <ExternalSystemSettings>
         <option name="executionName" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
@@ -522,7 +419,88 @@
           <list>
             <option value=":postgresql:test" />
             <option value="--tests" />
-            <option value="&quot;testapp.PostgresDbProductCollectionTest&quot;" />
+            <option value="&quot;testapp.PostgresCacheCorrectnessTests&quot;" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
+    <configuration name="PostgresCacheCorrectnessTests.cache_should_return_consistent_results" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" value="" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value=":postgresql:test" />
+            <option value="--tests" />
+            <option value="&quot;testapp.PostgresCacheCorrectnessTests.cache_should_return_consistent_results&quot;" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>true</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
+    <configuration name="PostgresJsonAndNamedIntegrationTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" value="" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value=":postgresql:test" />
+            <option value="--tests" />
+            <option value="&quot;testapp.PostgresJsonAndNamedIntegrationTest&quot;" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>true</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
+    <configuration name="PostgresJsonFilterTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" value="" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value=":postgresql:test" />
+            <option value="--tests" />
+            <option value="&quot;testapp.PostgresJsonFilterTest&quot;" />
           </list>
         </option>
         <option name="vmOptions" />
@@ -537,19 +515,20 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Gradle.DbOrderCollectionTest (1)" />
-      <item itemvalue="Gradle.DbOrderCollectionTest" />
-      <item itemvalue="Gradle.DbProductCollectionTest" />
-      <item itemvalue="Gradle.DbProductCollectionTest (1)" />
-      <item itemvalue="Gradle.PostgresDbProductCollectionTest" />
+      <item itemvalue="Gradle.PostgresCacheCorrectnessTests" />
+      <item itemvalue="Gradle.NormalTest" />
+      <item itemvalue="Gradle.PostgresAnnotationsTest.sql_parameter_binder_sets_now_value_on_update_and_mutates_entity" />
+      <item itemvalue="Gradle.PostgresCacheCorrectnessTests.cache_should_return_consistent_results" />
+      <item itemvalue="Gradle.PostgresJsonAndNamedIntegrationTest" />
+      <item itemvalue="Gradle.PostgresJsonFilterTest" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Gradle.DbOrderCollectionTest (1)" />
-        <item itemvalue="Gradle.DbProductCollectionTest" />
-        <item itemvalue="Gradle.PostgresDbProductCollectionTest" />
-        <item itemvalue="Gradle.DbProductCollectionTest (1)" />
-        <item itemvalue="Gradle.DbOrderCollectionTest" />
+        <item itemvalue="Gradle.PostgresJsonAndNamedIntegrationTest" />
+        <item itemvalue="Gradle.NormalTest" />
+        <item itemvalue="Gradle.PostgresCacheCorrectnessTests.cache_should_return_consistent_results" />
+        <item itemvalue="Gradle.PostgresJsonFilterTest" />
+        <item itemvalue="Gradle.PostgresAnnotationsTest.sql_parameter_binder_sets_now_value_on_update_and_mutates_entity" />
       </list>
     </recent_temporary>
   </component>
@@ -739,47 +718,7 @@
       <workItem from="1777140023729" duration="3250000" />
       <workItem from="1777144138257" duration="62000" />
       <workItem from="1777147426699" duration="31219000" />
-      <workItem from="1777364068553" duration="8824000" />
-    </task>
-    <task id="LOCAL-00164" summary="Update jitpack and mongodb">
-      <option name="closed" value="true" />
-      <created>1771152262988</created>
-      <option name="number" value="00164" />
-      <option name="presentableId" value="LOCAL-00164" />
-      <option name="project" value="LOCAL" />
-      <updated>1771152262989</updated>
-    </task>
-    <task id="LOCAL-00165" summary="Update .idea">
-      <option name="closed" value="true" />
-      <created>1771152307632</created>
-      <option name="number" value="00165" />
-      <option name="presentableId" value="LOCAL-00165" />
-      <option name="project" value="LOCAL" />
-      <updated>1771152307632</updated>
-    </task>
-    <task id="LOCAL-00166" summary="Update .idea">
-      <option name="closed" value="true" />
-      <created>1771152319527</created>
-      <option name="number" value="00166" />
-      <option name="presentableId" value="LOCAL-00166" />
-      <option name="project" value="LOCAL" />
-      <updated>1771152319527</updated>
-    </task>
-    <task id="LOCAL-00167" summary="Split files into many, fix a few bugs and update tests">
-      <option name="closed" value="true" />
-      <created>1772543431471</created>
-      <option name="number" value="00167" />
-      <option name="presentableId" value="LOCAL-00167" />
-      <option name="project" value="LOCAL" />
-      <updated>1772543431472</updated>
-    </task>
-    <task id="LOCAL-00168" summary="Bump version">
-      <option name="closed" value="true" />
-      <created>1772543509779</created>
-      <option name="number" value="00168" />
-      <option name="presentableId" value="LOCAL-00168" />
-      <option name="project" value="LOCAL" />
-      <updated>1772543509779</updated>
+      <workItem from="1777364068553" duration="15210000" />
     </task>
     <task id="LOCAL-00169" summary="Add cascade">
       <option name="closed" value="true" />
@@ -1133,15 +1072,53 @@
       <option name="project" value="LOCAL" />
       <updated>1777369146739</updated>
     </task>
-    <option name="localTasksCounter" value="213" />
+    <task id="LOCAL-00213" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1777377163330</created>
+      <option name="number" value="00213" />
+      <option name="presentableId" value="LOCAL-00213" />
+      <option name="project" value="LOCAL" />
+      <updated>1777377163330</updated>
+    </task>
+    <task id="LOCAL-00214" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1777377276929</created>
+      <option name="number" value="00214" />
+      <option name="presentableId" value="LOCAL-00214" />
+      <option name="project" value="LOCAL" />
+      <updated>1777377276929</updated>
+    </task>
+    <task id="LOCAL-00215" summary="Update tests">
+      <option name="closed" value="true" />
+      <created>1777377291226</created>
+      <option name="number" value="00215" />
+      <option name="presentableId" value="LOCAL-00215" />
+      <option name="project" value="LOCAL" />
+      <updated>1777377291226</updated>
+    </task>
+    <task id="LOCAL-00216" summary="Fix many issues and replace reflection with codegen">
+      <option name="closed" value="true" />
+      <created>1777377658307</created>
+      <option name="number" value="00216" />
+      <option name="presentableId" value="LOCAL-00216" />
+      <option name="project" value="LOCAL" />
+      <updated>1777377658307</updated>
+    </task>
+    <task id="LOCAL-00217" summary="Offload hot-path work to compile time generated code and fix JSON parameter issues">
+      <option name="closed" value="true" />
+      <created>1777387643502</created>
+      <option name="number" value="00217" />
+      <option name="presentableId" value="LOCAL-00217" />
+      <option name="project" value="LOCAL" />
+      <updated>1777387643502</updated>
+    </task>
+    <option name="localTasksCounter" value="218" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fix @Named issues and JSON issues" />
-    <MESSAGE value="Fix @Named issues and JSON issues, and replace reflection with ServiceLoader" />
     <MESSAGE value="Fix @Named issues and JSON issues, add features&#10;&#10;- Add JsonVersioned&#10;- Remove JsonIgnoreNulls" />
     <MESSAGE value="Add tests" />
     <MESSAGE value="Add GeneratedRepositoryFactory" />
@@ -1159,13 +1136,15 @@
     <MESSAGE value="Update" />
     <MESSAGE value="JVM Change" />
     <MESSAGE value="Fix compile time processing issues" />
-    <MESSAGE value="Update tests" />
     <MESSAGE value="Improve performance, cache eviction behavior and made it tunable" />
     <MESSAGE value="Add more exceptions" />
     <MESSAGE value="Many fixes and improvements:&#10;&#10;- Eliminate getDeclaredConstructor() reflection&#10;- Improve the performance by reusing computations&#10;- Use `Types` instead of string matching for safer processing&#10;- Fix getters/setters beginning with `is` not working (i.e. boolean methods) and record-style methods.&#10;- Make TypeResolver a more trusted source of truth and skipping many checks (which is the intended behavior)" />
     <MESSAGE value="Eliminate getDeclaredConstructor() reflection" />
     <MESSAGE value="Update versions and dependencies" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update versions and dependencies" />
+    <MESSAGE value="Update tests" />
+    <MESSAGE value="Fix many issues and replace reflection with codegen" />
+    <MESSAGE value="Offload hot-path work to compile time generated code and fix JSON parameter issues" />
+    <option name="LAST_COMMIT_MESSAGE" value="Offload hot-path work to compile time generated code and fix JSON parameter issues" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

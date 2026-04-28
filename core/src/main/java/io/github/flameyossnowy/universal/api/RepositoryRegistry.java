@@ -76,6 +76,7 @@ public final class RepositoryRegistry {
     @Nullable
     @SuppressWarnings("unchecked")
     public static <T, ID, C> RepositoryAdapter<T, ID, C> get(@NotNull String name) {
+        System.out.println("name " + name);
         return (RepositoryAdapter<T, ID, C>) ADAPTERS.get(name);
     }
 

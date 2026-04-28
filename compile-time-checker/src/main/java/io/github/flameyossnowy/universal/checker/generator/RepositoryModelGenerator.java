@@ -403,7 +403,7 @@ public final class RepositoryModelGenerator {
             // No fields - use empty map
             type.addField(FieldSpec.builder(mapType, "PARAMETER_NAME_MAP",
                     Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-                .initializer("$T.emptyMap()", map)
+                .initializer("$T.emptyMap()", collections)
                 .build());
         } else {
             init.add("\n))");
@@ -445,7 +445,7 @@ public final class RepositoryModelGenerator {
         if (fieldsByKind.isEmpty()) {
             type.addField(FieldSpec.builder(mapType, "FIELD_INDEXES",
                     Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-                .initializer("$T.emptyMap()", map)
+                .initializer("$T.emptyMap()", collections)
                 .build());
         } else {
             CodeBlock.Builder init = CodeBlock.builder();
