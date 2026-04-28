@@ -118,14 +118,63 @@ public class SQLDatabaseParameters implements DatabaseParameters {
         if (mapped != null) return mapped;
 
         if (repositoryInformation != null) {
-            FieldModel<?> field = repositoryInformation.columnFieldByName(key);
-            if (field != null) {
-                mapped = nameToIndexMap.get(field.columnName());
+            // Fast O(1) lookup using pre-built parameter name mappings (compile-time generated)
+            Map<String, String> paramMappings = repositoryInformation.getParameterNameMappings();
+            String columnName = paramMappings.get(key);
+            if (columnName != null) {
+                mapped = nameToIndexMap.get(columnName);
+                if (mapped != null) return mapped;
+            }
+
+            // Handle JSON path expressions (e.g., "payload #>> '{n}'" or "JSON_UNQUOTE(JSON_EXTRACT(payload, '$.n'))")
+            // JSON paths are dynamic, so we extract the base column name at runtime
+            String jsonColumnName = extractJsonColumnName(key);
+            if (jsonColumnName != null) {
+                // Use the pre-built map to get the actual column name (O(1) instead of O(n) scan)
+                String actualColumn = paramMappings.get(jsonColumnName);
+                if (actualColumn != null) {
+                    mapped = nameToIndexMap.get(actualColumn);
+                    if (mapped != null) return mapped;
+                }
+                // Fallback: try the extracted name directly
+                mapped = nameToIndexMap.get(jsonColumnName);
                 if (mapped != null) return mapped;
             }
         }
 
         throw new IllegalArgumentException("Unknown parameter: " + key);
+    }
+
+    /**
+     * Extracts the column name from a JSON path expression.
+     * Handles PostgreSQL #>> and MySQL JSON_EXTRACT patterns.
+     * 
+     * Examples:
+     * - "payload #>> '{n}'" -> "payload"
+     * - "JSON_UNQUOTE(JSON_EXTRACT(payload, '$.n'))" -> "payload"
+     * 
+     * @param key the full JSON expression used as parameter key
+     * @return the extracted column name, or null if not a JSON expression
+     */
+    private String extractJsonColumnName(String key) {
+        if (key == null) return null;
+
+        // PostgreSQL: "column #>> '{path}'"
+        int postgresJsonIndex = key.indexOf(" #>> '{");
+        if (postgresJsonIndex > 0) {
+            return key.substring(0, postgresJsonIndex).trim();
+        }
+
+        // MySQL: "JSON_UNQUOTE(JSON_EXTRACT(column, '$.path'))"
+        if (key.startsWith("JSON_UNQUOTE(JSON_EXTRACT(")) {
+            int start = "JSON_UNQUOTE(JSON_EXTRACT(".length();
+            int comma = key.indexOf(',', start);
+            if (comma > start) {
+                return key.substring(start, comma).trim();
+            }
+        }
+
+        return null;
     }
 
     @Override
@@ -226,6 +275,31 @@ public class SQLDatabaseParameters implements DatabaseParameters {
     @Override public int size() { return nextDynamicIndex - 1; }
     @Override public <T> @Nullable T get(int idx, @NotNull Class<T> type) { throw new UnsupportedOperationException(); }
     @Override public <T> @Nullable T get(@NotNull String name, @NotNull Class<T> type) { throw new UnsupportedOperationException(); }
-    @Override public boolean contains(@NotNull String name) { return nameToIndexMap.containsKey(name); }
+
+    @Override
+    public boolean contains(@NotNull String name) {
+        if (nameToIndexMap.containsKey(name)) return true;
+
+        if (repositoryInformation != null) {
+            // Fast O(1) lookup using pre-built parameter name mappings
+            Map<String, String> paramMappings = repositoryInformation.getParameterNameMappings();
+            String columnName = paramMappings.get(name);
+            if (columnName != null && nameToIndexMap.containsKey(columnName)) {
+                return true;
+            }
+
+            // Handle JSON path expressions - extract and check via map
+            String jsonColumnName = extractJsonColumnName(name);
+            if (jsonColumnName != null) {
+                String actualColumn = paramMappings.get(jsonColumnName);
+                if (actualColumn != null && nameToIndexMap.containsKey(actualColumn)) {
+                    return true;
+                }
+                return nameToIndexMap.containsKey(jsonColumnName);
+            }
+        }
+        return false;
+    }
+
     public PreparedStatement getStatement() { return statement; }
 }

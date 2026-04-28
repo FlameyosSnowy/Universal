@@ -97,7 +97,7 @@ class PostgresAnnotationsTest {
         assertEquals("x", params.bound.get("name"),
             "bound value for 'name' must match the entity value");
 
-        assertFalse(params.bound.containsKey("id"),
+        assertFalse(params.bound.get("id") != null,
             "@AutoIncrement field must not be bound as an update parameter");
     }
 

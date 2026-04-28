@@ -779,7 +779,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             boolean isJson = jsonField != null;
             JsonStorageKind jsonStorageKind = JsonStorageKind.COLUMN;
             String jsonColumnDefinition = null;
-            String jsonCodecClass = null;
+            String jsonCodecClass = "io.github.flameyossnowy.universal.api.json.DefaultJsonCodec";
             boolean jsonQueryable = false;
             boolean jsonPartialUpdate = false;
             boolean jsonVersioned = false;

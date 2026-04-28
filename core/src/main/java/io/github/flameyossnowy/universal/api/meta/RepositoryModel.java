@@ -147,4 +147,26 @@ public interface RepositoryModel<T, ID> {
     default boolean usesJsonStorage() {
         return !getJsonFields().isEmpty();
     }
+
+    /**
+     * Pre-built mapping from parameter names (including JSON path expressions)
+     * to their base column names. Used for O(1) parameter index lookup at runtime.
+     * Generated at compile time to avoid string parsing in the hot path.
+     *
+     * @return unmodifiable map of parameter name -> column name, or empty map if none
+     */
+    default Map<String, String> getParameterNameMappings() {
+        return Map.of();
+    }
+
+    /**
+     * Pre-built mapping from relationship kind to fields of that kind.
+     * Used for O(1) relationship field lookup in prefetch operations.
+     * Generated at compile time to avoid runtime filtering.
+     *
+     * @return unmodifiable map of RelationshipKind -> list of fields, or empty map if none
+     */
+    default Map<RelationshipKind, List<FieldModel<T>>> getFieldIndexes() {
+        return Map.of();
+    }
 }

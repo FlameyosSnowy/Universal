@@ -94,7 +94,7 @@ class PostgresJsonAndNamedIntegrationTest {
             new PostgresJsonVersionedEntity.Payload("stale"),
             1
         );
-        assertThrows(RepositoryException.class, () -> adapter.updateAll(stale));
+        assertThrows(IllegalStateException.class, () -> adapter.updateAll(stale).get());
     }
 
     @Test

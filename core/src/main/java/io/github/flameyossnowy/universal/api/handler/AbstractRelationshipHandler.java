@@ -731,17 +731,54 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         Map<FieldModel<T>, List<ID>> oneToOne   = new HashMap<>(fields.size());
         Map<FieldModel<T>, List<ID>> manyToOne  = new HashMap<>(fields.size());
 
-        for (Object parent : parents) {
-            ID id = repositoryModel.getPrimaryKeyValue((T) parent);
+        // Use pre-built field indexes for O(1) relationship field lookup (compile-time generated)
+        Map<RelationshipKind, List<FieldModel<T>>> fieldIndexes = repositoryModel.getFieldIndexes();
+        if (!fieldIndexes.isEmpty()) {
+            // Fast path: filter pre-grouped relationship fields by requested field names
+            for (Object parent : parents) {
+                ID id = repositoryModel.getPrimaryKeyValue((T) parent);
 
-            for (String fieldName : fields) {
-                FieldModel<T> field = repositoryModel.fieldByName(fieldName);
-                if (field == null || !field.relationship()) continue;
+                List<FieldModel<T>> oneToManyFields = fieldIndexes.get(RelationshipKind.ONE_TO_MANY);
+                if (oneToManyFields != null) {
+                    for (FieldModel<T> field : oneToManyFields) {
+                        if (fields.contains(field.name())) {
+                            oneToMany.computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                        }
+                    }
+                }
 
-                switch (field.relationshipKind()) {
-                    case ONE_TO_MANY  -> oneToMany .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
-                    case ONE_TO_ONE   -> oneToOne  .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
-                    case MANY_TO_ONE  -> manyToOne .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                List<FieldModel<T>> oneToOneFields = fieldIndexes.get(RelationshipKind.ONE_TO_ONE);
+                if (oneToOneFields != null) {
+                    for (FieldModel<T> field : oneToOneFields) {
+                        if (fields.contains(field.name())) {
+                            oneToOne.computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                        }
+                    }
+                }
+
+                List<FieldModel<T>> manyToOneFields = fieldIndexes.get(RelationshipKind.MANY_TO_ONE);
+                if (manyToOneFields != null) {
+                    for (FieldModel<T> field : manyToOneFields) {
+                        if (fields.contains(field.name())) {
+                            manyToOne.computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Fallback: original behavior for repositories without compile-time indexes
+            for (Object parent : parents) {
+                ID id = repositoryModel.getPrimaryKeyValue((T) parent);
+
+                for (String fieldName : fields) {
+                    FieldModel<T> field = repositoryModel.fieldByName(fieldName);
+                    if (field == null || !field.relationship()) continue;
+
+                    switch (field.relationshipKind()) {
+                        case ONE_TO_MANY  -> oneToMany .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                        case ONE_TO_ONE   -> oneToOne  .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                        case MANY_TO_ONE  -> manyToOne .computeIfAbsent(field, f -> new ArrayList<>(16)).add(id);
+                    }
                 }
             }
         }

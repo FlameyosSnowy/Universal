@@ -80,6 +80,8 @@ public final class RepositoryModelGenerator {
             .build());
 
         addGetters(type, repo, entityClass, idClass.box());
+        addParameterNameMap(type, repo);
+        addFieldIndexes(type, repo, entityClass);
 
         String qualifiedName = GeneratorUtils.qualifiedName(repo.packageName(), implName);
         qualifiedNames.add(qualifiedName);
@@ -87,7 +89,6 @@ public final class RepositoryModelGenerator {
         return qualifiedName;
     }
 
-    // ------------------------------------------------------------------ getters
 
     private static void addGetters(TypeSpec.Builder type, RepositoryModel repo,
                                     ClassName entityClass, TypeName idClass) {
@@ -369,6 +370,116 @@ public final class RepositoryModelGenerator {
         type.addMethod(MethodSpec.methodBuilder("createGlobalSessionCache")
             .returns(typeName)
             .addStatement("return new $T();", repo.sessionCache())
+            .build());
+    }
+
+    private static void addParameterNameMap(TypeSpec.Builder type, RepositoryModel repo) {
+        ClassName map = ClassName.get("java.util", "Map");
+        ClassName collections = ClassName.get("java.util", "Collections");
+        TypeName mapType = ParameterizedTypeName.get(map, ClassName.get(String.class), ClassName.get(String.class));
+
+        CodeBlock.Builder init = CodeBlock.builder();
+        init.add("$T.unmodifiableMap($T.ofEntries(\n", collections, map);
+
+        boolean first = true;
+        // Add field names and column names mapping to themselves
+        for (FieldModel f : repo.fields()) {
+            String fieldName = f.name();
+            String columnName = f.columnName();
+
+            // Map field name to column name
+            if (!first) init.add(",\n");
+            init.add("  $T.entry($S, $S)", map, fieldName, columnName != null ? columnName : fieldName);
+            first = false;
+
+            // Map column name to itself (if different from field name)
+            if (columnName != null && !columnName.equals(fieldName)) {
+                init.add(",\n");
+                init.add("  $T.entry($S, $S)", map, columnName, columnName);
+            }
+        }
+
+        if (first) {
+            // No fields - use empty map
+            type.addField(FieldSpec.builder(mapType, "PARAMETER_NAME_MAP",
+                    Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer("$T.emptyMap()", map)
+                .build());
+        } else {
+            init.add("\n))");
+            type.addField(FieldSpec.builder(mapType, "PARAMETER_NAME_MAP",
+                    Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer(init.build())
+                .build());
+        }
+
+        type.addMethod(MethodSpec.methodBuilder("getParameterNameMappings")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(mapType)
+            .addStatement("return PARAMETER_NAME_MAP")
+            .build());
+    }
+
+    private static void addFieldIndexes(TypeSpec.Builder type, RepositoryModel repo, ClassName entityClass) {
+        ClassName map = ClassName.get("java.util", "Map");
+        ClassName list = ClassName.get("java.util", "List");
+        ClassName collections = ClassName.get("java.util", "Collections");
+        ClassName relationshipKind = ClassName.get("io.github.flameyossnowy.universal.api.meta", "RelationshipKind");
+        ClassName fieldModel = ClassName.get("io.github.flameyossnowy.universal.api.meta", "FieldModel");
+
+        TypeName fieldModelType = ParameterizedTypeName.get(fieldModel, entityClass);
+        TypeName listType = ParameterizedTypeName.get(list, fieldModelType);
+        TypeName mapType = ParameterizedTypeName.get(map, relationshipKind, listType);
+
+        // Group fields by relationship kind
+        Map<RelationshipKind, List<String>> fieldsByKind = new EnumMap<>(RelationshipKind.class);
+        int fieldIndex = 0;
+        for (FieldModel f : repo.fields()) {
+            if (f.relationship()) {
+                fieldsByKind.computeIfAbsent(f.relationshipKind(), k -> new ArrayList<>()).add("FIELDS[" + fieldIndex + "]");
+            }
+            fieldIndex++;
+        }
+
+        if (fieldsByKind.isEmpty()) {
+            type.addField(FieldSpec.builder(mapType, "FIELD_INDEXES",
+                    Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer("$T.emptyMap()", map)
+                .build());
+        } else {
+            CodeBlock.Builder init = CodeBlock.builder();
+            init.add("$T.unmodifiableMap($T.ofEntries(\n", collections, map);
+
+            boolean first = true;
+            for (Map.Entry<RelationshipKind, List<String>> entry : fieldsByKind.entrySet()) {
+                if (!first) init.add(",\n");
+                first = false;
+
+                RelationshipKind kind = entry.getKey();
+                List<String> fieldRefs = entry.getValue();
+
+                // Build list initializer
+                init.add("  $T.entry($T.$L, $T.of(", map, relationshipKind, kind.name(), list);
+                for (int i = 0; i < fieldRefs.size(); i++) {
+                    if (i > 0) init.add(", ");
+                    init.add("($T) $L", fieldModelType, fieldRefs.get(i));
+                }
+                init.add("))");
+            }
+            init.add("\n))");
+
+            type.addField(FieldSpec.builder(mapType, "FIELD_INDEXES",
+                    Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer(init.build())
+                .build());
+        }
+
+        type.addMethod(MethodSpec.methodBuilder("getFieldIndexes")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(mapType)
+            .addStatement("return FIELD_INDEXES")
             .build());
     }
 
