@@ -136,7 +136,8 @@ public final class SqlParameterBinder<T, ID> {
 
         JsonCodec<Object> codec = resolverRegistry.getJsonCodecFromSupplier(
                 jsonField.jsonCodec(),
-                jsonField.jsonCodecSupplier());
+                jsonField.jsonCodecSupplier(),
+                resolverRegistry.getJsonAdapter());
         if (isWholeJsonValue) {
             bindValue = codec.serialize(rawValue, (Class<Object>) jsonField.type());
         }

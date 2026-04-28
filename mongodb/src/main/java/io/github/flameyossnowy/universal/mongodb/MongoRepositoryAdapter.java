@@ -632,7 +632,8 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
             if (jsonField != null && jsonField.isJson() && rawValue != null && jsonField.type().isInstance(rawValue)) {
                 JsonCodec<Object> codec = typeResolverRegistry.getJsonCodecFromSupplier(
                         jsonField.jsonCodec(),
-                        jsonField.jsonCodecSupplier());
+                        jsonField.jsonCodecSupplier(),
+                        objectMapper);
                 String json = codec.serialize(rawValue, (Class<Object>) jsonField.type());
                 bindValue = MongoJsonCodecBridge.jsonToBsonFriendly(json);
             }

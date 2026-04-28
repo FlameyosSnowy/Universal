@@ -17,6 +17,7 @@ import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.checker.FieldModel;
+import io.github.flameyossnowy.universal.checker.GeneratorUtils;
 import io.github.flameyossnowy.universal.checker.RelationshipModel;
 import io.github.flameyossnowy.universal.checker.RepositoryModel;
 import io.github.flameyossnowy.universal.checker.processor.AnnotationUtils;
@@ -68,6 +69,8 @@ public class ValueReaderGenerator {
         ClassName dbResult = ClassName.get("io.github.flameyossnowy.universal.api.result", "DatabaseResult");
         ClassName typeResolverRegistry = ClassName.get("io.github.flameyossnowy.universal.api.resolver", "TypeResolverRegistry");
         ClassName jsonCodec = ClassName.get(JsonCodec.class);
+        ClassName repositoryModel = ClassName.get("io.github.flameyossnowy.universal.api.meta", "RepositoryModel");
+        ParameterizedTypeName repoModelType = ParameterizedTypeName.get(repositoryModel, WildcardTypeName.subtypeOf(TypeName.OBJECT), TypeVariableName.get("ID"));
 
         // Handle null ID type - use Void as placeholder for entities without IDs
         TypeName idTypeName;
@@ -87,7 +90,7 @@ public class ValueReaderGenerator {
             .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
             .addStaticBlock(CodeBlock.builder()
                 .addStatement(
-                    "io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders.<$T>register($S, (result, registry, id) -> new $L(result, registry, id))",
+                    "io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders.<$T>register($S, (result, registry, id, model) -> new $L(result, registry, id, model))",
                     idTypeName,
                     repo.tableName(),
                     repo.entitySimpleName() + "_ValueReader"
@@ -97,11 +100,12 @@ public class ValueReaderGenerator {
         builder.addField(FieldSpec.builder(dbResult, "result", Modifier.PRIVATE).build());
         builder.addField(FieldSpec.builder(typeResolverRegistry, "registry", Modifier.PRIVATE).build());
         builder.addField(FieldSpec.builder(TypeVariableName.get("ID"), "id", Modifier.PRIVATE).build());
+        builder.addField(FieldSpec.builder(repoModelType, "model", Modifier.PRIVATE).build());
 
         CodeBlock.Builder columnNamesInit = CodeBlock.builder().add("{\n");
         for (FieldModel field : repo.fields()) {
             if (!field.participatesInConstruction()) continue;
-            if (!field.isNotCollection(types, elements)) continue;
+            if (!field.isJson() && !field.isNotCollection(types, elements)) continue;
             columnNamesInit.add("  $S,\n", field.columnName());
         }
         columnNamesInit.add("}");
@@ -118,9 +122,11 @@ public class ValueReaderGenerator {
             .addParameter(dbResult, "result")
             .addParameter(typeResolverRegistry, "registry")
             .addParameter(TypeVariableName.get("ID"), "id")
+            .addParameter(repoModelType, "model")
             .addStatement("this.result = result")
             .addStatement("this.registry = registry")
             .addStatement("this.id = id")
+            .addStatement("this.model = model")
             .build());
 
         // for ServiceLoader
@@ -142,6 +148,13 @@ public class ValueReaderGenerator {
             .addModifiers(Modifier.PUBLIC)
             .returns(TypeVariableName.get("ID"))
             .addStatement("return id")
+            .build());
+
+        builder.addMethod(MethodSpec.methodBuilder("getRepositoryModel")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(ParameterizedTypeName.get(repositoryModel, WildcardTypeName.subtypeOf(TypeName.OBJECT), WildcardTypeName.subtypeOf(TypeName.OBJECT)))
+            .addStatement("return model")
             .build());
 
         MethodSpec.Builder readMethod = MethodSpec.methodBuilder("read")
@@ -180,7 +193,7 @@ public class ValueReaderGenerator {
             String columnName = field.columnName();
             TypeMirror fieldType = field.type();
 
-            boolean needsSpecialHandling = !field.relationship() && needsSpecialLoader(fieldType);
+            boolean needsSpecialHandling = !field.relationship() && !field.isJson() && needsSpecialLoader(fieldType);
 
             if (needsSpecialHandling) {
                 readMethod.addStatement("case $L: return (T) read$L($S)", index, helperMethodIndex, columnName);
@@ -204,14 +217,16 @@ public class ValueReaderGenerator {
                         .addStatement("$T __field = model.fieldByName($S)",
                             ParameterizedTypeName.get(ClassName.get("io.github.flameyossnowy.universal.api.meta", "FieldModel"), WildcardTypeName.subtypeOf(TypeName.OBJECT)),
                             field.name())
-                        .addStatement("$T __codec = registry.getJsonCodecFromSupplier($T.class, __field.jsonCodecSupplier())",
+                        .addStatement("$T __adapter = registry.getJsonAdapter()",
+                            ClassName.get("io.github.flameyossnowy.uniform.json", "JsonAdapter"))
+                        .addStatement("$T __codec = registry.getJsonCodecFromSupplier($T.class, __field.jsonCodecSupplier(), __adapter)",
                             ParameterizedTypeName.get(jsonCodec, WildcardTypeName.subtypeOf(TypeName.OBJECT)),
                             codecClass)
                         .addStatement("return (T) (($T) __codec).deserialize(__json, (Class) $T.class)",
                             jsonCodec,
                             typeName)
                         .nextControlFlow("catch ($T e)", Exception.class)
-                        .addStatement("return null")
+                        .addStatement("throw new $T($S + e.getMessage(), e)", RuntimeException.class, "Failed to deserialize JSON field '" + columnName + "': ")
                         .endControlFlow()
                         .build());
                     readMethod.endControlFlow();
@@ -257,7 +272,7 @@ public class ValueReaderGenerator {
         for (FieldModel field : repo.fields()) {
             if (!field.participatesInConstruction()) continue;
 
-            if (!field.relationship() && needsSpecialLoader(field.type())) {
+            if (!field.relationship() && !field.isJson() && needsSpecialLoader(field.type())) {
                 String methodName = "read" + helperMethodIndex;
                 generateValueReaderMethod(builder, field, methodName, "result.repositoryModel()");
                 helperMethodIndex++;
@@ -289,6 +304,34 @@ public class ValueReaderGenerator {
             return types.erasure(type);
         }
         return type;
+    }
+
+    /**
+     * Returns the raw ClassName for use with .class literals.
+     * Generic types like Map<String, String> can't use .class directly.
+     */
+    private TypeName rawClassForLiteral(TypeMirror type) {
+        if (type == null) return TypeName.OBJECT;
+        // For declared types (classes/interfaces), get the raw type without generics
+        if (type instanceof DeclaredType dt) {
+            String qualifiedName = dt.asElement().toString();
+            return ClassName.bestGuess(qualifiedName);
+        }
+        return TypeName.get(type);
+    }
+
+    /**
+     * Determines CollectionKind for multimap value collections.
+     * Returns LIST for List values, SET for Set values, etc.
+     */
+    private String getCollectionKindForType(TypeMirror type) {
+        if (type == null) return "LIST";
+        String typeStr = type.toString();
+        if (typeStr.startsWith("java.util.Set")) return "SET";
+        if (typeStr.startsWith("java.util.List")) return "LIST";
+        if (typeStr.startsWith("java.util.Collection")) return "LIST";
+        // Default to LIST for other collection types
+        return "LIST";
     }
 
     public boolean needsSpecialLoader(TypeMirror type) {
@@ -366,20 +409,27 @@ public class ValueReaderGenerator {
             );
 
             if (isMultiMap) {
+                // For multimaps: Map<K, Collection<V>>
+                // - keyType = K (from mapKeyType)
+                // - elementType = V (from value collection's element type)
+                // - collectionKind = LIST/SET based on value collection type
+                String collectionKind = getCollectionKindForType(field.mapValueType());
+                // Extract element type from the value collection (e.g., String from List<String>)
+                TypeMirror collectionElementType = GeneratorUtils.genericArg(field.mapValueType(), 0);
                 methodBuilder.addStatement(
                     "return result.getCollectionHandler().fetchMultiMap(id, columnName, $T.class, $T.class, $T.$L, ($T) $L)",
-                    TypeName.get(field.mapKeyType()),
-                    TypeName.get(field.elementType()),
+                    rawClassForLiteral(field.mapKeyType()),
+                    rawClassForLiteral(collectionElementType),
                     ClassName.get("io.github.flameyossnowy.universal.api.factory", "CollectionKind"),
-                    field.collectionKind().name(),
+                    collectionKind,
                     repoModelType,
                     repoModelRef
                 );
             } else {
                 methodBuilder.addStatement(
                     "return result.getCollectionHandler().fetchMap(id, columnName, $T.class, $T.class, ($T) $L)",
-                    TypeName.get(field.mapKeyType()),
-                    TypeName.get(field.mapValueType()),
+                    rawClassForLiteral(field.mapKeyType()),
+                    rawClassForLiteral(field.mapValueType()),
                     repoModelType,
                     repoModelRef
                 );
@@ -394,7 +444,7 @@ public class ValueReaderGenerator {
 
             methodBuilder.addStatement(
                 "return result.getCollectionHandler().fetchCollection(id, columnName, $T.class, $T.$L, ($T) $L)",
-                TypeName.get(field.elementType()),
+                rawClassForLiteral(field.elementType()),
                 ClassName.get("io.github.flameyossnowy.universal.api.factory", "CollectionKind"),
                 field.collectionKind().name(),
                 repoModelType,

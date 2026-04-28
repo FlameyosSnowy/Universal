@@ -5,9 +5,10 @@ import io.github.flameyossnowy.universal.api.annotations.OnDelete;
 import io.github.flameyossnowy.universal.api.annotations.OnUpdate;
 import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
 
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Represents metadata about a field in an entity.
@@ -163,11 +164,14 @@ public interface FieldModel<T> {
     Class<? extends JsonCodec<?>> jsonCodec();
 
     /**
-     * Returns a supplier that instantiates the JsonCodec for this field.
+     * Returns a function that instantiates the JsonCodec for this field.
      * This avoids reflection-based instantiation at runtime.
-     * The supplier may return null if no custom codec is configured.
+     * The function receives the JsonAdapter and returns the codec instance.
+     * For DefaultJsonCodec, the function uses the provided adapter.
+     * For custom codecs, the function attempts to find a constructor that accepts
+     * JsonAdapter, or falls back to a no-arg constructor if not available.
      */
-    Supplier<JsonCodec<?>> jsonCodecSupplier();
+    Function<JsonAdapter, JsonCodec<?>> jsonCodecSupplier();
 
     boolean jsonQueryable();
 

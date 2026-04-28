@@ -123,6 +123,7 @@ public class QueryParseEngine<T, ID> {
     }
 
     public @NotNull ParameterizedSql parseInsert() {
+        Logging.deepInfo(() -> "Parsed query for insert: " + insert);
         return insert;
     }
 

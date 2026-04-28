@@ -23,6 +23,22 @@ public final class InsertCollectionEntitiesGenerator {
 
     public InsertCollectionEntitiesGenerator() {}
 
+    /**
+     * Returns the raw ClassName for use with .class literals.
+     * Generic types like Map<String, String> can't use .class directly,
+     * so we need the raw type (Map.class).
+     */
+    private static TypeName rawClassForLiteral(TypeMirror type) {
+        if (type == null) return TypeName.OBJECT;
+        // For declared types (classes/interfaces), get the raw type without generics
+        if (type instanceof javax.lang.model.type.DeclaredType dt) {
+            // Get the type element and create a raw ClassName from it
+            String qualifiedName = dt.asElement().toString();
+            return ClassName.bestGuess(qualifiedName);
+        }
+        return TypeName.get(type);
+    }
+
     public static MethodSpec generate(RepositoryModel repo, ClassName entityType, TypeName idType) {
         ClassName dbParams         = ClassName.get("io.github.flameyossnowy.universal.api.params",   "DatabaseParameters");
         ClassName collectionHandler = ClassName.get("io.github.flameyossnowy.universal.api.handler", "CollectionHandler");
@@ -40,6 +56,8 @@ public final class InsertCollectionEntitiesGenerator {
         boolean hasCollections = false;
 
         for (FieldModel field : repo.fields()) {
+            if (field.isJson()) continue;  // JSON fields are stored in the main table column
+
             if (field.relationship()) {
                 RelationshipModel relationshipModel1 = repo.relationships().stream().filter((relationshipModel -> relationshipModel.hasField(field))).findFirst().orElse(null);
                 if (!(field.relationshipKind() == RelationshipKind.ONE_TO_ONE || field.relationshipKind() == RelationshipKind.MANY_TO_ONE)
@@ -59,12 +77,11 @@ public final class InsertCollectionEntitiesGenerator {
 
                 hasCollections = true;
                 TypeMirror elementMirror = GeneratorUtils.genericArg(fieldType, 0);
-                ClassName  elementClass  = ClassName.bestGuess(
-                    elementMirror != null ? elementMirror.toString() : "Object");
+                TypeName elementType = rawClassForLiteral(elementMirror);
 
                 m.addStatement(
                     "handler.insertCollection(id, $S, $L, $T.class, this.repositoryModel)",
-                    fieldName, getterCall, elementClass);
+                    fieldName, getterCall, elementType);
                 continue;
             }
 
@@ -73,23 +90,16 @@ public final class InsertCollectionEntitiesGenerator {
                 TypeMirror keyMirror = GeneratorUtils.genericArg(fieldType, 0);
                 TypeMirror valueMirror = GeneratorUtils.genericArg(fieldType, 1);
 
-                TypeName keyType =
-                    keyMirror != null
-                        ? TypeName.get(keyMirror)
-                        : TypeName.OBJECT;
+                TypeName keyType = rawClassForLiteral(keyMirror);
 
-                TypeName valueType =
-                    valueMirror != null
-                        ? TypeName.get(valueMirror)
-                        : TypeName.OBJECT;
+                TypeName valueType = rawClassForLiteral(valueMirror);
 
                 if (GeneratorUtils.isMultiMap(valueMirror)) {
                     TypeMirror colValueMirror = GeneratorUtils.genericArg(valueMirror, 0);
-                    ClassName  colValueClass  = ClassName.bestGuess(
-                        colValueMirror != null ? colValueMirror.toString() : "Object");
+                    TypeName colValueType = rawClassForLiteral(colValueMirror);
                     m.addStatement(
                         "handler.insertMultiMap(id, $S, $L, $T.class, $T.class, this.repositoryModel)",
-                        fieldName, getterCall, keyType, colValueClass);
+                        fieldName, getterCall, keyType, colValueType);
                 } else {
                     m.addStatement(
                         "handler.insertMap(id, $S, $L, $T.class, $T.class, this.repositoryModel)",
@@ -102,12 +112,12 @@ public final class InsertCollectionEntitiesGenerator {
                 hasCollections = true;
                 ArrayType  arrayType      = (ArrayType) fieldType;
                 TypeMirror componentType  = arrayType.getComponentType();
-                ClassName  componentClass = ClassName.bestGuess(componentType.toString());
+                TypeName   componentTypeName = rawClassForLiteral(componentType);
 
                 m.beginControlFlow("if (!params.supportsArraysNatively())")
                     .addStatement(
                         "handler.insertArray(id, $S, $L, $T.class, this.repositoryModel)",
-                        fieldName, getterCall, componentClass)
+                        fieldName, getterCall, componentTypeName)
                     .endControlFlow();
             }
         }

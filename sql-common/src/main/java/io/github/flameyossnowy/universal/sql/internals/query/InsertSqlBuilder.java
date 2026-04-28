@@ -2,6 +2,7 @@ package io.github.flameyossnowy.universal.sql.internals.query;
 
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
 
 import static io.github.flameyossnowy.universal.sql.internals.query.RepositoryDdlBuilder.hasPhysicalColumn;
 
@@ -27,7 +29,7 @@ public final class InsertSqlBuilder<T, ID> {
         List<String> paramNames = new ArrayList<>(8);
 
         for (FieldModel<T> data : repositoryInformation.fields()) {
-            if (Collection.class.isAssignableFrom(data.type()) || Map.class.isAssignableFrom(data.type())) continue;
+            if ((Collection.class.isAssignableFrom(data.type()) || Map.class.isAssignableFrom(data.type())) && !data.isJson()) continue;
 
             // Add companion version column for @JsonVersioned fields BEFORE the main column.
             if (data.isJson() && data.jsonVersioned()) {
@@ -44,8 +46,9 @@ public final class InsertSqlBuilder<T, ID> {
             if (data.autoIncrement()) {
                 placeholderJoiner.add("default");
             } else {
-                if (sqlType == QueryParseEngine.SQLType.POSTGRESQL && data.isJson()) {
-                    placeholderJoiner.add("?::jsonb");
+                if (data.isJson()) {
+                    if (sqlType == QueryParseEngine.SQLType.POSTGRESQL) placeholderJoiner.add("?::jsonb");
+                    else placeholderJoiner.add("?");
                 } else {
                     placeholderJoiner.add("?");
                 }

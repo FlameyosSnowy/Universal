@@ -54,6 +54,21 @@ public final class TypeMirrorUtils {
         return false;
     }
 
+    /**
+     * Checks if the given type is a Collection with Map as its element type.
+     * Examples: List<Map<String, Object>>, Set<Map<K, V>>, etc.
+     */
+    public static boolean isCollectionOfMaps(Types types, Elements elements, TypeMirror mirror) {
+        if (!isCollection(types, elements, mirror)) return false;
+
+        if (mirror instanceof DeclaredType dt && !dt.getTypeArguments().isEmpty()) {
+            TypeMirror elementType = dt.getTypeArguments().get(0);
+            return isMap(types, elements, elementType);
+        }
+
+        return false;
+    }
+
     public static boolean isArray(TypeMirror mirror) {
         return mirror != null && mirror.getKind() == TypeKind.ARRAY;
     }

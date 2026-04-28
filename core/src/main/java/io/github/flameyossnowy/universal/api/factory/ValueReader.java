@@ -1,6 +1,6 @@
 package io.github.flameyossnowy.universal.api.factory;
 
-import io.github.flameyossnowy.universal.api.params.DatabaseParameters;
+import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 
 /**
@@ -25,4 +25,14 @@ public interface ValueReader<ID> {
     ID getId();
 
     DatabaseResult getDatabaseResult();
+
+    /**
+     * Gets the repository model associated with this value reader.
+     * <p>
+     * This provides access to entity metadata such as fields, relationships,
+     * and other repository configuration.
+     *
+     * @return the repository model for the entity being read
+     */
+    RepositoryModel<?, ?> getRepositoryModel();
 }

@@ -13,30 +13,46 @@ import io.github.flameyossnowy.universal.api.annotations.Condition;
 import io.github.flameyossnowy.universal.api.annotations.OnDelete;
 import io.github.flameyossnowy.universal.api.annotations.OnUpdate;
 import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
+import io.github.flameyossnowy.universal.api.json.DefaultJsonCodec;
+import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
 import io.github.flameyossnowy.universal.checker.FieldModel;
 import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
+import javax.annotation.processing.Messager;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
+import javax.tools.Diagnostic;
 import java.util.List;
 
 import static io.github.flameyossnowy.universal.checker.GeneratorUtils.literal;
 
 public class RepositoryFieldModelGenerator {
-    public static void generateFieldModels(TypeSpec.Builder type, RepositoryModel repo, ClassName entityClass) {
+    public static void generateFieldModels(
+        TypeSpec.Builder type,
+        RepositoryModel repo,
+        ClassName entityClass,
+        Elements elements,
+        Types types,
+        Messager messager) {
         ClassName fieldModel = ClassName.get("io.github.flameyossnowy.universal.api.meta", "FieldModel");
         TypeName fieldModelType = ParameterizedTypeName.get(fieldModel, entityClass);
 
         // Generate individual field model classes
         for (FieldModel f : repo.fields()) {
-            TypeSpec fieldModelClass = generateFieldModelClass(f, entityClass);
+            TypeSpec fieldModelClass = generateFieldModelClass(f, entityClass, elements, types, messager);
             type.addType(fieldModelClass);
         }
 
@@ -79,8 +95,8 @@ public class RepositoryFieldModelGenerator {
 
     public static TypeSpec generateFieldModelClass(
         FieldModel field,
-        ClassName entityClass
-    ) {
+        ClassName entityClass,
+        Elements elements, Types types, Messager messager) {
         String className = entityClass.simpleName() + "_" + field.name() + "_FieldModel";
         ClassName fieldModelInterface = ClassName.get(
             "io.github.flameyossnowy.universal.api.meta",
@@ -132,7 +148,8 @@ public class RepositoryFieldModelGenerator {
         classBuilder.addMethod(createJsonStorageKindMethod(field.jsonStorageKind()));
         classBuilder.addMethod(createNullableStringMethod("jsonColumnDefinition", field.jsonColumnDefinition()));
         classBuilder.addMethod(createJsonCodecMethod(field.jsonCodecClass()));
-        classBuilder.addMethod(createJsonCodecSupplierMethod(field.jsonCodecClass()));
+
+        classBuilder.addMethod(createJsonCodecSupplierMethod(field.jsonCodecClass(), elements, types, messager));
         classBuilder.addMethod(createBooleanMethod("jsonQueryable", field.jsonQueryable()));
         classBuilder.addMethod(createBooleanMethod("jsonPartialUpdate", field.jsonPartialUpdate()));
         classBuilder.addMethod(createBooleanMethod("jsonVersioned", field.jsonVersioned()));
@@ -200,25 +217,86 @@ public class RepositoryFieldModelGenerator {
         return method.build();
     }
 
-    public static MethodSpec createJsonCodecSupplierMethod(String codecClassName) {
+    public static MethodSpec createJsonCodecSupplierMethod(String codecClassName, Elements elements, Types types, Messager messager) {
         ClassName jsonCodec = ClassName.get("io.github.flameyossnowy.universal.api.json", "JsonCodec");
-        ClassName supplierClass = ClassName.get("java.util.function", "Supplier");
+        ClassName functionClass = ClassName.get("java.util.function", "Function");
+        ClassName jsonAdapter = ClassName.get("io.github.flameyossnowy.uniform.json", "JsonAdapter");
+        ClassName defaultJsonCodec = ClassName.get(DefaultJsonCodec.class);
+
         TypeName jsonCodecWildcard = ParameterizedTypeName.get(jsonCodec, WildcardTypeName.subtypeOf(Object.class));
-        TypeName returnType = ParameterizedTypeName.get(supplierClass, jsonCodecWildcard);
+        TypeName returnType = ParameterizedTypeName.get(functionClass, jsonAdapter, jsonCodecWildcard);
+
+        TypeElement codecClassElement = elements.getTypeElement(codecClassName);
+        TypeElement mirror = elements.getTypeElement(DefaultJsonCodec.class.getCanonicalName());
+        TypeElement jsonCodecType = elements.getTypeElement(JsonCodec.class.getCanonicalName());
+
 
         MethodSpec.Builder method = MethodSpec.methodBuilder("jsonCodecSupplier")
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
             .returns(returnType);
 
-        if (codecClassName == null) {
-            // Return a supplier that returns null - DefaultJsonCodec will be handled by TypeResolverRegistry
-            method.addStatement("return () -> null");
+        if ("io.github.flameyossnowy.universal.api.json.DefaultJsonCodec".equals(codecClassName)) {
+            method.addStatement("return adapter -> new $T(adapter)", defaultJsonCodec);
             return method.build();
         }
 
         ClassName codecClass = parseClassName(codecClassName);
-        method.addStatement("return () -> new $T()", codecClass);
+        // Generate a function that tries to instantiate with adapter, falls back to no-arg constructor
+        boolean hasAdapterCtor = false;
+        boolean hasNoArgCtor = false;
+
+        for (Element e : mirror.getEnclosedElements()) {
+            if (e.getKind() != ElementKind.CONSTRUCTOR) continue;
+
+            ExecutableElement constructor = (ExecutableElement) e;
+            List<? extends VariableElement> parameters = constructor.getParameters();
+
+            if (parameters.isEmpty()) {
+                hasNoArgCtor = true;
+            } else if (parameters.size() == 1 &&
+                types.isAssignable(parameters.get(0).asType(), jsonCodecType.asType())) {
+                hasAdapterCtor = true;
+            }
+        }
+
+// Now generate code based on what exists
+        if (hasAdapterCtor && hasNoArgCtor) {
+            method.addStatement(
+                "return adapter -> { " +
+                    "try { return new $T(adapter); } " +
+                    "catch (Exception e) { " +
+                    "try { return new $T(); } " +
+                    "catch (Exception e2) { " +
+                    "throw new RuntimeException(\"Failed to instantiate JsonCodec: $L\", e2); " +
+                    "} " +
+                    "} " +
+                    "}",
+                codecClass, codecClass, codecClass.simpleName()
+            );
+        } else if (hasAdapterCtor) {
+            method.addStatement(
+                "return adapter -> { " +
+                    "try { return new $T(adapter); } " +
+                    "catch (Exception e) { " +
+                    "throw new RuntimeException(\"Failed to instantiate JsonCodec: $L\", e); " +
+                    "} " +
+                    "}",
+                codecClass, codecClass.simpleName()
+            );
+        } else if (hasNoArgCtor) {
+            method.addStatement(
+                "return adapter -> { " +
+                    "try { return new $T(); } " +
+                    "catch (Exception e) { " +
+                    "throw new RuntimeException(\"Failed to instantiate JsonCodec: $L\", e); " +
+                    "} " +
+                    "}",
+                codecClass, codecClass.simpleName()
+            );
+        } else {
+            messager.printMessage(Diagnostic.Kind.ERROR, "No usable constructor found for " + codecClassName, codecClassElement);
+        }
         return method.build();
     }
 

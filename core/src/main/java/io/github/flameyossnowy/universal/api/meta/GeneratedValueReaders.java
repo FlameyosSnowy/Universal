@@ -33,11 +33,12 @@ public final class GeneratedValueReaders {
             throw new IllegalArgumentException("No ValueReader registered for: " + tableName);
         }
 
-        return factory.apply(result, registry, id);
+        RepositoryModel<?, ?> model = result.repositoryModel();
+        return factory.apply(result, registry, id, model);
     }
 
     @FunctionalInterface
     public interface ValueReaderRegistration<ID> {
-        ValueReader apply(DatabaseResult result, TypeResolverRegistry registry, ID id);
+        ValueReader apply(DatabaseResult result, TypeResolverRegistry registry, ID id, RepositoryModel<?, ?> model);
     }
 }

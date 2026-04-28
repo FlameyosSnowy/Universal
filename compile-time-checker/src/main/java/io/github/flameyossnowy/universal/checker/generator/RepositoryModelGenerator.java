@@ -9,7 +9,10 @@ import io.github.flameyossnowy.universal.checker.*;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
+import javax.annotation.processing.Messager;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import java.util.*;
 
 /**
@@ -21,12 +24,16 @@ import java.util.*;
 public final class RepositoryModelGenerator {
 
     private final Filer filer;
+    private final Elements elements;
+    private final Types types;
+    private final Messager messager;
 
-    public RepositoryModelGenerator(Filer filer) {
+    public RepositoryModelGenerator(Filer filer, Elements elements, Types types, Messager messager) {
         this.filer = filer;
+        this.elements = elements;
+        this.types = types;
+        this.messager = messager;
     }
-
-    // ------------------------------------------------------------------
 
     public String generate(RepositoryModel repo, List<String> qualifiedNames) {
         String    implName   = repo.entitySimpleName() + "_RepositoryModel_Impl";
@@ -53,7 +60,7 @@ public final class RepositoryModelGenerator {
             .build());
 
         // Fields
-        RepositoryFieldModelGenerator.generateFieldModels(type, repo, entityClass);
+        RepositoryFieldModelGenerator.generateFieldModels(type, repo, entityClass, elements, types, messager);
         generateIndexes(type, repo);
         generateConstraints(type, repo);
         generateRelationshipCaches(type, repo, entityClass);

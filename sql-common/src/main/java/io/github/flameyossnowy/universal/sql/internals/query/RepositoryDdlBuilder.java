@@ -45,9 +45,6 @@ public final class RepositoryDdlBuilder<T, ID> {
         Logging.deepInfo(() -> "Starting repository parse: " + repositoryInformation.tableName());
         Logging.deepInfo(() -> "IF NOT EXISTS = " + ifNotExists);
 
-        @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
-        Set<FieldModel<T>> childTableQueue = new HashSet<>(4);
-
         String tableName = repositoryInformation.tableName();
         String ddlPrefix = "CREATE TABLE " + (ifNotExists ? "IF NOT EXISTS " : "")
             + sqlType.quoteChar() + tableName + sqlType.quoteChar();
@@ -56,7 +53,7 @@ public final class RepositoryDdlBuilder<T, ID> {
 
         StringJoiner joiner = new StringJoiner(", ", ddlPrefix + " (", ");");
 
-        generateColumns(joiner, childTableQueue);
+        generateColumns(joiner);
 
         String classConstraints = processClassLevelConstraints();
         if (!classConstraints.isEmpty()) {
@@ -67,18 +64,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         String finalQuery = joiner.toString();
         Logging.deepInfo(() -> "Final CREATE TABLE query:\n" + finalQuery);
 
-        String query = createTable(finalQuery, "Failed to create main repository table: ", tableName);
-
-        if (!childTableQueue.isEmpty()) {
-            Logging.deepInfo(() ->  "Creating " + childTableQueue.size() + " child tables");
-        }
-
-        for (FieldModel<T> data : childTableQueue) {
-            Logging.deepInfo(() -> "Creating child table for field: " + data.name());
-            createChildTable(data);
-        }
-
-        return query;
+        return createTable(finalQuery, "Failed to create main repository table: ", tableName);
     }
 
     private String createTable(String query, String errorMessage, String repositoryName) {
@@ -138,7 +124,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         return joiner.toString();
     }
 
-    private void generateColumns(StringJoiner joiner, Set<FieldModel<T>> childTableQueue) {
+    private void generateColumns(StringJoiner joiner) {
         Logging.deepInfo(() -> "Generating columns for repository: " + repositoryInformation.tableName());
 
         StringJoiner primaryKeysJoiner = new StringJoiner(", ");
@@ -154,7 +140,7 @@ public final class RepositoryDdlBuilder<T, ID> {
             boolean unique = data.hasUniqueAnnotation();
             boolean primaryKey = data.id();
 
-            generateColumn(joiner, data, type, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, childTableQueue);
+            generateColumn(joiner, data, type, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner);
             fieldBuilder.setLength(0);
 
             // Add companion version column for @JsonVersioned JSON fields (unless explicitly declared).
@@ -187,8 +173,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         boolean unique,
         boolean primaryKey,
         StringJoiner primaryKeysJoiner,
-        StringJoiner relationshipsJoiner,
-        Set<FieldModel<T>> childTableQueue
+        StringJoiner relationshipsJoiner
     ) {
         if (data.isJson()) {
             String resolvedType = resolveJsonColumnType(data);
@@ -202,7 +187,6 @@ public final class RepositoryDdlBuilder<T, ID> {
 
         if (Collection.class.isAssignableFrom(type)) {
             if (!sqlType.supportsArrays()) {
-                childTableQueue.add(data);
                 return;
             }
 
@@ -213,13 +197,11 @@ public final class RepositoryDdlBuilder<T, ID> {
         }
 
         if (Map.class.isAssignableFrom(type)) {
-            childTableQueue.add(data);
             return;
         }
 
         if (type.isArray()) {
             if (!sqlType.supportsArrays()) {
-                childTableQueue.add(data);
                 return;
             }
             String resolvedType = resolverRegistry.getType(type.getComponentType(), data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
@@ -288,36 +270,18 @@ public final class RepositoryDdlBuilder<T, ID> {
         if (unique) fieldBuilder.append(" UNIQUE");
     }
 
-    private void createChildTable(FieldModel<T> data) {
-        String childTableName = repositoryInformation.tableName() + "_" + data.name() + "s";
-        Class<?> elementType = (data.elementType() != null) ? data.elementType() : Object.class;
-
-        String elementSqlType = resolverRegistry.getType(elementType);
-        FieldModel<T> primaryKey = repositoryInformation.getPrimaryKey();
-        if (primaryKey == null) {
-            throw new IllegalArgumentException("Should be nonnull.");
+    /**
+     * Gets SQL type for a Java class, falling back to TEXT for unresolved complex types.
+     * This handles nested collections/maps that need JSON storage.
+     */
+    private String getSqlTypeOrText(Class<?> type) {
+        try {
+            String sqlType = resolverRegistry.getType(type);
+            return sqlType != null ? sqlType : "TEXT";
+        } catch (IllegalArgumentException e) {
+            // Type not resolvable (e.g., Map.class, List.class) - use TEXT for JSON
+            return "TEXT";
         }
-
-        String idSqlType = resolverRegistry.getType(primaryKey.type());
-
-        StringBuilder sb = new StringBuilder(128);
-        sb.append("CREATE TABLE IF NOT EXISTS ").append(sqlType.quoteChar()).append(childTableName).append(sqlType.quoteChar())
-            .append(" (\n")
-            .append("  ").append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(' ').append(idSqlType).append(" NOT NULL,\n");
-
-        if (Collection.class.isAssignableFrom(data.type())) {
-            sb.append("  ").append(sqlType.quoteChar()).append("value").append(sqlType.quoteChar()).append(' ').append(elementSqlType).append(" NOT NULL,\n");
-        } else if (Map.class.isAssignableFrom(data.type())) {
-            sb.append("  ").append(sqlType.quoteChar()).append("map_key").append(sqlType.quoteChar()).append(' ').append(resolverRegistry.getType(data.mapKeyType())).append(" NOT NULL,\n")
-                .append("  ").append(sqlType.quoteChar()).append("map_value").append(sqlType.quoteChar()).append(' ').append(elementSqlType).append(" NOT NULL,\n");
-        }
-
-        sb.append("  FOREIGN KEY (").append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(") REFERENCES ")
-            .append(sqlType.quoteChar()).append(repositoryInformation.tableName()).append(sqlType.quoteChar()).append('(')
-            .append(sqlType.quoteChar()).append("id").append(sqlType.quoteChar()).append(") ON DELETE CASCADE ON UPDATE CASCADE\n")
-            .append(");");
-
-        createTable(sb.toString(), "Failed to create child table: ", childTableName);
     }
 
     private void addPotentialManyToOne(@NotNull FieldModel<T> data, String name, StringJoiner relationshipsJoiner) {

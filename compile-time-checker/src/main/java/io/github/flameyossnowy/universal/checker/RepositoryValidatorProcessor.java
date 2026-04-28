@@ -539,6 +539,18 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         }
 
         checkRawTypes(field);
+        checkCollectionOfMaps(field);
+    }
+
+    private void checkCollectionOfMaps(VariableElement field) {
+        TypeMirror fieldType = field.asType();
+
+        if (TypeMirrorUtils.isCollectionOfMaps(types, elements, fieldType)) {
+            if (field.getAnnotation(JsonField.class) == null) {
+                error("Collection of Maps (e.g., List<Map<...>>) is not supported. " +
+                      "Add @JsonField to store as JSON, or use a different data structure.", field);
+            }
+        }
     }
 
     private void checkFieldAnnotations(VariableElement field) {

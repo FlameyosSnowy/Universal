@@ -164,82 +164,36 @@ public class TypeResolverRegistry {
         return supplier != null ? supplier.get() : null;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public <T> @NotNull JsonCodec<T> getJsonCodec(Class<? extends JsonCodec> codecClass) {
-        if (codecClass == null) {
-            throw new IllegalArgumentException("codecClass cannot be null");
-        }
-
-        return (JsonCodec<T>) jsonCodecs.computeIfAbsent((Class<? extends JsonCodec<?>>) codecClass, c -> {
-            try {
-                if (DefaultJsonCodec.class.equals(c)) {
-                    Supplier<JsonAdapter> supplier = this.objectMapperSupplier;
-                    if (supplier == null) {
-                        throw new IllegalStateException(
-                            "DefaultJsonCodec requires an JsonAdapter, but no JsonAdapter supplier was configured"
-                        );
-                    }
-                    return new DefaultJsonCodec<>(supplier.get());
-                }
-
-                // Prefer no-args ctor
-                try {
-                    Constructor<?> ctor = c.getDeclaredConstructor();
-                    ctor.setAccessible(true);
-                    return (JsonCodec<?>) ctor.newInstance();
-                } catch (NoSuchMethodException ignored) {
-                    // fall through
-                }
-
-                // Fallback: JsonAdapter ctor if available
-                Supplier<JsonAdapter> supplier = this.objectMapperSupplier;
-                if (supplier != null) {
-                    try {
-                        Constructor<?> ctor = c.getDeclaredConstructor(JsonAdapter.class);
-                        ctor.setAccessible(true);
-                        return (JsonCodec<?>) ctor.newInstance(supplier.get());
-                    } catch (NoSuchMethodException ignored) {
-                        // fall through
-                    }
-                }
-
-                throw new IllegalStateException(
-                    "Cannot instantiate JsonCodec: " + c.getName() + ". Provide a public no-args constructor " +
-                        "or an JsonAdapter constructor (and configure an JsonAdapter supplier)."
-                );
-            } catch (RuntimeException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to instantiate JsonCodec: " + c.getName(), e);
-            }
-        });
-    }
-
     /**
-     * Get or create a JsonCodec using a pre-configured supplier.
+     * Get or create a JsonCodec using a pre-configured function.
      * This avoids reflection and is the preferred method for code-generated scenarios.
      *
      * @param codecClass the codec class (used as cache key)
-     * @param supplier the supplier that instantiates the codec (may return null for DefaultJsonCodec)
+     * @param function the function that instantiates the codec with a JsonAdapter
+     * @param adapter the JsonAdapter to pass to the function (may be null if not needed)
      * @return the JsonCodec instance
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public <T> @NotNull JsonCodec<T> getJsonCodecFromSupplier(
             Class<? extends JsonCodec> codecClass,
-            java.util.function.Supplier<JsonCodec<?>> supplier) {
+            java.util.function.Function<JsonAdapter, JsonCodec<?>> function,
+            @Nullable JsonAdapter adapter) {
         if (codecClass == null) {
             throw new IllegalArgumentException("codecClass cannot be null");
         }
 
         return (JsonCodec<T>) jsonCodecs.computeIfAbsent((Class<? extends JsonCodec<?>>) codecClass, c -> {
-            // First try the supplier - if it returns non-null, use it
-            JsonCodec<?> supplied = supplier.get();
-            if (supplied != null) {
-                return supplied;
+            // Use the function to create the codec with the adapter
+            JsonCodec<?> codec = function.apply(adapter);
+            if (codec != null) {
+                return codec;
             }
 
-            // Fall back to DefaultJsonCodec if supplier returns null
+            // For DefaultJsonCodec, try to create with adapter if available
             if (DefaultJsonCodec.class.equals(c)) {
+                if (adapter != null) {
+                    return new DefaultJsonCodec<>(adapter);
+                }
                 Supplier<JsonAdapter> adapterSupplier = this.objectMapperSupplier;
                 if (adapterSupplier == null) {
                     throw new IllegalStateException(
@@ -249,9 +203,9 @@ public class TypeResolverRegistry {
                 return new DefaultJsonCodec<>(adapterSupplier.get());
             }
 
-            // For custom codecs where supplier returned null, this is an error
+            // For custom codecs where function returned null, this is an error
             throw new IllegalStateException(
-                "JsonCodec supplier returned null for: " + c.getName()
+                "JsonCodec function returned null for: " + c.getName()
             );
         });
     }
@@ -265,7 +219,11 @@ public class TypeResolverRegistry {
     public @Nullable String getType(@NotNull Class<?> type) {
         SqlTypeMapping mapping = sqlTypeMappings.get(type);
         if (mapping == null) {
-            mapping = sqlTypeMappings.get(this.resolve(type).getType());
+            TypeResolver<?> resolve = this.resolve(type);
+            if (resolve == null) {
+                throw new IllegalArgumentException("No TypeResolver found for type: " + type);
+            }
+            mapping = sqlTypeMappings.get(resolve.getType());
         }
         return mapping != null
             ? mapping.resolve(SqlEncoding.VISUAL)

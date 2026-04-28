@@ -14,6 +14,8 @@ import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 
 public class SqlQueryExecutor<T, ID> {
@@ -40,6 +42,14 @@ public class SqlQueryExecutor<T, ID> {
             return TransactionResult.success(statement.execute());
         } catch (Exception e) {
             return this.exceptionHandler.handleUpdate(e, repositoryModel, adapter);
+        }
+    }
+
+    public ResultSet executeResultSetQuery(final String query) throws Exception {
+        Logging.info(() -> "Parsed query: " + query);
+        try (var connection = dataSource.getConnection();
+             PreparedStatement statement = dataSource.prepareStatement(query, connection)) {
+            return statement.executeQuery();
         }
     }
 

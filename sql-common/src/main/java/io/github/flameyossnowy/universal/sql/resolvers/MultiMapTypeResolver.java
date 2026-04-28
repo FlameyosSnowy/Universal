@@ -29,6 +29,7 @@ public class MultiMapTypeResolver<K, V, ID> {
     private final ParameterizedSql insertSql;
 
     public MultiMapTypeResolver(Class<ID> idType, Class<K> keyType, @NotNull Class<V> valueType,
+                                String fieldName,
                                 SQLConnectionProvider connectionProvider,
                                 @NotNull RepositoryModel<?, ID> information,
                                 @NotNull TypeResolverRegistry resolverRegistry,
@@ -47,10 +48,45 @@ public class MultiMapTypeResolver<K, V, ID> {
             throw new IllegalStateException("No resolver found for one of the types");
         }
 
-        String table = information.tableName() + "_" + valueType.getSimpleName().toLowerCase() + "s";
+        // Table name includes field name to ensure uniqueness per field
+        String table = information.tableName() + "_" + fieldName.toLowerCase() + "_multimap";
+
+        // Create table if not exists (similar to CollectionTypeResolver)
+        createTableIfNotExists(table, keyType, valueType, idType);
 
         this.selectSql = ParameterizedSql.of("SELECT * FROM " + table + " WHERE id = ?;",                          List.of("id"));
         this.insertSql = ParameterizedSql.of("INSERT INTO " + table + " (id, map_key, map_value) VALUES (?, ?, ?)", List.of("id", "map_key", "map_value"));
+    }
+
+    private void createTableIfNotExists(String table, Class<K> keyType, Class<V> valueType, Class<ID> idType) {
+        try (Connection connection = connectionProvider.getConnection();
+             Statement stmt = connection.createStatement()) {
+
+            String idSqlType = getSqlType(idType);
+            String keySqlType = getSqlType(keyType);
+            String valueSqlType = getSqlType(valueType);
+
+            String sql = "CREATE TABLE IF NOT EXISTS " + table + " (" +
+                "id " + idSqlType + " NOT NULL, " +
+                "map_key " + keySqlType + " NOT NULL, " +
+                "map_value " + valueSqlType + " NOT NULL, " +
+                "FOREIGN KEY (id) REFERENCES " + information.tableName() + "(id) ON DELETE CASCADE ON UPDATE CASCADE" +
+                ")";
+
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to create multimap table: " + table, e);
+        }
+    }
+
+    private String getSqlType(Class<?> type) {
+        try {
+            String sqlType = resolverRegistry.getType(type);
+            return sqlType != null ? sqlType : "TEXT";
+        } catch (IllegalArgumentException e) {
+            // Type not resolvable (e.g., Map.class, List.class) - use TEXT for JSON
+            return "TEXT";
+        }
     }
 
     @SuppressWarnings("unchecked")

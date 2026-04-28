@@ -2,7 +2,6 @@ package io.github.flameyossnowy.universal.sql.resolvers;
 
 import io.github.flameyossnowy.universal.api.factory.CollectionKind;
 import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
-import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
@@ -55,6 +54,15 @@ public class CollectionTypeResolver<T, ID> {
         if (idResolver == null) throw new IllegalStateException("No resolver for primary key " + idType.getSimpleName());
 
         String table = information.tableName() + '_' + elementType.getSimpleName().toLowerCase() + 's';
+
+        // Ensure join table exists
+        try (Connection conn = connectionProvider.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "CREATE TABLE IF NOT EXISTS " + table + " (id TEXT NOT NULL, value TEXT NOT NULL);")) {
+            stmt.execute();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create collection table: " + table, e);
+        }
 
         this.selectSql    = ParameterizedSql.of("SELECT * FROM " + table + " WHERE id = ?;",               List.of("id"));
         this.insertSql    = ParameterizedSql.of("INSERT INTO " + table + " (id, value) VALUES (?, ?)",      List.of("id", "value"));

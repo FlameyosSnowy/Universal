@@ -65,7 +65,7 @@ public final class InsertEntityGenerator {
             TypeMirror fieldMirror = field.type();
             String     fieldName   = field.columnName();
 
-            if (GeneratorUtils.isCollectionOrMapType(types, elements, fieldMirror)) {
+            if (GeneratorUtils.isCollectionOrMapType(types, elements, fieldMirror) && !field.isJson()) {
                 continue;
             }
 
@@ -97,7 +97,15 @@ public final class InsertEntityGenerator {
             }
 
             // ---- Scalar field -----------------------------------------------
-            m.addStatement("stmt.set($S, $L, $T.class)", fieldName, valueVar, fieldType);
+            // For JSON collection fields, use raw type (e.g., List.class) not generic (List<String>.class)
+            TypeName classType = field.isJson() ? ClassName.get(types.erasure(fieldMirror)) : fieldType;
+            m.addStatement("stmt.set($S, $L, $T.class)", fieldName, valueVar, classType);
+
+            // ---- JSON version column ----------------------------------------
+            // Set the companion version column for @JsonVersioned fields
+            if (field.isJson() && field.jsonVersioned()) {
+                m.addStatement("stmt.set($S, 1, int.class)", fieldName + "_version");
+            }
         }
 
         return m.build();

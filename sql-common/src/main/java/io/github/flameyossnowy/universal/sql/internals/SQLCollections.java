@@ -15,7 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SQLCollections {
     private final Map<Class<?>, CollectionTypeResolver<?, ?>> resolvers = new ConcurrentHashMap<>(5);
     private final Table<Class<?>, Class<?>, MapTypeResolver<?, ?, ?>> mapResolvers = new HashTable<>();
-    private final Table<Class<?>, Class<?>, MultiMapTypeResolver<?, ?, ?>> multiMapResolvers = new HashTable<>();
+    // Key for multimap: fieldName (includes table name + field, ensures uniqueness)
+    private final Map<String, MultiMapTypeResolver<?, ?, ?>> multiMapResolvers = new ConcurrentHashMap<>(5);
 
     public static final SQLCollections INSTANCE = new SQLCollections();
 
@@ -44,11 +45,13 @@ public class SQLCollections {
     @SuppressWarnings("unchecked")
     public <K, V, ID> MultiMapTypeResolver<K, V, ID> getMultiMapResolver(
             Class<K> keyType, Class<V> valueType, Class<ID> idType,
+            String fieldName,
             SQLConnectionProvider connectionProvider, RepositoryModel<?, ID> information,
             TypeResolverRegistry resolverRegistry, CollectionHandler collectionHandler, boolean supportsArrays
     ) {
-        return (MultiMapTypeResolver<K, V, ID>) multiMapResolvers.computeIfAbsent(keyType, valueType,
-                (k, v) ->
-                    new MultiMapTypeResolver<>(idType, keyType, valueType, connectionProvider, information, resolverRegistry, collectionHandler, supportsArrays));
+        // Use fieldName (tableName_fieldName) as key to ensure unique resolver per field
+        String cacheKey = information.tableName() + "." + fieldName;
+        return (MultiMapTypeResolver<K, V, ID>) multiMapResolvers.computeIfAbsent(cacheKey, k ->
+                    new MultiMapTypeResolver<>(idType, keyType, valueType, fieldName, connectionProvider, information, resolverRegistry, collectionHandler, supportsArrays));
     }
 }

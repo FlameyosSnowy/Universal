@@ -50,7 +50,7 @@ public final class UnifiedFactoryGenerator {
         this.types    = env.getTypeUtils();
         this.elements = env.getElementUtils();
 
-        this.repositoryModelGen    = new RepositoryModelGenerator(filer);
+        this.repositoryModelGen    = new RepositoryModelGenerator(filer, elements, types, env.getMessager());
         this.objectModelGen        = new ObjectModelGenerator(filer, types, elements, env.getMessager());
         this.relationshipLoaderGen = new RelationshipLoaderGenerator(filer);
         this.valueReaderGen        = new ValueReaderGenerator(types, elements, filer);

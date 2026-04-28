@@ -160,15 +160,8 @@ public final class ObjectModelGenerator {
                 m.addStatement("entity.$L(($T) r.getId())", field.setterName(), ClassName.get(field.type()));
                 continue;
             }
-            if (field.isNotCollection(types, elements)) {   // elements unused in this path
-                m.addStatement("entity.$L(($T) r.read($L))", field.setterName(),
-                    ClassName.get(field.type()), index++);
-            } else {
-                m.beginControlFlow("if (r.getDatabaseResult().supportsArraysNatively())")
-                    .addStatement("entity.$L(($T) r.read($L))", field.setterName(),
-                        ClassName.get(field.type()), index++)
-                    .endControlFlow();
-            }
+            m.addStatement("entity.$L(($T) r.read($L))", field.setterName(),
+                ClassName.get(field.type()), index++);
         }
         m.addStatement("return entity");
         return m.build();
