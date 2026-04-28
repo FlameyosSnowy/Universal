@@ -1,8 +1,5 @@
 package testapp;
 
-import io.github.flameyossnowy.uniform.core.annotations.SerializedObject;
-
-@SerializedObject
 public class PayloadWithNulls {
     private String a;
     private String b;

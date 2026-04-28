@@ -1,38 +1,17 @@
+package testapp;
+
 import io.github.flameyossnowy.universal.api.annotations.Id;
+import io.github.flameyossnowy.universal.api.annotations.JsonField;
+import io.github.flameyossnowy.universal.api.annotations.JsonVersioned;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
 import io.github.flameyossnowy.universal.api.annotations.ResolveWith;
-import io.github.flameyossnowy.universal.api.utils.Logging;
-import io.github.flameyossnowy.universal.sqlite.SQLiteRepositoryAdapter;
-import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
 
 import java.util.List;
 import java.util.UUID;
 
-void main() {
-    Logging.ENABLED = true;
-    //Logging.DEEP = true;
-    SQLiteRepositoryAdapter<User, UUID> adapter = SQLiteRepositoryAdapter
-        .builder(User.class, UUID.class)
-        .withCredentials(new SQLiteCredentials("/home/flameyosflow/newdb.db"))
-        .build();
-
-    adapter.getQueryExecutor().executeRawQuery("DROP TABLE IF EXISTS users;");
-    adapter.createRepository(true);
-    adapter.clear();
-
-    adapter.insert(new User(UUID.randomUUID(), "Flameyos", 17, new Password("123456"), List.of("Coding", "Sleeping")));
-    IO.println("Finding users");
-    List<User> users = adapter.find();
-
-    for (User user : users) {
-        IO.println(user);
-    }
-    IO.println("Found users");
-}
-
 @SuppressWarnings("unused")
 @Repository(name = "users")
-public static class User {
+public class User {
     @Id
     private UUID id;
 
@@ -42,6 +21,8 @@ public static class User {
     @ResolveWith(PasswordConverter.class)
     private Password password;
 
+    @JsonField
+    @JsonVersioned
     private List<String> hobbies;
 
     public User(UUID id, String username, int age, Password password, List<String> hobbies) {
@@ -96,7 +77,7 @@ public static class User {
     }
 
     public String toString() {
-        return "User{" +
+        return "testapp.User{" +
             "id=" + id +
             ", username='" + username + '\'' +
             ", age=" + age +

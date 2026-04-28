@@ -5,7 +5,6 @@ import io.github.flameyossnowy.universal.api.annotations.JsonField;
 import io.github.flameyossnowy.universal.api.annotations.JsonVersioned;
 import io.github.flameyossnowy.universal.api.annotations.Named;
 import io.github.flameyossnowy.universal.api.annotations.Repository;
-import io.github.flameyossnowy.uniform.core.annotations.SerializedObject;
 
 @Repository(name = "postgres-json-versioned-entity")
 public class PostgresJsonVersionedEntity {
@@ -51,7 +50,6 @@ public class PostgresJsonVersionedEntity {
         this.payloadVersion = payloadVersion;
     }
 
-    @SerializedObject
     public static class Payload {
         private String value;
 

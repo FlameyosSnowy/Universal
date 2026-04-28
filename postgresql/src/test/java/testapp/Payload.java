@@ -1,8 +1,5 @@
 package testapp;
 
-import io.github.flameyossnowy.uniform.core.annotations.SerializedObject;
-
-@SerializedObject
 public class Payload {
     private String name;
     private int age;

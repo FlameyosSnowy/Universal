@@ -1,8 +1,15 @@
 package testapp;
 
+import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 
 public class PostgresPayloadCodec implements JsonCodec<Payload> {
+    public PostgresPayloadCodec(JsonAdapter adapter) {
+    }
+
+    public PostgresPayloadCodec() {
+    }
+
     @Override
     public String serialize(Payload value, Class<Payload> type) {
         if (value == null) {
