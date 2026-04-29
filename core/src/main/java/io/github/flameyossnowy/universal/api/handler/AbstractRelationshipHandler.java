@@ -133,9 +133,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
     private final ExecutorService parallelExecutor;
 
     // Static caches shared across all handlers - tunable via static methods
-    private static volatile int nameCacheSize = 1_000;
     private static volatile int l1CacheInitialCapacity = 64;
-    private static Map<String, String> nameCache = new ConcurrentLRUCache<>(nameCacheSize);
 
     private static final ThreadLocal<WeakReference<Map<String, Object>>> l1Cache =
         ThreadLocal.withInitial(() -> new WeakReference<>(new HashMap<>(l1CacheInitialCapacity)));
@@ -297,23 +295,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
     // ==================== Global Cache Configuration ====================
 
     /**
-     * Globally set the size of the static name cache shared across all handlers.
-     * This cache stores column name mappings.
-     * <p><strong>Warning:</strong> Calling this will clear the existing cache.
-     *
-     * @param size maximum number of entries (default: 1,000)
-     */
-    public static void setNameCacheSize(int size) {
-        if (size < 1) throw new IllegalArgumentException("Cache size must be at least 1");
-        nameCacheSize = size;
-        nameCache = new ConcurrentLRUCache<>(size);
-    }
-
-    public static int getNameCacheSize() {
-        return nameCacheSize;
-    }
-
-    /**
      * Globally set the initial capacity for L1 thread-local caches.
      * <p><strong>Note:</strong> This only affects new thread-local caches created after this call.
      *
@@ -442,7 +423,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
             RepositoryModel<?, ?> targetInfo = GeneratedMetadata.getByEntityClass(field.type());
             if (targetInfo == null) throw new IllegalStateException("Unknown repository for type " + field.type());
 
-            FieldModel<?> backRef = findOneToOneBackReference(targetInfo, repositoryModel.getEntityClass());
+            FieldModel<?> backRef = targetInfo.getOneToOneBackReferences().get(repositoryModel.getEntityClass().getName());
             if (backRef == null) { putCached(cacheKey, NULL_MARKER); return null; }
 
             RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, targetInfo);
@@ -486,7 +467,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         RepositoryModel<?, ?> relatedRepoInfo = GeneratedMetadata.getByEntityClass(targetType);
         if (relatedRepoInfo == null) throw new IllegalStateException("Unknown repository for type " + targetType);
 
-        String relationName = findManyToOneFieldName(relatedRepoInfo, repositoryModel.getEntityClass());
+        String relationName = relatedRepoInfo.getManyToOneFieldNames().get(repositoryModel.getEntityClass().getName());
         if (relationName == null) {
             throw new IllegalStateException(
                 "No ManyToOne back-reference found in " + targetType.getSimpleName() +
@@ -563,36 +544,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         abstractHandler.prefetch(entities, relationshipFields);
     }
 
-    @Nullable
-    private static FieldModel<?> findOneToOneBackReference(
-        @NotNull RepositoryModel<?, ?> targetInfo,
-        @NotNull Class<?> sourceEntityType
-    ) {
-        for (FieldModel<?> field : targetInfo.getOneToOneCache().values()) {
-            if (sourceEntityType.isAssignableFrom(field.type())) return field;
-        }
-        return null;
-    }
-
-    @Nullable
-    private static String findManyToOneFieldName(
-        @NotNull RepositoryModel<?, ?> targetInfo,
-        @NotNull Class<?> parentType
-    ) {
-        String cacheKey = (targetInfo.tableName() + "#" + parentType.getName()).intern();
-
-        return nameCache.computeIfAbsent(cacheKey, k -> {
-            for (FieldModel<?> field : targetInfo.getManyToOneCache().values()) {
-                if (field.type() == parentType) return field.columnName();
-            }
-            Logging.deepInfo(() ->
-                "ManyToOne field for parent type " + parentType.getName() +
-                    " not found in " + targetInfo.tableName()
-            );
-            return null;
-        });
-    }
-
     @SuppressWarnings("RedundantCast")
     @Nullable
     private RepositoryAdapter<Object, Object, ?> resolveAdapterCached(
@@ -625,7 +576,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         RepositoryModel<?, ?> target = GeneratedMetadata.getByEntityClass(field.type());
         if (target == null) throw new IllegalStateException("Unknown repository for type " + field.type());
 
-        FieldModel<Object> backRef = (FieldModel<Object>) findOneToOneBackReference(target, repositoryModel.getEntityClass());
+        FieldModel<Object> backRef = (FieldModel<Object>) target.getOneToOneBackReferences().get(repositoryModel.getEntityClass().getName());
         if (backRef == null) { Logging.error("No OneToOne back-reference for field: " + field.name()); return; }
 
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, target);
@@ -659,7 +610,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, related);
         if (adapter == null) throw new IllegalStateException("No adapter found for type: " + targetType);
 
-        String relationName = findManyToOneFieldName(related, repositoryModel.getEntityClass());
+        String relationName = related.getManyToOneFieldNames().get(repositoryModel.getEntityClass().getName());
         if (relationName == null) {
             throw new IllegalStateException("No ManyToOne back-reference found for OneToMany field: " + field.name());
         }
@@ -731,7 +682,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         Map<FieldModel<T>, List<ID>> oneToOne   = new HashMap<>(fields.size());
         Map<FieldModel<T>, List<ID>> manyToOne  = new HashMap<>(fields.size());
 
-        // Use pre-built field indexes for O(1) relationship field lookup (compile-time generated)
         Map<RelationshipKind, List<FieldModel<T>>> fieldIndexes = repositoryModel.getFieldIndexes();
         if (!fieldIndexes.isEmpty()) {
             // Fast path: filter pre-grouped relationship fields by requested field names
@@ -766,7 +716,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
                 }
             }
         } else {
-            // Fallback: original behavior for repositories without compile-time indexes
             for (Object parent : parents) {
                 ID id = repositoryModel.getPrimaryKeyValue((T) parent);
 
@@ -1042,7 +991,6 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
     /** Clear all caches including static shared caches. Use with caution. */
     public void clearAll() {
         clear();
-        nameCache.clear();
     }
 
     private void incrementQueryCount(String fieldName) {
@@ -1080,7 +1028,7 @@ public abstract class AbstractRelationshipHandler<T, ID> implements Relationship
         Class<?>              targetType      = field.elementType();
         RepositoryModel<?, ?> relatedRepoInfo = GeneratedMetadata.getByEntityClass(targetType);
         Objects.requireNonNull(relatedRepoInfo);
-        String relationName = findManyToOneFieldName(relatedRepoInfo, repositoryModel.getEntityClass());
+        String relationName = relatedRepoInfo.getManyToOneFieldNames().get(repositoryModel.getEntityClass().getName());
 
         RepositoryAdapter<Object, Object, ?> adapter = resolveAdapterCached(field, relatedRepoInfo);
         Objects.requireNonNull(adapter);

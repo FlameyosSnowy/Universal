@@ -169,4 +169,26 @@ public interface RepositoryModel<T, ID> {
     default Map<RelationshipKind, List<FieldModel<T>>> getFieldIndexes() {
         return Map.of();
     }
+
+    /**
+     * Pre-built mapping from source entity type name to OneToOne back-reference field.
+     * Used for O(1) back-reference lookup in handleOneToOneRelationship.
+     * Generated at compile time to avoid runtime linear scan.
+     *
+     * @return unmodifiable map of source entity type name -> back-reference field, or empty map if none
+     */
+    default Map<String, FieldModel<T>> getOneToOneBackReferences() {
+        return Map.of();
+    }
+
+    /**
+     * Pre-built mapping from parent entity type name to ManyToOne field column name.
+     * Used for O(1) field name lookup in handleOneToManyRelationship.
+     * Generated at compile time to avoid runtime linear scan.
+     *
+     * @return unmodifiable map of parent type name -> column name, or empty map if none
+     */
+    default Map<String, String> getManyToOneFieldNames() {
+        return Map.of();
+    }
 }

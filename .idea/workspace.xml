@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Offload hot-path work to compile time generated code and fix JSON parameter issues">
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Fix test and compile time validator">
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/buildOutputCleanup.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/executionHistory.bin" afterDir="false" />
@@ -21,9 +21,8 @@
       <change afterPath="$PROJECT_DIR$/sketch/first_sketch.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryModelGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/RepositoryRegistry.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/RepositoryRegistry.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresCacheCorrectnessTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/postgresql/src/test/java/testapp/PostgresCacheCorrectnessTests.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/params/SQLDatabaseParameters.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/params/SQLDatabaseParameters.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/RepositoryModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/RepositoryModel.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -351,7 +350,7 @@
       <recent name="io.github.flameyossnow.universal" />
     </key>
   </component>
-  <component name="RunManager" selected="Gradle.PostgresCacheCorrectnessTests">
+  <component name="RunManager" selected="Gradle.PostgresJsonAndNamedIntegrationTest">
     <configuration name="NormalTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -718,15 +717,7 @@
       <workItem from="1777140023729" duration="3250000" />
       <workItem from="1777144138257" duration="62000" />
       <workItem from="1777147426699" duration="31219000" />
-      <workItem from="1777364068553" duration="15210000" />
-    </task>
-    <task id="LOCAL-00169" summary="Add cascade">
-      <option name="closed" value="true" />
-      <created>1772543562631</created>
-      <option name="number" value="00169" />
-      <option name="presentableId" value="LOCAL-00169" />
-      <option name="project" value="LOCAL" />
-      <updated>1772543562631</updated>
+      <workItem from="1777364068553" duration="16147000" />
     </task>
     <task id="LOCAL-00170" summary="Add autoCreate and fix relationships, and fix indexes">
       <option name="closed" value="true" />
@@ -1112,14 +1103,21 @@
       <option name="project" value="LOCAL" />
       <updated>1777387643502</updated>
     </task>
-    <option name="localTasksCounter" value="218" />
+    <task id="LOCAL-00218" summary="Fix test and compile time validator">
+      <option name="closed" value="true" />
+      <created>1777388898270</created>
+      <option name="number" value="00218" />
+      <option name="presentableId" value="LOCAL-00218" />
+      <option name="project" value="LOCAL" />
+      <updated>1777388898270</updated>
+    </task>
+    <option name="localTasksCounter" value="219" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fix @Named issues and JSON issues, add features&#10;&#10;- Add JsonVersioned&#10;- Remove JsonIgnoreNulls" />
     <MESSAGE value="Add tests" />
     <MESSAGE value="Add GeneratedRepositoryFactory" />
     <MESSAGE value="Add getTargetPrimaryKeyType" />
@@ -1144,7 +1142,8 @@
     <MESSAGE value="Update tests" />
     <MESSAGE value="Fix many issues and replace reflection with codegen" />
     <MESSAGE value="Offload hot-path work to compile time generated code and fix JSON parameter issues" />
-    <option name="LAST_COMMIT_MESSAGE" value="Offload hot-path work to compile time generated code and fix JSON parameter issues" />
+    <MESSAGE value="Fix test and compile time validator" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fix test and compile time validator" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -1176,7 +1175,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/AbstractRelationshipHandler.java</url>
-          <line>405</line>
+          <line>386</line>
           <option name="timeStamp" value="12" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">

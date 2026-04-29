@@ -82,6 +82,8 @@ public final class RepositoryModelGenerator {
         addGetters(type, repo, entityClass, idClass.box());
         addParameterNameMap(type, repo);
         addFieldIndexes(type, repo, entityClass);
+        addOneToOneBackReferences(type, repo, entityClass);
+        addManyToOneFieldNames(type, repo);
 
         String qualifiedName = GeneratorUtils.qualifiedName(repo.packageName(), implName);
         qualifiedNames.add(qualifiedName);
@@ -483,7 +485,106 @@ public final class RepositoryModelGenerator {
             .build());
     }
 
-    // ------------------------------------------------------------------ indexes / constraints / relationships
+    private static void addOneToOneBackReferences(TypeSpec.Builder type, RepositoryModel repo, ClassName entityClass) {
+        ClassName map = ClassName.get("java.util", "Map");
+        ClassName collections = ClassName.get("java.util", "Collections");
+        ClassName fieldModel = ClassName.get("io.github.flameyossnowy.universal.api.meta", "FieldModel");
+
+        TypeName fieldModelType = ParameterizedTypeName.get(fieldModel, entityClass);
+        TypeName mapType = ParameterizedTypeName.get(map, ClassName.get(String.class), fieldModelType);
+
+        // Build map of source entity type name -> OneToOne field that references it
+        Map<String, String> backRefs = new HashMap<>();
+        int fieldIndex = 0;
+        for (FieldModel f : repo.fields()) {
+            if (f.relationship() && f.relationshipKind() == RelationshipKind.ONE_TO_ONE) {
+                // The field type is the target entity; we need to map the source (parent) type to this field
+                // For back-reference lookup: given parent entity type, find the field in target that references it
+                // We use the field's type (target entity class name) as the key for reverse lookup
+                String targetTypeName = f.name();
+                backRefs.put(targetTypeName, "FIELDS[" + fieldIndex + "]");
+            }
+            fieldIndex++;
+        }
+
+        if (backRefs.isEmpty()) {
+            type.addField(FieldSpec.builder(mapType, "ONE_TO_ONE_BACK_REFS",
+                    Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer("$T.emptyMap()", collections)
+                .build());
+        } else {
+            CodeBlock.Builder init = CodeBlock.builder();
+            init.add("$T.unmodifiableMap($T.ofEntries(\n", collections, map);
+
+            boolean first = true;
+            for (Map.Entry<String, String> entry : backRefs.entrySet()) {
+                if (!first) init.add(",\n");
+                first = false;
+                init.add("  $T.entry($S, ($T) $L)", map, entry.getKey(), fieldModelType, entry.getValue());
+            }
+            init.add("\n))");
+
+            type.addField(FieldSpec.builder(mapType, "ONE_TO_ONE_BACK_REFS",
+                    Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer(init.build())
+                .build());
+        }
+
+        type.addMethod(MethodSpec.methodBuilder("getOneToOneBackReferences")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(mapType)
+            .addStatement("return ONE_TO_ONE_BACK_REFS")
+            .build());
+    }
+
+    private static void addManyToOneFieldNames(TypeSpec.Builder type, RepositoryModel repo) {
+        ClassName map = ClassName.get("java.util", "Map");
+        ClassName collections = ClassName.get("java.util", "Collections");
+        TypeName mapType = ParameterizedTypeName.get(map, ClassName.get(String.class), ClassName.get(String.class));
+
+        // Build map of parent entity type name -> ManyToOne field column name
+        Map<String, String> fieldNames = new HashMap<>();
+        for (FieldModel f : repo.fields()) {
+            if (f.relationship() && f.relationshipKind() == RelationshipKind.MANY_TO_ONE) {
+                // The field type is the parent/target entity; map its type name to this field's column name
+                String parentTypeName = f.name();
+                String columnName = f.columnName() != null ? f.columnName() : f.name();
+                fieldNames.put(parentTypeName, columnName);
+            }
+        }
+
+        if (fieldNames.isEmpty()) {
+            type.addField(FieldSpec.builder(mapType, "MANY_TO_ONE_FIELD_NAMES",
+                    Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer("$T.emptyMap()", collections)
+                .build());
+        } else {
+            CodeBlock.Builder init = CodeBlock.builder();
+            init.add("$T.unmodifiableMap($T.ofEntries(\n", collections, map);
+
+            boolean first = true;
+            for (Map.Entry<String, String> entry : fieldNames.entrySet()) {
+                if (!first) init.add(",\n");
+                first = false;
+                init.add("  $T.entry($S, $S)", map, entry.getKey(), entry.getValue());
+            }
+            init.add("\n))");
+
+            type.addField(FieldSpec.builder(mapType, "MANY_TO_ONE_FIELD_NAMES",
+                    Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer(init.build())
+                .build());
+        }
+
+        type.addMethod(MethodSpec.methodBuilder("getManyToOneFieldNames")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(mapType)
+            .addStatement("return MANY_TO_ONE_FIELD_NAMES")
+            .build());
+    }
+
 
     private static void generateIndexes(TypeSpec.Builder type, RepositoryModel repo) {
         ClassName indexModel = ClassName.get("io.github.flameyossnowy.universal.api.meta", "IndexModel");
