@@ -16,8 +16,8 @@
       <profile name="Gradle Imported" enabled="true">
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
-          <entry name="$PROJECT_DIR$/compile-time-checker/build/libs/compile-time-checker-7.1.6.jar" />
-          <entry name="$PROJECT_DIR$/core/build/libs/core-7.1.6.jar" />
+          <entry name="$PROJECT_DIR$/compile-time-checker/build/libs/compile-time-checker-7.1.7.jar" />
+          <entry name="$PROJECT_DIR$/core/build/libs/core-7.1.7.jar" />
           <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/com.squareup/javapoet/1.13.0/d6562d385049f35eb50403fa86bb11cce76b866a/javapoet-1.13.0.jar" />
           <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.1.0-alpha1/4e2525fc4327cc553c52e3937427c7cf2114735f/slf4j-api-2.1.0-alpha1.jar" />
           <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/io.github.flameyossnowy/velocis/1.2.1/fa68d72e3182a4c465e0825c27c12244cb7bc40d/velocis-1.2.1.jar" />
@@ -34,9 +34,9 @@
       <profile name="Gradle Imported" enabled="true">
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
-          <entry name="$PROJECT_DIR$/compile-time-checker/build/libs/compile-time-checker-7.1.6.jar" />
+          <entry name="$PROJECT_DIR$/compile-time-checker/build/libs/compile-time-checker-7.1.7.jar" />
           <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/org.openjdk.jmh/jmh-generator-annprocess/1.37/da93888682df163144edf9b13d2b78e54166063a/jmh-generator-annprocess-1.37.jar" />
-          <entry name="$PROJECT_DIR$/core/build/libs/core-7.1.6.jar" />
+          <entry name="$PROJECT_DIR$/core/build/libs/core-7.1.7.jar" />
           <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/com.squareup/javapoet/1.13.0/d6562d385049f35eb50403fa86bb11cce76b866a/javapoet-1.13.0.jar" />
           <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/org.openjdk.jmh/jmh-core/1.37/896f27e49105b35ea1964319c83d12082e7a79ef/jmh-core-1.37.jar" />
           <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.1.0-alpha1/4e2525fc4327cc553c52e3937427c7cf2114735f/slf4j-api-2.1.0-alpha1.jar" />

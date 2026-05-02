@@ -5,5 +5,13 @@ package io.github.flameyossnowy.universal.api;
  * Discovered at runtime via {@link java.util.ServiceLoader}.
  */
 public interface GeneratedRepositoryFactory {
-    // no methods needed - presence alone triggers class loading
+    /**
+     * Called by {@link ModelsBootstrap} to register this factory's metadata
+     * with the appropriate registries. Implementations should perform any
+     * necessary registration (e.g., adding to GeneratedMetadata, etc.).
+     */
+    default void register() {
+        // Default implementation does nothing.
+        // Generated implementations override this to perform registration.
+    }
 }

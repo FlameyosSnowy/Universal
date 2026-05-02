@@ -72,8 +72,10 @@ public final class RepositoryModelGenerator {
         // Private constructor
         type.addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC).build());
 
-        // Static initializer – register in GeneratedMetadata
-        type.addStaticBlock(CodeBlock.builder()
+        // register() method – called by ModelsBootstrap via ServiceLoader
+        type.addMethod(MethodSpec.methodBuilder("register")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
             .addStatement("$T.add($S, INSTANCE)",
                 ClassName.get("io.github.flameyossnowy.universal.api.meta", "GeneratedMetadata"),
                 repo.tableName())

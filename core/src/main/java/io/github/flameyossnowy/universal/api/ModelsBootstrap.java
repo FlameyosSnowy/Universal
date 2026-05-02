@@ -11,11 +11,10 @@ public final class ModelsBootstrap {
             return;
         }
 
-        // not much else to do
-        //noinspection ResultOfMethodCallIgnored
+        // Invoke register() on all discovered factories to trigger metadata registration
         ServiceLoader.load(
             GeneratedRepositoryFactory.class,
             ModelsBootstrap.class.getClassLoader()
-        ).forEach(GeneratedRepositoryFactory::getClass);
+        ).forEach(GeneratedRepositoryFactory::register);
     }
 }

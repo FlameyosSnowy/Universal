@@ -93,13 +93,17 @@ public final class ObjectModelGenerator {
         builder.addMethod(InsertCollectionEntitiesGenerator.generate(repo, entityType, idType))
             .addMethod(generateGetId(repo, entityType, idType))
             .addMethod(generateGetIdType(idType))
-            .addMethod(generateGetEntityType(entityType))
-            .addStaticBlock(CodeBlock.builder()
-                .addStatement(
-                    "io.github.flameyossnowy.universal.api.meta.GeneratedObjectFactories"
-                    + ".add($S, $T.class, $T.class, (model) -> new $L(model))",
-                    repo.tableName(), entityType, idType.box(), className)
-                .build());
+            .addMethod(generateGetEntityType(entityType));
+
+        // register() method – called by ModelsBootstrap via ServiceLoader
+        builder.addMethod(MethodSpec.methodBuilder("register")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addStatement(
+                "io.github.flameyossnowy.universal.api.meta.GeneratedObjectFactories"
+                + ".add($S, $T.class, $T.class, (model) -> new $L(model))",
+                repo.tableName(), entityType, idType.box(), className)
+            .build());
 
         String qualifiedName = GeneratorUtils.qualifiedName(repo.packageName(), className);
         qualifiedNames.add(qualifiedName);

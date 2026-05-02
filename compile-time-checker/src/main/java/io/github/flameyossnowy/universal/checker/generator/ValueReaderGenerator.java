@@ -87,15 +87,19 @@ public class ValueReaderGenerator {
                 .build())
             .addTypeVariable(TypeVariableName.get("ID"))
             .addSuperinterface(readerInterface)
-            .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class))
-            .addStaticBlock(CodeBlock.builder()
-                .addStatement(
-                    "io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders.<$T>register($S, (result, registry, id, model) -> new $L(result, registry, id, model))",
-                    idTypeName,
-                    repo.tableName(),
-                    repo.entitySimpleName() + "_ValueReader"
-                )
-                .build());
+            .addSuperinterface(TypeName.get(GeneratedRepositoryFactory.class));
+
+        // Generate register() method
+        builder.addMethod(MethodSpec.methodBuilder("register")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addStatement(
+                "io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders.<$T>register($S, (result, registry, id, model) -> new $L(result, registry, id, model))",
+                idTypeName,
+                repo.tableName(),
+                repo.entitySimpleName() + "_ValueReader"
+            )
+            .build());
 
         builder.addField(FieldSpec.builder(dbResult, "result", Modifier.PRIVATE).build());
         builder.addField(FieldSpec.builder(typeResolverRegistry, "registry", Modifier.PRIVATE).build());

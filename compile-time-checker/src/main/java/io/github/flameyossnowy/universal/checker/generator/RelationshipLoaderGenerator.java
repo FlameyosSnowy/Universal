@@ -59,7 +59,10 @@ public final class RelationshipLoaderGenerator {
                 ClassName.get("io.github.flameyossnowy.universal.api.factory", "RelationshipLoader"),
                 entityType, idType.box()));
 
-        builder.addStaticBlock(CodeBlock.builder()
+        // register() method – called by ModelsBootstrap via ServiceLoader
+        builder.addMethod(MethodSpec.methodBuilder("register")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
             .addStatement(
                 "io.github.flameyossnowy.universal.api.meta.GeneratedRelationshipLoaders"
                 + ".<$T, $T>add($S, (handler, collectionHandler, model) -> new $L(handler, collectionHandler, model))",
