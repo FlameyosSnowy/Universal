@@ -50,7 +50,7 @@ public final class GeneratedMetadata {
      * @return The repository model, or null if not found
      */
     public static RepositoryModel get(String tableName) {
-        return Objects.requireNonNull(BY_TABLE_NAME.get(tableName));
+        return BY_TABLE_NAME.get(tableName);
     }
     
     /**
@@ -61,7 +61,7 @@ public final class GeneratedMetadata {
      */
     @Nullable
     public static RepositoryModel getByEntityClass(String entityClassName) {
-        return Objects.requireNonNull(BY_ENTITY_CLASS.get(entityClassName));
+        return BY_ENTITY_CLASS.get(entityClassName);
     }
     
     /**
@@ -73,8 +73,10 @@ public final class GeneratedMetadata {
     @Nullable
     @SuppressWarnings("unchecked")
     public static <T, ID> RepositoryModel<T, ID> getByEntityClass(Class<T> entityClass) {
-        return (RepositoryModel<T, ID>) Objects.requireNonNull(BY_ENTITY_CLASS.get(entityClass.getName()));
+        return (RepositoryModel<T, ID>) BY_ENTITY_CLASS.get(entityClass.getName());
     }
+
+
     
     /**
      * Checks if a repository model exists for the given table name.

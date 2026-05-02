@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Greatly optimize">
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Make registration much more natural">
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/buildOutputCleanup.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/executionHistory.bin" afterDir="false" />
@@ -19,8 +19,6 @@
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/sha1-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/shelved.patch" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/sketch/first_sketch.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -348,7 +346,7 @@
       <recent name="io.github.flameyossnow.universal" />
     </key>
   </component>
-  <component name="RunManager" selected="Gradle.NormalTest.postgresql_test">
+  <component name="RunManager" selected="Gradle.Universal-new [publish]">
     <configuration name="NormalTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -519,9 +517,9 @@
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Gradle.Universal-new [publish]" />
         <item itemvalue="Gradle.NormalTest.postgresql_test" />
         <item itemvalue="Gradle.NormalTest" />
-        <item itemvalue="Gradle.Universal-new [publish]" />
         <item itemvalue="Gradle.PostgresJsonAndNamedIntegrationTest" />
         <item itemvalue="Gradle.PostgresCacheCorrectnessTests.cache_should_return_consistent_results" />
       </list>
@@ -714,14 +712,7 @@
       <workItem from="1777144138257" duration="62000" />
       <workItem from="1777147426699" duration="31219000" />
       <workItem from="1777364068553" duration="19010000" />
-    </task>
-    <task id="LOCAL-00171" summary="Fix contract">
-      <option name="closed" value="true" />
-      <created>1772543831173</created>
-      <option name="number" value="00171" />
-      <option name="presentableId" value="LOCAL-00171" />
-      <option name="project" value="LOCAL" />
-      <updated>1772543831173</updated>
+      <workItem from="1777709895497" duration="628000" />
     </task>
     <task id="LOCAL-00172" summary="Add documentation and convert JSON to Uniform">
       <option name="closed" value="true" />
@@ -1107,14 +1098,21 @@
       <option name="project" value="LOCAL" />
       <updated>1777447113237</updated>
     </task>
-    <option name="localTasksCounter" value="220" />
+    <task id="LOCAL-00220" summary="Make registration much more natural">
+      <option name="closed" value="true" />
+      <created>1777710203619</created>
+      <option name="number" value="00220" />
+      <option name="presentableId" value="LOCAL-00220" />
+      <option name="project" value="LOCAL" />
+      <updated>1777710203620</updated>
+    </task>
+    <option name="localTasksCounter" value="221" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add GeneratedRepositoryFactory" />
     <MESSAGE value="Add getTargetPrimaryKeyType" />
     <MESSAGE value="Improve the performance of SQLDatabaseParameters and loadFromDatabase" />
     <MESSAGE value="Fix loadFromDatabaseBatch not using addResultAndAddToCache" />
@@ -1139,7 +1137,8 @@
     <MESSAGE value="Offload hot-path work to compile time generated code and fix JSON parameter issues" />
     <MESSAGE value="Fix test and compile time validator" />
     <MESSAGE value="Greatly optimize" />
-    <option name="LAST_COMMIT_MESSAGE" value="Greatly optimize" />
+    <MESSAGE value="Make registration much more natural" />
+    <option name="LAST_COMMIT_MESSAGE" value="Make registration much more natural" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
