@@ -100,6 +100,8 @@ public class FileEntityStore<T, ID> {
         this.parallelReads       = parallelReads;
         this.fileExtension       = buildFileExtension(format, compressed, compressionType);
 
+        if (!sharding) return;
+
         for (int i = 0; i < STRIPE_COUNT; i++) {
             //noinspection ObjectAllocationInLoop
             stripes[i] = new ReentrantReadWriteLock();
@@ -123,8 +125,6 @@ public class FileEntityStore<T, ID> {
                     objectMapper.writeValue(MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryModel, entity), raw);
                 }
 
-                // Flush/close the compression wrapper before the buffered stream closes,
-                // so the compression trailer is written inside the buffer and flushed atomically.
                 if (compressed) {
                     output.close();
                 }
@@ -148,13 +148,7 @@ public class FileEntityStore<T, ID> {
 
             Path path = entityPath(id);
 
-            BasicFileAttributes attrs;
-            try {
-                attrs = Files.readAttributes(path, BasicFileAttributes.class);
-            } catch (NoSuchFileException e) {
-                return null;
-            }
-            if (!attrs.isRegularFile()) return null;
+            if (!Files.isRegularFile(path)) return null;
 
             try (InputStream raw      = Files.newInputStream(path);
                  InputStream buffered = new BufferedInputStream(raw, BUFFER_SIZE)) {
@@ -168,10 +162,6 @@ public class FileEntityStore<T, ID> {
             lock.readLock().unlock();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Read from path (used by directory scans in FileQueryExecutor)
-    // -------------------------------------------------------------------------
 
     /**
      * Reads and deserializes an entity directly from a {@link Path}.
@@ -210,10 +200,6 @@ public class FileEntityStore<T, ID> {
             lock.writeLock().unlock();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Read all
-    // -------------------------------------------------------------------------
 
     /**
      * Reads every entity. When {@code parallelReads} is enabled and sharding is
@@ -284,10 +270,6 @@ public class FileEntityStore<T, ID> {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Count
-    // -------------------------------------------------------------------------
-
     public long countFiles() throws IOException {
         if (!sharding) {
             return countFilesInDirectory(basePath);
@@ -310,16 +292,9 @@ public class FileEntityStore<T, ID> {
 
         long count = 0L;
 
-        // The glob pre-filters at the OS level; we still validate isRegularFile
-        // via BasicFileAttributes to skip symlinks etc., all in one stat() call.
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(directory, "*" + fileExtension)) {
             for (Path path : ds) {
-                try {
-                    BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
-                    if (attrs.isRegularFile()) count++;
-                } catch (NoSuchFileException ignored) {
-                    // File disappeared between listing and stat - safe to skip.
-                }
+                if (Files.isRegularFile(path)) count++;
             }
         }
         return count;
@@ -344,10 +319,6 @@ public class FileEntityStore<T, ID> {
     public String  fileExtension()   { return fileExtension; }
     public boolean isParallelReads() { return parallelReads; }
 
-    // -------------------------------------------------------------------------
-    // Static utility
-    // -------------------------------------------------------------------------
-
     public static void deleteDirectoryRecursively(Path directory) throws IOException {
         if (!Files.exists(directory)) return;
         try (var stream = Files.walk(directory)) {
@@ -362,25 +333,14 @@ public class FileEntityStore<T, ID> {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
     private List<T> readFromDirectory(Path directory) throws IOException {
         if (!Files.exists(directory)) return List.of();
 
         List<T> results = new ArrayList<>(32);
 
-        // Use BasicFileAttributes glob - one stat() per entry, OS-level extension filter.
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(directory, "*" + fileExtension)) {
             for (Path path : ds) {
-                BasicFileAttributes attrs;
-                try {
-                    attrs = Files.readAttributes(path, BasicFileAttributes.class);
-                } catch (NoSuchFileException ignored) {
-                    continue;
-                }
-                if (!attrs.isRegularFile()) continue;
+                if (!Files.isRegularFile(path)) continue;
 
                 //noinspection ObjectAllocationInLoop
                 try (InputStream raw      = Files.newInputStream(path);
@@ -397,10 +357,7 @@ public class FileEntityStore<T, ID> {
     }
 
     private T deserialize(InputStream input) {
-        var storedNode = objectMapper.readValue(input);
-        return MicroservicesJsonCodecBridge.readEntityFromStorageJson(
-            objectMapper, resolverRegistry, repositoryModel, entityType, storedNode
-        );
+        return objectMapper.readValue(input, entityType);
     }
 
     private ReentrantReadWriteLock lockForId(ID id) {
