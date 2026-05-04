@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Fix some issues and optimize&#10;&#10;fix unnecessary blocking and improve performance and heap utilization">
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Add example and update license">
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/buildOutputCleanup.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/executionHistory.bin" afterDir="false" />
@@ -18,29 +18,29 @@
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/resourceHashesCache.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/sha1-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/shelved.patch" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/internal/DefaultTypeRegistry.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/advanced/Faction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/advanced/FactionMember.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/advanced/FactionSettings.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/advanced/FactionSystemExample.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/advanced/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/advanced/Warp.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/advanced/WarpMetadata.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules/postgresql/Universal.postgresql.test.iml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/LICENSE" beforeDir="false" afterPath="$PROJECT_DIR$/LICENSE" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryFieldModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryFieldModelGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/CacheStatistics.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/CacheStatistics.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DefaultResultCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DefaultResultCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DefaultSessionCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/DefaultSessionCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PartitionedCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PartitionedCache.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PrefetchCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PrefetchCache.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PrefetchingCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PrefetchingCache.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/ReadThroughCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/ReadThroughCache.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/SecondLevelCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/SecondLevelCache.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/ObjectModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/ObjectModel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TimestampTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TimestampTypeResolver.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/qodana.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/qodana.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlCacheManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlCacheManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/StatisticSessionCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/StatisticSessionCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/FieldModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/meta/FieldModel.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/DeleteQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/DeleteQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/SelectQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/SelectQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/UpdateQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/options/UpdateQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileSessionCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/file/FileSessionCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkSessionCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/microservices/src/main/java/io/github/flameyossnowy/universal/microservices/network/NetworkSessionCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/validation/MongoValidationTranslator.java" beforeDir="false" afterPath="$PROJECT_DIR$/mongodb/src/main/java/io/github/flameyossnowy/universal/mongodb/validation/MongoValidationTranslator.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/validation/SqlValidationTranslator.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/validation/SqlValidationTranslator.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -99,53 +99,6 @@
                 <item name="Universal" type="f1a62948:ProjectNode" />
                 <item name="Tasks" type="e4a08cd1:TasksNode" />
                 <item name="publishing" type="c8890929:TasksNode$1" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="Universal" type="f1a62948:ProjectNode" />
-                <item name="core" type="2d1252cf:ModuleNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="Universal" type="f1a62948:ProjectNode" />
-                <item name="core" type="2d1252cf:ModuleNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="Universal" type="f1a62948:ProjectNode" />
-                <item name="mongodb" type="2d1252cf:ModuleNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="Universal" type="f1a62948:ProjectNode" />
-                <item name="mongodb" type="2d1252cf:ModuleNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="Universal" type="f1a62948:ProjectNode" />
-                <item name="mongodb" type="2d1252cf:ModuleNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="build" type="c8890929:TasksNode$1" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="Universal" type="f1a62948:ProjectNode" />
-                <item name="sqlite" type="2d1252cf:ModuleNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="Universal" type="f1a62948:ProjectNode" />
-                <item name="sqlite" type="2d1252cf:ModuleNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="Universal" type="f1a62948:ProjectNode" />
-                <item name="sqlite" type="2d1252cf:ModuleNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="build" type="c8890929:TasksNode$1" />
               </path>
             </expand>
             <select />
@@ -299,6 +252,7 @@
     "Gradle.Universal-new [build].executor": "Run",
     "Gradle.Universal-new [clean].executor": "Run",
     "Gradle.Universal-new [publish].executor": "Run",
+    "Gradle.Universal-new [shadowJar].executor": "Run",
     "Gradle.Universal:cassandra [shadowJar].executor": "Run",
     "Gradle.Universal:mongodb [shadowJar].executor": "Run",
     "Gradle.Universal:mysql [:mysql:Main.main()].executor": "Run",
@@ -372,7 +326,7 @@
       <recent name="io.github.flameyossnow.universal" />
     </key>
   </component>
-  <component name="RunManager" selected="Gradle.Universal-new [publish]">
+  <component name="RunManager" selected="Gradle.Universal-new [shadowJar]">
     <configuration name="NormalTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -454,56 +408,27 @@
       <GradleCoverageDisabled>false</GradleCoverageDisabled>
       <method v="2" />
     </configuration>
-    <configuration name="PostgresCacheCorrectnessTests.cache_should_return_consistent_results" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+    <configuration name="Universal-new [build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
+        <option name="scriptParameters" />
         <option name="taskDescriptions">
           <list />
         </option>
         <option name="taskNames">
           <list>
-            <option value=":postgresql:test" />
-            <option value="--tests" />
-            <option value="&quot;testapp.PostgresCacheCorrectnessTests.cache_should_return_consistent_results&quot;" />
+            <option value="build" />
           </list>
         </option>
         <option name="vmOptions" />
       </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
       <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
       <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
       <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
-      <GradleProfilingDisabled>false</GradleProfilingDisabled>
-      <GradleCoverageDisabled>false</GradleCoverageDisabled>
-      <method v="2" />
-    </configuration>
-    <configuration name="PostgresJsonAndNamedIntegrationTest" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" value="" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value=":postgresql:test" />
-            <option value="--tests" />
-            <option value="&quot;testapp.PostgresJsonAndNamedIntegrationTest&quot;" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>true</RunAsTest>
+      <RunAsTest>false</RunAsTest>
       <GradleProfilingDisabled>false</GradleProfilingDisabled>
       <GradleCoverageDisabled>false</GradleCoverageDisabled>
       <method v="2" />
@@ -533,21 +458,46 @@
       <GradleCoverageDisabled>false</GradleCoverageDisabled>
       <method v="2" />
     </configuration>
+    <configuration name="Universal-new [shadowJar]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="shadowJar" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <GradleProfilingDisabled>false</GradleProfilingDisabled>
+      <GradleCoverageDisabled>false</GradleCoverageDisabled>
+      <method v="2" />
+    </configuration>
     <list>
       <item itemvalue="Gradle.PostgresCacheCorrectnessTests" />
+      <item itemvalue="Gradle.Universal-new [build]" />
+      <item itemvalue="Gradle.Universal-new [shadowJar]" />
       <item itemvalue="Gradle.NormalTest.postgresql_test" />
       <item itemvalue="Gradle.Universal-new [publish]" />
       <item itemvalue="Gradle.NormalTest" />
-      <item itemvalue="Gradle.PostgresCacheCorrectnessTests.cache_should_return_consistent_results" />
-      <item itemvalue="Gradle.PostgresJsonAndNamedIntegrationTest" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Gradle.Universal-new [shadowJar]" />
+        <item itemvalue="Gradle.Universal-new [build]" />
         <item itemvalue="Gradle.Universal-new [publish]" />
         <item itemvalue="Gradle.NormalTest.postgresql_test" />
         <item itemvalue="Gradle.NormalTest" />
-        <item itemvalue="Gradle.PostgresJsonAndNamedIntegrationTest" />
-        <item itemvalue="Gradle.PostgresCacheCorrectnessTests.cache_should_return_consistent_results" />
       </list>
     </recent_temporary>
   </component>
@@ -741,47 +691,7 @@
       <workItem from="1777709895497" duration="628000" />
       <workItem from="1777710953004" duration="5107000" />
       <workItem from="1777724088949" duration="43024000" />
-      <workItem from="1777892318774" duration="5543000" />
-    </task>
-    <task id="LOCAL-00183" summary="Fix @Named issues and JSON issues">
-      <option name="closed" value="true" />
-      <created>1772782154318</created>
-      <option name="number" value="00183" />
-      <option name="presentableId" value="LOCAL-00183" />
-      <option name="project" value="LOCAL" />
-      <updated>1772782154318</updated>
-    </task>
-    <task id="LOCAL-00184" summary="Fix @Named issues and JSON issues, and replace reflection with ServiceLoader">
-      <option name="closed" value="true" />
-      <created>1772782220444</created>
-      <option name="number" value="00184" />
-      <option name="presentableId" value="LOCAL-00184" />
-      <option name="project" value="LOCAL" />
-      <updated>1772782220444</updated>
-    </task>
-    <task id="LOCAL-00185" summary="Fix @Named issues and JSON issues, add features&#10;&#10;- Add JsonVersioned&#10;- Remove JsonIgnoreNulls">
-      <option name="closed" value="true" />
-      <created>1773070749443</created>
-      <option name="number" value="00185" />
-      <option name="presentableId" value="LOCAL-00185" />
-      <option name="project" value="LOCAL" />
-      <updated>1773070749443</updated>
-    </task>
-    <task id="LOCAL-00186" summary="Add tests">
-      <option name="closed" value="true" />
-      <created>1773148873675</created>
-      <option name="number" value="00186" />
-      <option name="presentableId" value="LOCAL-00186" />
-      <option name="project" value="LOCAL" />
-      <updated>1773148873676</updated>
-    </task>
-    <task id="LOCAL-00187" summary="Add GeneratedRepositoryFactory">
-      <option name="closed" value="true" />
-      <created>1773148890789</created>
-      <option name="number" value="00187" />
-      <option name="presentableId" value="LOCAL-00187" />
-      <option name="project" value="LOCAL" />
-      <updated>1773148890790</updated>
+      <workItem from="1777892318774" duration="8751000" />
     </task>
     <task id="LOCAL-00188" summary="Update tests">
       <option name="closed" value="true" />
@@ -1135,17 +1045,53 @@
       <option name="project" value="LOCAL" />
       <updated>1777898668666</updated>
     </task>
-    <option name="localTasksCounter" value="232" />
+    <task id="LOCAL-00232" summary="New validation API in favor of old Condition API">
+      <option name="closed" value="true" />
+      <created>1777899126441</created>
+      <option name="number" value="00232" />
+      <option name="presentableId" value="LOCAL-00232" />
+      <option name="project" value="LOCAL" />
+      <updated>1777899126441</updated>
+    </task>
+    <task id="LOCAL-00233" summary="Improve performance and cache selective invalidation">
+      <option name="closed" value="true" />
+      <created>1777899157258</created>
+      <option name="number" value="00233" />
+      <option name="presentableId" value="LOCAL-00233" />
+      <option name="project" value="LOCAL" />
+      <updated>1777899157258</updated>
+    </task>
+    <task id="LOCAL-00234" summary="Add missing methods and fix an issue with stack over flow">
+      <option name="closed" value="true" />
+      <created>1777899174195</created>
+      <option name="number" value="00234" />
+      <option name="presentableId" value="LOCAL-00234" />
+      <option name="project" value="LOCAL" />
+      <updated>1777899174195</updated>
+    </task>
+    <task id="LOCAL-00235" summary="Type registration API">
+      <option name="closed" value="true" />
+      <created>1777899190118</created>
+      <option name="number" value="00235" />
+      <option name="presentableId" value="LOCAL-00235" />
+      <option name="project" value="LOCAL" />
+      <updated>1777899190118</updated>
+    </task>
+    <task id="LOCAL-00236" summary="Add example and update license">
+      <option name="closed" value="true" />
+      <created>1777899253455</created>
+      <option name="number" value="00236" />
+      <option name="presentableId" value="LOCAL-00236" />
+      <option name="project" value="LOCAL" />
+      <updated>1777899253455</updated>
+    </task>
+    <option name="localTasksCounter" value="237" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Remove comments" />
-    <MESSAGE value="Make relationship handler use LRU and make it tunable" />
-    <MESSAGE value="Remove maven-publish from gradle" />
-    <MESSAGE value="Update" />
     <MESSAGE value="JVM Change" />
     <MESSAGE value="Fix compile time processing issues" />
     <MESSAGE value="Improve performance, cache eviction behavior and made it tunable" />
@@ -1160,14 +1106,18 @@
     <MESSAGE value="Greatly optimize" />
     <MESSAGE value="Make registration much more natural" />
     <MESSAGE value="Fix nullability mismatch" />
-    <MESSAGE value="New validation API in favor of old Condition API" />
-    <MESSAGE value="Type registration API" />
-    <MESSAGE value="Type registration API and loop merge optimization" />
     <MESSAGE value="Bump version" />
     <MESSAGE value="Fix OutputStream being ignored." />
     <MESSAGE value="Add sharding check." />
     <MESSAGE value="Fix some issues and optimize&#10;&#10;fix unnecessary blocking and improve performance and heap utilization" />
-    <option name="LAST_COMMIT_MESSAGE" value="Fix some issues and optimize&#10;&#10;fix unnecessary blocking and improve performance and heap utilization" />
+    <MESSAGE value="Improve performance and contention" />
+    <MESSAGE value="New validation API in favor of old Condition API" />
+    <MESSAGE value="Improve performance and cache selective invalidation" />
+    <MESSAGE value="Add missing methods and fix an issue with stack over flow" />
+    <MESSAGE value="Type registration API and loop merge optimization" />
+    <MESSAGE value="Type registration API" />
+    <MESSAGE value="Add example and update license" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add example and update license" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

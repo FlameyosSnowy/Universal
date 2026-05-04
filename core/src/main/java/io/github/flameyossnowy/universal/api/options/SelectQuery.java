@@ -81,7 +81,7 @@ public record SelectQuery(
          * <p>This method allows bypassing validation and constructing
          * backend-incompatible filters.</p>
          */
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         @Deprecated(forRemoval = true, since = "7.0.0")
         public SelectQueryBuilder where(FilterOption filter) {
             filters.add(filter);
@@ -103,7 +103,7 @@ public record SelectQuery(
          *   .build();
          * }</pre>
          */
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         @Deprecated(forRemoval = true, since = "7.0.0")
         public SelectQueryBuilder where(String key, String operator, Object value) {
             filters.add(new SelectOption(key, operator, value));
@@ -120,7 +120,7 @@ public record SelectQuery(
          *   .build();
          * }</pre>
          */
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         @Deprecated(forRemoval = true, since = "7.0.0")
         public SelectQueryBuilder where(String key, Object value) {
             filters.add(new SelectOption(key, "=", value));
@@ -137,7 +137,7 @@ public record SelectQuery(
          *   .build();
          * }</pre>
          */
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         @Deprecated(forRemoval = true, since = "7.0.0")
         public SelectQueryBuilder whereIn(String key, Collection<?> values) {
             filters.add(new SelectOption(key, "IN", values));

@@ -25,7 +25,7 @@ public record DeleteQuery(List<FilterOption> filters, boolean cache) implements 
          * @return the updated SelectQueryBuilder instance
          */
         @Deprecated
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         public DeleteQueryBuilder where(String option, String operator, Object value) {
             filters.add(new SelectOption(option, operator, value));
             return this;
@@ -39,7 +39,7 @@ public record DeleteQuery(List<FilterOption> filters, boolean cache) implements 
          * @return the updated SelectQueryBuilder instance
          */
         @Deprecated
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         public DeleteQueryBuilder where(String option, Object value) {
             filters.add(new SelectOption(option, "=", value));
             return this;
@@ -74,14 +74,14 @@ public record DeleteQuery(List<FilterOption> filters, boolean cache) implements 
          * @return the updated SelectQueryBuilder instance
          */
         @Deprecated
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         public DeleteQueryBuilder whereIn(String key, Collection<?> values) {
             filters.add(new SelectOption(key, "IN", values));
             return this;
         }
 
         @Deprecated
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         public DeleteQueryBuilder whereJson(
             String field,
             String jsonPath,

@@ -28,7 +28,7 @@ public record UpdateQuery(Map<String, Object> updates, List<FilterOption> filter
          * @return the updated SelectQueryBuilder instance
          */
         @Deprecated
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         public UpdateQueryBuilder where(String field, String operator, Object value) {
             conditions.add(new SelectOption(field, operator, value));
             return this;
@@ -75,7 +75,7 @@ public record UpdateQuery(Map<String, Object> updates, List<FilterOption> filter
          * @return the updated SelectQueryBuilder instance
          */
         @Deprecated
-        @ApiStatus.ScheduledForRemoval(inVersion = "7.2.0")
+        @ApiStatus.ScheduledForRemoval(inVersion = "7.3.0")
         public UpdateQueryBuilder whereIn(String key, Collection<?> values) {
             conditions.add(new SelectOption(key, "IN", values));
             return this;
