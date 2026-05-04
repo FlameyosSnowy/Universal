@@ -1,180 +1,156 @@
 package io.github.flameyossnowy.universal.api.cache;
 
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.concurrent.locks.ReentrantLock;
 
-/**
- * Tracks cache performance metrics including hits, misses, evictions, and load times.
- * Thread-safe and designed for high-concurrency environments.
- */
 public class CacheStatistics {
-    private final AtomicLong hits = new AtomicLong();
-    private final AtomicLong misses = new AtomicLong();
-    private final AtomicLong evictions = new AtomicLong();
-    private final AtomicLong puts = new AtomicLong();
+
+    // Core counters
+    private final LongAdder hits = new LongAdder();
+    private final LongAdder misses = new LongAdder();
+    private final LongAdder evictions = new LongAdder();
+    private final LongAdder puts = new LongAdder();
     private final LongAdder totalLoadTime = new LongAdder();
+    private final LongAdder totalOps = new LongAdder();
 
-    // Throughput tracking
-    private final AtomicLong lastSnapshotTime = new AtomicLong(System.currentTimeMillis());
-    private final AtomicLong lastSnapshotTotalOps = new AtomicLong();
-    private final AtomicLong lastThroughput = new AtomicLong(); // ops/min from last completed minute
+    // Rolling window (60 seconds)
+    private static final int WINDOW_SIZE = 60;
+    private final AtomicIntegerArray buckets = new AtomicIntegerArray(WINDOW_SIZE);
+    private final AtomicLong lastTick = new AtomicLong(currentSecond());
 
-    private final ReentrantLock lock = new ReentrantLock();
+    // --- Recording operations ---
 
-    private static final int ONE_MINUTE_MS = 60_000;
-
-    public static CacheStatistics empty() {
-        return new CacheStatistics();
-    }
-
-    /**
-     * Records a cache hit.
-     */
     public void recordHit() {
-        hits.incrementAndGet();
-        recordOperation();
+        hits.increment();
+        recordOp();
     }
 
-    /**
-     * Records a cache miss with the time taken to load the value.
-     *
-     * @param loadTimeMs the time taken to load the value in milliseconds
-     */
     public void recordMiss(long loadTimeMs) {
-        misses.incrementAndGet();
+        misses.increment();
         totalLoadTime.add(loadTimeMs);
-        recordOperation();
+        recordOp();
     }
 
-    /**
-     * Records a cache eviction.
-     */
     public void recordEviction() {
-        evictions.incrementAndGet();
-        recordOperation();
+        evictions.increment();
+        recordOp();
     }
 
-    /**
-     * Records a cache put operation.
-     */
     public void recordPut() {
-        puts.incrementAndGet();
-        recordOperation();
+        puts.increment();
+        recordOp();
     }
 
-    private void recordOperation() {
-        long now = System.currentTimeMillis();
-        long elapsed = now - lastSnapshotTime.get();
-
-        // Only update throughput when a full minute has passed
-        if (elapsed < ONE_MINUTE_MS) {
-           return;
-        }
-
-        lock.lock();
-        try {
-            // Double-check inside lock
-            if (now - lastSnapshotTime.get() < ONE_MINUTE_MS) {
-                return;
-            }
-
-            long totalOps = hits.get() + misses.get() + evictions.get() + puts.get();
-            long prevOps = lastSnapshotTotalOps.getAndSet(totalOps);
-            long delta = totalOps - prevOps;
-            lastThroughput.set(delta);
-            lastSnapshotTime.set(now);
-        } finally {
-            lock.unlock();
+    public void recordPuts(int count) {
+        if (count > 0) {
+            puts.add(count);
+            recordOps(count);
         }
     }
 
-    /**
-     * Gets the total number of cache hits.
-     */
+    private void recordOp() {
+        recordOps(1);
+    }
+
+    private void recordOps(int count) {
+        totalOps.add(count);
+        rotateIfNeeded();
+
+        int index = (int) (currentSecond() % WINDOW_SIZE);
+        buckets.addAndGet(index, count);
+    }
+
+    // --- Time rotation logic ---
+
+    private void rotateIfNeeded() {
+        long now = currentSecond();
+        long last = lastTick.get();
+
+        if (now == last) return;
+
+        if (!lastTick.compareAndSet(last, now)) return;
+
+        long diff = Math.min(now - last, WINDOW_SIZE);
+
+        for (int i = 1; i <= diff; i++) {
+            int index = (int) ((last + i) % WINDOW_SIZE);
+            buckets.set(index, 0);
+        }
+    }
+
+    private static long currentSecond() {
+        return System.currentTimeMillis() / 1000;
+    }
+
+    // --- Metrics ---
+
     public long getHits() {
-        return hits.get();
+        return hits.sum();
     }
 
-    /**
-     * Gets the total number of cache misses.
-     */
     public long getMisses() {
-        return misses.get();
+        return misses.sum();
     }
 
-    /**
-     * Gets the total number of cache evictions.
-     */
     public long getEvictions() {
-        return evictions.get();
+        return evictions.sum();
     }
 
-    /**
-     * Gets the total number of put operations.
-     */
     public long getPuts() {
-        return puts.get();
+        return puts.sum();
     }
 
-    /**
-     * Calculates the cache hit rate as a percentage (0.0 to 1.0).
-     */
     public double getHitRate() {
-        long total = hits.get() + misses.get();
-        return total == 0 ? 0.0 : (double) hits.get() / total;
+        long h = hits.sum();
+        long m = misses.sum();
+        long total = h + m;
+        return total == 0 ? 0.0 : (double) h / total;
     }
 
-    /**
-     * Calculates the average load time for cache misses in milliseconds.
-     */
     public double getAverageLoadTime() {
-        long missCount = misses.get();
-        return missCount == 0 ? 0.0 : (double) totalLoadTime.sum() / missCount;
+        long m = misses.sum();
+        return m == 0 ? 0.0 : (double) totalLoadTime.sum() / m;
     }
 
     /**
-     * Gets the number of operations executed in the last full minute.
+     * Returns operations per second over last 60 seconds.
      */
-    public long getOpsPerMinute() {
-        recordOperation(); // force refresh if a minute has passed
-        return lastThroughput.get();
+    public long getOpsPerSecond() {
+        rotateIfNeeded();
+
+        long sum = 0;
+        for (int i = 0; i < WINDOW_SIZE; i++) {
+            sum += buckets.get(i);
+        }
+        return sum / WINDOW_SIZE;
     }
 
     /**
-     * Gets a snapshot of all cache metrics.
+     * Returns total operations in last 60 seconds.
      */
-    public CacheMetrics getMetrics() {
-        return new CacheMetrics(
-                hits.get(),
-                misses.get(),
-                evictions.get(),
-                puts.get(),
-                getHitRate(),
-                getAverageLoadTime(),
-                getOpsPerMinute()
-        );
+    public long getOpsLastMinute() {
+        rotateIfNeeded();
+
+        long sum = 0;
+        for (int i = 0; i < WINDOW_SIZE; i++) {
+            sum += buckets.get(i);
+        }
+        return sum;
     }
 
-    /**
-     * Resets all statistics to zero.
-     */
     public void reset() {
-        hits.set(0);
-        misses.set(0);
-        evictions.set(0);
-        puts.set(0);
+        hits.reset();
+        misses.reset();
+        evictions.reset();
+        puts.reset();
         totalLoadTime.reset();
-        lastSnapshotTime.set(System.currentTimeMillis());
-        lastSnapshotTotalOps.set(0);
-        lastThroughput.set(0);
-    }
+        totalOps.reset();
 
-    @Override
-    public String toString() {
-        return String.format(
-                "CacheStatistics{hits=%d, misses=%d, hitRate=%.2f%%, avgLoadTime=%.2fms, evictions=%d, ops/min=%d}",
-                hits.get(), misses.get(), getHitRate() * 100, getAverageLoadTime(), evictions.get(), getOpsPerMinute()
-        );
+        for (int i = 0; i < WINDOW_SIZE; i++) {
+            buckets.set(i, 0);
+        }
+
+        lastTick.set(currentSecond());
     }
 }
