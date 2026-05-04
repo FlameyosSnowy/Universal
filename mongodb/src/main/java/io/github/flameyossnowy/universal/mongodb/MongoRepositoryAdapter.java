@@ -31,8 +31,12 @@ import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
 import io.github.flameyossnowy.universal.api.options.validator.ValidationEstimation;
+import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistry;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.mongodb.aggregate.MongoAggregationImplementation;
@@ -42,6 +46,7 @@ import io.github.flameyossnowy.universal.mongodb.codec.MongoTypeCodecProvider;
 import io.github.flameyossnowy.universal.mongodb.params.MongoDatabaseParameters;
 import io.github.flameyossnowy.universal.mongodb.query.MongoQueryValidator;
 import io.github.flameyossnowy.universal.mongodb.result.MongoDatabaseResult;
+import io.github.flameyossnowy.universal.mongodb.validation.MongoValidationTranslator;
 import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import org.bson.*;
 import org.bson.codecs.*;
@@ -113,6 +118,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     private final ExceptionHandler<T, ID, ClientSession> exceptionHandler;
     private final TypeResolverRegistry typeResolverRegistry = new TypeResolverRegistry();
     private final QueryValidator queryValidator;
+    private final ValidationTranslator validationTranslator;
 
     private final JsonAdapter objectMapper;
 
@@ -138,7 +144,8 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         LongFunction<SessionCache<ID, T>> sessionCacheSupplier,
         CacheWarmer<T, ID> cacheWarmer,
         MongoClient client,
-        boolean autoCreate
+        boolean autoCreate,
+        @Nullable TypeRegistration typeRegistration
     ) {
         this.objectMapper = new JsonAdapter(JsonAdapter.configBuilder().build());
         this.repositoryModel = GeneratedMetadata.getByEntityClass(repo);
@@ -162,6 +169,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         // Enable DefaultJsonCodec usage (JsonCodec instantiation may require ObjectMapper)
         this.typeResolverRegistry.setJsonAdapterSupplier(() -> objectMapper);
         this.queryValidator = new MongoQueryValidator(repositoryModel);
+        this.validationTranslator = new MongoValidationTranslator();
 
         this.operationExecutor = new MongoOperationExecutor<>(this);
         this.operationContext = new OperationContext<>(repositoryModel, typeResolverRegistry, this.operationExecutor);
@@ -188,6 +196,12 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
         for (Supplier<TypeResolver<?>> resolverSupplier : repositoryModel.getRequiredResolvers()) {
             this.typeResolverRegistry.register(resolverSupplier.get());
+        }
+
+        // Apply user-provided type registrations via the wrapper API
+        if (typeRegistration != null) {
+            TypeRegistry typeRegistry = new DefaultTypeRegistry(this.typeResolverRegistry);
+            typeRegistration.register(typeRegistry);
         }
 
         DelegatingMongoCodecProvider delegatingProvider = new DelegatingMongoCodecProvider();
@@ -759,6 +773,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insert(T value, @NotNull TransactionContext<ClientSession> tx) {
+        validateEntity(value);
         FieldModel<T> primaryKey = repositoryModel.getPrimaryKey();
         if (primaryKey == null) {
             throw new IllegalArgumentException("Primary key not found for " + repositoryModel.tableName());
@@ -793,6 +808,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insert(T value) {
+        validateEntity(value);
         FieldModel<T> primaryKey = repositoryModel.getPrimaryKey();
         if (primaryKey == null) {
             throw new IllegalArgumentException("Primary key not found for " + repositoryModel.tableName());
@@ -826,6 +842,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> values, @NotNull TransactionContext<ClientSession> tx) {
+        for (T value : values) {
+            validateEntity(value);
+        }
         try {
             List<Document> docs = insertAll0(values);
             InsertManyResult result = collection.insertMany(tx.connection(), docs);
@@ -837,6 +856,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> values) {
+        for (T value : values) {
+            validateEntity(value);
+        }
         try {
             List<Document> docs = insertAll0(values);
             InsertManyResult result = collection.insertMany(docs);
@@ -1307,6 +1329,26 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     @Override
     public @NotNull RepositoryModel<T, ID> getRepositoryModel() {
         return repositoryModel;
+    }
+
+    public @NotNull ValidationTranslator getValidationTranslator() {
+        return validationTranslator;
+    }
+
+    /**
+     * Validates an entity against all field-level validations and cross-field constraints.
+     * Throws ValidationException if validation fails.
+     *
+     * @param entity the entity to validate
+     */
+    public void validateEntity(T entity) {
+        var violations = validationTranslator.validate(entity, repositoryModel, objectModel);
+        if (!violations.isEmpty()) {
+            throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
+                repositoryModel.getEntityClass().getSimpleName(),
+                violations
+            );
+        }
     }
 
     @Override

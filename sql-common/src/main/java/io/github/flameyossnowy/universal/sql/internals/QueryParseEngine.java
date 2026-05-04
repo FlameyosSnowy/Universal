@@ -139,17 +139,19 @@ public class QueryParseEngine<T, ID> {
         return repositoryDdlBuilder.parseRepository(ifNotExists);
     }
 
-    public enum SQLType implements DatabaseImplementation {
-        MYSQL("MySQL", "AUTO_INCREMENT", false, '`'),
-        SQLITE("SQLite", "AUTOINCREMENT", false, '"'),
-        POSTGRESQL("PostgreSQL", "GENERATED ALWAYS AS IDENTITY", true, '"');
+    public enum SQLType implements DatabaseImplementation, io.github.flameyossnowy.universal.api.resolver.DatabaseDialect {
+        MYSQL("mysql", "MySQL", "AUTO_INCREMENT", false, '`'),
+        SQLITE("sqlite", "SQLite", "AUTOINCREMENT", false, '"'),
+        POSTGRESQL("postgresql", "PostgreSQL", "GENERATED ALWAYS AS IDENTITY", true, '"');
 
+        private final String identifier;
         private final boolean supportsArrays;
         private final String name;
         private final String autoIncrementKeyword;
         private final char quotesChar;
 
-        SQLType(String name, String autoIncrementKeyword, boolean supportsArrays, char quotesChar) {
+        SQLType(String identifier, String name, String autoIncrementKeyword, boolean supportsArrays, char quotesChar) {
+            this.identifier = identifier;
             this.supportsArrays = supportsArrays;
             this.name = name;
             this.autoIncrementKeyword = autoIncrementKeyword;
@@ -160,6 +162,11 @@ public class QueryParseEngine<T, ID> {
         @Override public String autoIncrementKeyword() { return autoIncrementKeyword; }
         @Override public char quoteChar()              { return quotesChar; }
         @Override public boolean supportsArrays()      { return supportsArrays; }
+
+        @Override
+        public String getIdentifier() {
+            return identifier;
+        }
 
         public SQLQueryValidator.SQLDialect getDialect() {
             return switch (this) {

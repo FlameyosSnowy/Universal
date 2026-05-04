@@ -14,8 +14,10 @@ import io.github.flameyossnowy.universal.api.cache.DatabaseSession;
 import io.github.flameyossnowy.universal.api.cache.SessionOption;
 import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
+import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
+import io.github.flameyossnowy.universal.api.meta.GeneratedObjectFactories;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
@@ -31,10 +33,15 @@ import io.github.flameyossnowy.universal.api.options.SortOption;
 import io.github.flameyossnowy.universal.api.options.SortOrder;
 import io.github.flameyossnowy.universal.api.options.WindowQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistry;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.universal.microservices.MicroservicesJsonCodecBridge;
 import io.github.flameyossnowy.universal.microservices.relationship.MicroserviceRelationshipHandler;
 import io.github.flameyossnowy.universal.microservices.relationship.RelationshipResolver;
+import io.github.flameyossnowy.universal.microservices.network.validation.NetworkValidationTranslator;
 import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import io.github.flameyossnowy.uniform.json.dom.JsonArray;
 import org.jetbrains.annotations.Contract;
@@ -103,7 +110,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private final @Nullable NetworkAggregationProvider<T, ID> aggregationProvider;
 
     private final RelationshipHandler<T, ID> relationshipHandler;
-    
+    private final NetworkValidationTranslator<T> validationTranslator;
+
     // Response cache
     private final Map<String, CompletableFuture<CachedResponse>> responseCache;
     private final boolean cacheEnabled;
@@ -125,7 +133,8 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         EndpointConfig endpointConfig,
         JsonAdapter objectMapper,
         @Nullable NetworkAggregationProviderFactory<T, ID> aggregationProviderFactory,
-        boolean autoCreate) {
+        boolean autoCreate,
+        TypeRegistration typeRegistration) {
         this.entityType = entityType;
         this.idType = idType;
         this.baseUrl = baseUrl.endsWith(FileSystems.getDefault().getSeparator()) ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
@@ -140,7 +149,13 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         if (repositoryInformation == null)
             throw new IllegalArgumentException("Could not find repository information for class: " + entityType.getSimpleName());
         this.resolverRegistry = new TypeResolverRegistry();
-        
+
+        // Apply user-provided type registrations via the wrapper API
+        if (typeRegistration != null) {
+            TypeRegistry typeRegistry = new DefaultTypeRegistry(resolverRegistry);
+            typeRegistration.register(typeRegistry);
+        }
+
         this.objectMapper = objectMapper;
 
         // Enable DefaultJsonCodec usage in microservices/network layer
@@ -160,6 +175,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         this.responseCache = cacheEnabled ? new ConcurrentHashMap<>(3) : null;
 
         this.relationshipHandler = new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry);
+        this.validationTranslator = new NetworkValidationTranslator();
         this.relationshipResolver = new RelationshipResolver<>(relationshipHandler);
         RepositoryRegistry.register(this.repositoryInformation.tableName(), this);
 
@@ -249,7 +265,9 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 endpointConfig,
                 NetworkRepositoryAdapterBuilder.createDefaultObjectMapper(),
                 null,
-                true);
+                true,
+                null
+            );
     }
 
     private static <T> @NotNull EndpointConfig getEndpointConfig(@NotNull Class<T> entityType) {
@@ -300,6 +318,28 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     @NotNull
     public RepositoryModel<T, ID> getRepositoryModel() {
         return repositoryInformation;
+    }
+
+    @NotNull
+    public NetworkValidationTranslator getValidationTranslator() {
+        return validationTranslator;
+    }
+
+    /**
+     * Validates an entity against all field-level validations and cross-field constraints.
+     * Throws ValidationException if validation fails.
+     *
+     * @param entity the entity to validate
+     */
+    public void validateEntity(T entity) {
+        ObjectModel<T, ID> objectModel = GeneratedObjectFactories.getObjectModel(repositoryInformation);
+        var violations = validationTranslator.validate(entity, repositoryInformation, objectModel);
+        if (!violations.isEmpty()) {
+            throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
+                repositoryInformation.getEntityClass().getSimpleName(),
+                violations
+            );
+        }
     }
 
     @Override
@@ -798,6 +838,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     @Override
     public TransactionResult<Boolean> insert(T value, TransactionContext<HttpClient> transactionContext) {
         try {
+            validateEntity(value);
             create(value);
             return TransactionResult.success(true);
         } catch (Exception e) {
@@ -809,6 +850,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     public TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext<HttpClient> transactionContext) {
         try {
             for (T entity : value) {
+                validateEntity(entity);
                 create(entity);
             }
             return TransactionResult.success(true);
@@ -820,6 +862,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     @Override
     public TransactionResult<Boolean> updateAll(T entity, TransactionContext<HttpClient> transactionContext) {
         try {
+            validateEntity(entity);
             ID id = extractId(entity);
             update(id, entity);
             return TransactionResult.success(true);

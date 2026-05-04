@@ -15,8 +15,11 @@ import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -242,6 +245,9 @@ public class SQLDatabaseParameters implements DatabaseParameters {
             else if (type == boolean.class || type == Boolean.class)   statement.setBoolean(idx, (boolean) value);
             else if (type == char.class    || type == Character.class) statement.setString(idx, value.toString());
             else if (type == String.class)                             statement.setString(idx, (String) value);
+            else if (type == Timestamp.class)                          statement.setTimestamp(idx, (Timestamp) value);
+            else if (type == Date.class)                               statement.setDate(idx, (Date) value);
+            else if (type == Time.class)                               statement.setTime(idx, (Time) value);
             else                                                       statement.setObject(idx, value);
 
         } catch (SQLException e) {

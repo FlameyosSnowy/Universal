@@ -3,6 +3,7 @@ package io.github.flameyossnowy.universal.mysql;
 import io.github.flameyossnowy.universal.api.cache.CacheWarmer;
 import io.github.flameyossnowy.universal.api.cache.DefaultResultCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
 import io.github.flameyossnowy.universal.sql.internals.AbstractRelationalRepositoryAdapter;
 
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
@@ -10,6 +11,7 @@ import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.function.LongFunction;
 
@@ -24,9 +26,10 @@ public class MySQLRepositoryAdapter<T, ID> extends AbstractRelationalRepositoryA
             CacheWarmer<T, ID> cacheWarmer,
             boolean cacheEnabled,
             int maxSize,
-            boolean autoCreate
+            boolean autoCreate,
+            @Nullable TypeRegistration typeRegistration
     ) {
-        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.MYSQL, globalCache, sessionCacheLongFunction, cacheWarmer, cacheEnabled, maxSize, autoCreate);
+        super(dataSource, cache, repository, idClass, QueryParseEngine.SQLType.MYSQL, globalCache, sessionCacheLongFunction, cacheWarmer, cacheEnabled, maxSize, autoCreate, typeRegistration);
     }
 
     /**

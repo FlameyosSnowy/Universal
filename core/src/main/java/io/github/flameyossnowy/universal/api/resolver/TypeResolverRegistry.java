@@ -10,10 +10,10 @@ import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.velocis.cache.algorithms.LRUCache;
 
 import io.github.flameyossnowy.uniform.json.JsonAdapter;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URI;
@@ -47,6 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+@ApiStatus.Internal
 public class TypeResolverRegistry {
     private final Map<ResolverKey, TypeResolver<?>> resolvers = new ConcurrentHashMap<>(24);
     private final Map<Class<?>, DataHandler<?>> dataHandlers = new ConcurrentHashMap<>(24);
@@ -88,14 +89,25 @@ public class TypeResolverRegistry {
                 Map.entry(Long.class, SqlTypeMapping.of("BIGINT")),
                 Map.entry(long.class, SqlTypeMapping.of("BIGINT")),
 
-                Map.entry(Double.class, SqlTypeMapping.of("DOUBLE")),
-                Map.entry(double.class, SqlTypeMapping.of("DOUBLE")),
+                Map.entry(Double.class, SqlTypeMapping.builder()
+                    .visual("DOUBLE")
+                    .withDatabaseSpecific("postgresql", "float8")
+                    .build()),
+                Map.entry(double.class, SqlTypeMapping.builder()
+                    .visual("DOUBLE")
+                    .withDatabaseSpecific("postgresql", "float8")
+                    .build()),
 
-                Map.entry(Float.class, SqlTypeMapping.of("FLOAT")),
+                Map.entry(Float.class, SqlTypeMapping.builder()
+                    .visual("FLOAT")
+                    .withDatabaseSpecific("postgresql", "float4")
+                    .build()),
                 Map.entry(byte[].class, SqlTypeMapping.of("BLOB")),
 
                 Map.entry(UUID.class,
-                    SqlTypeMapping.of("VARCHAR(36)", "BINARY(16)")),
+                    SqlTypeMapping.uuidBuilder()
+                        .withDatabaseSpecific("postgresql", "uuid")
+                        .build()),
 
                 Map.entry(InetAddress.class,
                     SqlTypeMapping.of("TEXT", "BINARY(16)")),
@@ -144,7 +156,6 @@ public class TypeResolverRegistry {
         );
 
     public TypeResolverRegistry() {
-        registerDefaultHandlers();
         registerDefaults();
     }
 
@@ -250,7 +261,42 @@ public class TypeResolverRegistry {
         return mapping != null ? mapping.resolve(encoding) : null;
     }
 
+    /**
+     * Gets the SQL type for a Java type with database-specific resolution.
+     *
+     * @param type the Java type
+     * @param dialect the database dialect (e.g., PostgreSQL, MySQL)
+     * @return the SQL type string appropriate for the specified database
+     */
+    public @Nullable String getType(@NotNull Class<?> type, @NotNull DatabaseDialect dialect) {
+        return getType(type, SqlEncoding.VISUAL, dialect);
+    }
+
+    /**
+     * Gets the SQL type for a Java type with database-specific resolution and specific encoding.
+     *
+     * @param type the Java type
+     * @param encoding the encoding type (visual or binary)
+     * @param dialect the database dialect
+     * @return the SQL type string appropriate for the specified database and encoding
+     */
+    public @Nullable String getType(Class<?> type, SqlEncoding encoding, @Nullable DatabaseDialect dialect) {
+        SqlTypeMapping mapping = sqlTypeMappings.get(type);
+        if (mapping != null) {
+            return mapping.resolve(encoding, dialect != null ? dialect.getIdentifier() : null);
+        }
+
+        TypeResolver<?> resolver = this.resolve(type);
+        if (resolver == null) return null;
+
+        Class<?> dbType = resolver.getDatabaseType();
+        mapping = sqlTypeMappings.get(dbType);
+
+        return mapping != null ? mapping.resolve(encoding, dialect != null ? dialect.getIdentifier() : null) : null;
+    }
+
     public void registerDefaults() {
+        registerDefaultHandlers();
         registerUrlType();
         registerUriType();
         registerFileType();
@@ -450,6 +496,7 @@ public class TypeResolverRegistry {
     private void registerUuid() {
         registerInternal(new UuidTypeResolver());
         registerInternal(new BinaryUuidTypeResolver());
+        registerInternal(new PostgreSQLUuidTypeResolver());
     }
 
     private void registerModernTimeTypes() {
@@ -535,5 +582,128 @@ public class TypeResolverRegistry {
 
     public Map<ResolverKey, TypeResolver<?>> resolvers() {
         return Collections.unmodifiableMap(resolvers);
+    }
+
+    /**
+     * Registers a database-specific SQL type mapping for a Java type.
+     *
+     * <p>This allows database-specific native types to be used instead of generic types.
+     * For example, registering UUID to use PostgreSQL's native {@code uuid} type:</p>
+     *
+     * <pre>{@code
+     * registry.registerSqlTypeMapping(UUID.class,
+     *     SqlTypeMapping.uuidBuilder()
+     *         .withDatabaseSpecific("postgresql", "uuid")
+     *         .build());
+     * }</pre>
+     *
+     * @param javaType the Java type to map
+     * @param mapping the SQL type mapping with database-specific overrides
+     */
+    public void registerSqlTypeMapping(Class<?> javaType, SqlTypeMapping mapping) {
+        sqlTypeMappings.put(javaType, mapping);
+        assignableCache.clear(); // Clear cache as mappings changed
+    }
+
+    /**
+     * Registers an enum type with a custom type mapping.
+     *
+     * <p>This enables database-specific enum handling, such as PostgreSQL's
+     * native {@code CREATE TYPE ... AS ENUM} support.</p>
+     *
+     * <p>Example for PostgreSQL native enum:</p>
+     * <pre>{@code
+     * registry.registerEnum(Status.class, "status_enum",
+     *     SqlTypeMapping.enumBuilder()
+     *         .visual("VARCHAR(64)")
+     *         .withDatabaseSpecific("postgresql", "status_enum")
+     *         .build());
+     * }</pre>
+     *
+     * @param enumClass the enum class to register
+     * @param mapping the SQL type mapping
+     * @param <E> the enum type
+     */
+    public <E extends Enum<E>> void registerEnum(Class<E> enumClass, SqlTypeMapping mapping) {
+        sqlTypeMappings.put(enumClass, mapping);
+
+        // Register a specialized enum resolver that preserves enum type information
+        registerInternal(new TypeResolver<E>() {
+            @Override
+            public Class<E> getType() {
+                return enumClass;
+            }
+
+            @Override
+            public Class<?> getDatabaseType() {
+                return String.class;
+            }
+
+            @Override
+            public E resolve(DatabaseResult result, String columnName) {
+                // For PostgreSQL native enums, the driver returns String
+                String value = result.get(columnName, String.class);
+                return value != null ? Enum.valueOf(enumClass, value) : null;
+            }
+
+            @Override
+            public void insert(DatabaseParameters parameters, String index, E value) {
+                parameters.set(index, value != null ? value.name() : null, String.class);
+            }
+        });
+
+        assignableCache.clear();
+    }
+
+    public <E extends Enum<E>> void registerEnum(Class<E> enumClass) {
+        registerEnum(enumClass, SqlTypeMapping.enumBuilder()
+            .build());
+    }
+
+    /**
+     * Registers a custom type with database-specific SQL representation.
+     *
+     * <p>This is useful for databases that support user-defined types (UDTs),
+     * such as PostgreSQL's composite types or Oracle's object types.</p>
+     *
+     * @param javaType the Java type
+     * @param databaseType the database type class used for storage
+     * @param sqlTypeMapping the SQL type mapping with database-specific overrides
+     * @param resolver the type resolver for conversion
+     * @param <T> the Java type
+     */
+    public <T> void registerCustomType(
+            Class<T> javaType,
+            Class<?> databaseType,
+            SqlTypeMapping sqlTypeMapping,
+            TypeResolver<T> resolver) {
+        sqlTypeMappings.put(javaType, sqlTypeMapping);
+        registerInternal(resolver);
+        assignableCache.clear();
+    }
+
+    /**
+     * Gets the SQL type mapping for a Java type.
+     *
+     * @param type the Java type
+     * @return the SQL type mapping, or null if not found
+     */
+    public @Nullable SqlTypeMapping getSqlTypeMapping(Class<?> type) {
+        return sqlTypeMappings.get(type);
+    }
+
+    /**
+     * Checks if a database-specific type mapping exists for the given type.
+     *
+     * @param type the Java type
+     * @param dialect the database dialect
+     * @return true if a database-specific mapping exists
+     */
+    public boolean hasDatabaseSpecificMapping(Class<?> type, DatabaseDialect dialect) {
+        SqlTypeMapping mapping = sqlTypeMappings.get(type);
+        if (mapping == null) return false;
+
+        String resolved = mapping.resolve(SqlEncoding.VISUAL, dialect.getIdentifier());
+        return resolved != null && !resolved.equals(mapping.resolve(SqlEncoding.VISUAL));
     }
 }

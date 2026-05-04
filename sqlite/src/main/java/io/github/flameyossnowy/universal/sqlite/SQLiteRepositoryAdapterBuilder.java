@@ -10,14 +10,18 @@ import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import io.github.flameyossnowy.universal.sqlite.connections.SQLiteSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.sqlite.credentials.SQLiteCredentials;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -35,6 +39,7 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
     private final Class<T> repository;
     private final Class<ID> idClass;
     private CacheWarmer<T, ID> cacheWarmer;
+    private final List<TypeRegistration> typeRegistrations = new ArrayList<>();
 
     private boolean autoCreate = true;
 
@@ -149,6 +154,35 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
     }
 
     /**
+     * Registers custom types with the repository adapter.
+     *
+     * <p>This method allows you to register custom type mappings, resolvers, and enums
+     * that will be applied to the repository's TypeResolverRegistry during initialization.
+     * Multiple registrations can be added and will be applied in order.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * builder.registerTypes(registry -> {
+     *     registry.registerSqlTypeMapping(MyCustomType.class,
+     *         SqlTypeMapping.builder()
+     *             .visual("TEXT")
+     *             .build());
+     * })
+     * </pre>
+     *
+     * @param registration the type registration callback
+     * @return this builder for chaining
+     */
+    public SQLiteRepositoryAdapterBuilder<T, ID> registerTypes(TypeRegistration registration) {
+        this.typeRegistrations.add(registration);
+        return this;
+    }
+
+    private TypeRegistration combineRegistrations() {
+        return DefaultTypeRegistry.combineRegistrations(typeRegistrations);
+    }
+
+    /**
      * Builds the {@link SQLiteRepositoryAdapter} instance.
      *
      * <p>This method will check if the repository is annotated with {@link Cacheable} and
@@ -172,6 +206,8 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
             resultCache = new DefaultResultCache<>(maxSize, information.getCacheConfig().cacheAlgorithmType());
         }
 
+        TypeRegistration combinedRegistration = combineRegistrations();
+
         boolean globalCacheable = information.isGlobalCacheable();
         if (!globalCacheable)
             return new SQLiteRepositoryAdapter<>(
@@ -186,14 +222,16 @@ public class SQLiteRepositoryAdapterBuilder<T, ID> {
                     cacheWarmer,
                     cacheable,
                     maxSize,
-                    autoCreate
+                    autoCreate,
+                    combinedRegistration
             );
 
         return new SQLiteRepositoryAdapter<>(
                 connectionProvider != null ? this.connectionProvider.apply(credentials, optimizations) : new SQLiteSimpleConnectionProvider(this.credentials, optimizations),
                 resultCache, this.repository, this.idClass, information.createGlobalSessionCache(), sessionCacheSupplier, cacheWarmer,
                 cacheable, maxSize,
-                autoCreate
+                autoCreate,
+                combinedRegistration
         );
     }
 }

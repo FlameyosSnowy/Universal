@@ -9,14 +9,18 @@ import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.universal.postgresql.connections.PostgreSQLSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.postgresql.credentials.PostgreSQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.LongFunction;
@@ -33,6 +37,7 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
     private final Class<T> repository;
     private final Class<ID> idClass;
     private CacheWarmer<T, ID> cacheWarmer;
+    private final List<TypeRegistration> typeRegistrations = new ArrayList<>();
 
     private boolean autoCreate = true;
 
@@ -78,6 +83,36 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    /**
+     * Registers custom types with the repository adapter.
+     *
+     * <p>This method allows you to register custom type mappings, resolvers, and enums
+     * that will be applied to the repository's TypeResolverRegistry during initialization.
+     * Multiple registrations can be added and will be applied in order.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * builder.registerTypes(registry -> {
+     *     registry.registerSqlTypeMapping(MyCustomType.class,
+     *         SqlTypeMapping.builder()
+     *             .visual("TEXT")
+     *             .withDatabaseSpecific("postgresql", "jsonb")
+     *             .build());
+     * })
+     * </pre>
+     *
+     * @param registration the type registration callback
+     * @return this builder for chaining
+     */
+    public PostgreSQLRepositoryAdapterBuilder<T, ID> registerTypes(TypeRegistration registration) {
+        this.typeRegistrations.add(registration);
+        return this;
+    }
+
+    private TypeRegistration combineRegistrations() {
+        return DefaultTypeRegistry.combineRegistrations(typeRegistrations);
+    }
+
     public PostgreSQLRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
         RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(this.repository));
@@ -96,6 +131,8 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
             resultCache = new DefaultResultCache<>(cacheable.maxSize(), cacheable.cacheAlgorithmType());
         }
 
+        TypeRegistration combinedRegistration = combineRegistrations();
+
         if (globalCacheable) {
             return new PostgreSQLRepositoryAdapter<>(
                 this.connectionProvider != null
@@ -109,7 +146,8 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
                 cacheWarmer,
                 cacheEnabled,
                 maxSize,
-                autoCreate
+                autoCreate,
+                combinedRegistration
             );
         }
 
@@ -125,7 +163,8 @@ public class PostgreSQLRepositoryAdapterBuilder<T, ID> {
                 cacheWarmer,
                 cacheEnabled,
                 maxSize,
-                autoCreate
+                autoCreate,
+                combinedRegistration
         );
     }
 }

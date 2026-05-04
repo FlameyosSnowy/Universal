@@ -7,10 +7,14 @@ import io.github.flameyossnowy.universal.api.annotations.builder.EndpointConfig;
 import io.github.flameyossnowy.universal.api.annotations.enums.AuthType;
 import io.github.flameyossnowy.universal.api.annotations.enums.HttpMethod;
 import io.github.flameyossnowy.universal.api.annotations.enums.NetworkProtocol;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -48,6 +52,7 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
     );
     private JsonAdapter customObjectMapper;
     private NetworkRepositoryAdapter.NetworkAggregationProviderFactory<T, ID> aggregationProviderFactory;
+    private final List<TypeRegistration> typeRegistrations = new ArrayList<>();
 
     private boolean autoCreate = true;
 
@@ -171,15 +176,36 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
     }
 
     /**
+     * Registers custom types with the repository adapter.
+     *
+     * <p>This method allows you to register custom type mappings, resolvers, and enums
+     * that will be applied to the repository's TypeResolverRegistry during initialization.
+     * Multiple registrations can be added and will be applied in order.</p>
+     *
+     * @param registration the type registration callback
+     * @return this builder for chaining
+     */
+    public NetworkRepositoryAdapterBuilder<T, ID> registerTypes(TypeRegistration registration) {
+        this.typeRegistrations.add(registration);
+        return this;
+    }
+
+    private TypeRegistration combineRegistrations() {
+        return DefaultTypeRegistry.combineRegistrations(typeRegistrations);
+    }
+
+    /**
      * Builds and returns a new {@link NetworkRepositoryAdapter} instance.
      */
     public NetworkRepositoryAdapter<T, ID> build() {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new IllegalStateException("baseUrl must be specified");
         }
-        
+
         JsonAdapter objectMapper = customObjectMapper != null ? customObjectMapper : createDefaultObjectMapper();
-        
+
+        TypeRegistration combinedRegistration = combineRegistrations();
+
         return new NetworkRepositoryAdapter<>(
                 entityType,
                 idType,
@@ -196,7 +222,8 @@ public class NetworkRepositoryAdapterBuilder<T, ID> {
                 endpointConfig,
                 objectMapper,
                 aggregationProviderFactory,
-                autoCreate
+                autoCreate,
+                combinedRegistration
         );
     }
     

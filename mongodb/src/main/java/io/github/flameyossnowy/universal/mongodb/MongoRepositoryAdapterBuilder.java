@@ -10,7 +10,11 @@ import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.LongFunction;
 
@@ -28,6 +32,7 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
     private LongFunction<SessionCache<ID, T>> sessionCacheSupplier = (id) -> new DefaultSessionCache<>();
     private CacheWarmer<T, ID> cacheWarmer;
     private MongoClient client;
+    private final List<TypeRegistration> typeRegistrations = new ArrayList<>();
 
     private boolean autoCreate = true;
 
@@ -125,6 +130,32 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
     }
 
     /**
+     * Registers custom types with the repository adapter.
+     *
+     * <p>This method allows you to register custom type mappings, resolvers, and enums
+     * that will be applied to the repository's TypeResolverRegistry during initialization.
+     * Multiple registrations can be added and will be applied in order.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * builder.registerTypes(registry -> {
+     *     registry.register(new MyCustomTypeResolver());
+     * })
+     * </pre>
+     *
+     * @param registration the type registration callback
+     * @return this builder for chaining
+     */
+    public MongoRepositoryAdapterBuilder<T, ID> registerTypes(TypeRegistration registration) {
+        this.typeRegistrations.add(registration);
+        return this;
+    }
+
+    private TypeRegistration combineRegistrations() {
+        return DefaultTypeRegistry.combineRegistrations(typeRegistrations);
+    }
+
+    /**
      * Builds the {@link MongoRepositoryAdapter} instance
      *
      * @return a new instance of the {@link MongoRepositoryAdapter}
@@ -132,10 +163,13 @@ public class MongoRepositoryAdapterBuilder<T, ID> {
     public MongoRepositoryAdapter<T, ID> build() {
         RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(repository));
 
+        TypeRegistration combinedRegistration = combineRegistrations();
+
         return new MongoRepositoryAdapter<>(
             this.credentialsBuilder, database, repository, idType,
             information.createGlobalSessionCache(), sessionCacheSupplier, cacheWarmer, client,
-            autoCreate
+            autoCreate,
+            combinedRegistration
         );
     }
 

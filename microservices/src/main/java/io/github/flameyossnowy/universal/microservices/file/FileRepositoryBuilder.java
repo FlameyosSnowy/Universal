@@ -4,12 +4,16 @@ import io.github.flameyossnowy.universal.api.ModelsBootstrap;
 import io.github.flameyossnowy.universal.api.annotations.FileRepository;
 import io.github.flameyossnowy.universal.api.annotations.enums.CompressionType;
 import io.github.flameyossnowy.universal.api.annotations.enums.FileFormat;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategies;
 import io.github.flameyossnowy.universal.microservices.file.indexes.IndexPathStrategy;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Builder for creating {@link FileRepositoryAdapter} instances.
@@ -36,6 +40,7 @@ public class FileRepositoryBuilder<T, ID> {
 
     private IndexPathStrategy indexPathStrategy = IndexPathStrategies.underBase();
     private boolean parallelReads;
+    private final List<TypeRegistration> typeRegistrations = new ArrayList<>();
 
     /**
      * Creates a new builder for the given entity and ID types.
@@ -110,13 +115,34 @@ public class FileRepositoryBuilder<T, ID> {
     }
 
     /**
+     * Registers custom types with the repository adapter.
+     *
+     * <p>This method allows you to register custom type mappings, resolvers, and enums
+     * that will be applied to the repository's TypeResolverRegistry during initialization.
+     * Multiple registrations can be added and will be applied in order.</p>
+     *
+     * @param registration the type registration callback
+     * @return this builder for chaining
+     */
+    public FileRepositoryBuilder<T, ID> registerTypes(TypeRegistration registration) {
+        this.typeRegistrations.add(registration);
+        return this;
+    }
+
+    private TypeRegistration combineRegistrations() {
+        return DefaultTypeRegistry.combineRegistrations(typeRegistrations);
+    }
+
+    /**
      * Builds and returns a new {@link FileRepositoryAdapter} instance.
      */
     public FileRepositoryAdapter<T, ID> build() {
         if (basePath == null) {
             throw new IllegalStateException("basePath must be specified");
         }
-        
+
+        TypeRegistration combinedRegistration = combineRegistrations();
+
         return new FileRepositoryAdapter<>(
                 entityType,
                 idType,
@@ -128,7 +154,8 @@ public class FileRepositoryBuilder<T, ID> {
                 shardCount,
                 indexPathStrategy,
                 autoCreate,
-                parallelReads
+                parallelReads,
+                combinedRegistration
         );
     }
 }

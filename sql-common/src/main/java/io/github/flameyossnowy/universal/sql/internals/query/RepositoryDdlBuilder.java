@@ -185,13 +185,15 @@ public final class RepositoryDdlBuilder<T, ID> {
             return;
         }
 
+        SqlEncoding encoding = data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL;
+
         if (Collection.class.isAssignableFrom(type)) {
             if (!sqlType.supportsArrays()) {
                 return;
             }
 
             Class<?> genericType = data.elementType();
-            String resolvedType = resolverRegistry.getType(genericType, data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
+            String resolvedType = resolverRegistry.getType(genericType, encoding, sqlType) + "[]";
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
@@ -204,18 +206,18 @@ public final class RepositoryDdlBuilder<T, ID> {
             if (!sqlType.supportsArrays()) {
                 return;
             }
-            String resolvedType = resolverRegistry.getType(type.getComponentType(), data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL) + "[]";
+            String resolvedType = resolverRegistry.getType(type.getComponentType(), encoding, sqlType) + "[]";
             appendColumn(joiner, data, fieldBuilder, name, unique, primaryKey, primaryKeysJoiner, relationshipsJoiner, resolvedType);
             return;
         }
 
-        String resolvedType = resolverRegistry.getType(type, data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
+        String resolvedType = resolverRegistry.getType(type, encoding, sqlType);
 
         RepositoryModel<?, ?> metadata;
         if (resolvedType == null && (metadata = GeneratedMetadata.getByEntityClass(type)) != null) {
             FieldModel<?> metadataPrimaryKey = metadata.getPrimaryKey();
             Objects.requireNonNull(metadataPrimaryKey, "Primary key must not be null");
-            resolvedType = resolverRegistry.getType(metadataPrimaryKey.type(), data.hasBinaryAnnotation() ? SqlEncoding.BINARY : SqlEncoding.VISUAL);
+            resolvedType = resolverRegistry.getType(metadataPrimaryKey.type(), encoding, sqlType);
         }
 
         Objects.requireNonNull(resolvedType, "Unsupported type: " + type);

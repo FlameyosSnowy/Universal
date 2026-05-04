@@ -23,11 +23,16 @@ import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
+import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistry;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverBridge;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.universal.microservices.file.executor.FileAggregationEngine;
 import io.github.flameyossnowy.universal.microservices.file.executor.FileEntityStore;
+import io.github.flameyossnowy.universal.microservices.file.validation.FileValidationTranslator;
 import io.github.flameyossnowy.universal.microservices.file.executor.FileFilterEngine;
 import io.github.flameyossnowy.universal.microservices.file.executor.FileIndexManager;
 import io.github.flameyossnowy.universal.microservices.file.executor.FileMutationExecutor;
@@ -75,6 +80,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private final OperationExecutor<T, ID, FileContext> operationExecutor;
     private final OperationContext<T, ID, FileContext> operationContext;
     private final RelationshipHandler<T, ID> relationshipHandler;
+    private final FileValidationTranslator<T> validationTranslator;
 
     private final FileEntityStore<T, ID> entityStore;
     private final FileFilterEngine<T, ID> filterEngine;
@@ -96,7 +102,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         int shardCount,
         IndexPathStrategy indexPathStrategy,
         boolean autoCreate,
-        boolean parallelReads
+        boolean parallelReads,
+        TypeRegistration typeRegistration
     ) {
         this.entityType = entityType;
         this.idType     = idType;
@@ -112,6 +119,12 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             resolverRegistry.register(resolverSupplier.get());
         }
 
+        // Apply user-provided type registrations via the wrapper API
+        if (typeRegistration != null) {
+            TypeRegistry typeRegistry = new DefaultTypeRegistry(resolverRegistry);
+            typeRegistration.register(typeRegistry);
+        }
+
         JsonConfigBuilder jsonConfigBuilder = JsonAdapter.configBuilder()
             .addReadFeatures(JsonReadFeature.ALLOW_JAVA_COMMENTS)
             .addWriteFeatures(JsonWriteFeature.ESCAPE_UNICODE);
@@ -123,6 +136,7 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         this.objectMapper = objectMapper;
 
         this.relationshipHandler = new MicroserviceRelationshipHandler<>(repositoryModel, idType, resolverRegistry);
+        this.validationTranslator = new FileValidationTranslator<>();
         ObjectModel<T, ID> objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
         RelationshipLoader<T, ID> relationshipLoader =
             GeneratedRelationshipLoaders.get(repositoryModel.tableName(), relationshipHandler, null, repositoryModel);
@@ -177,7 +191,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             annotation.shardCount(),
             IndexPathStrategies.underBase(),
             true,
-            false
+            false,
+            null
         );
     }
 
@@ -189,6 +204,23 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     @Override @NotNull public OperationContext<T, ID, FileContext> getOperationContext()  { return operationContext; }
     @Override @NotNull public OperationExecutor<T, ID, FileContext> getOperationExecutor() { return operationExecutor; }
     @Override          public RelationshipHandler<T, ID>          getRelationshipHandler() { return relationshipHandler; }
+
+    /**
+     * Validates an entity against all field-level validations and cross-field constraints.
+     * Throws ValidationException if validation fails.
+     *
+     * @param entity the entity to validate
+     */
+    public void validateEntity(T entity) {
+        ObjectModel<T, ID> objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
+        var violations = validationTranslator.validate(entity, repositoryModel, objectModel);
+        if (!violations.isEmpty()) {
+            throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
+                repositoryModel.getEntityClass().getSimpleName(),
+                violations
+            );
+        }
+    }
 
     @Override @NotNull
     public TransactionContext<FileContext> beginTransaction() {
@@ -357,31 +389,41 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     @Override
     public TransactionResult<Boolean> insert(T value) {
+        validateEntity(value);
         return mutationExecutor.insert(value);
     }
 
     @Override
     public TransactionResult<Boolean> insert(T value, TransactionContext<FileContext> tx) {
+        validateEntity(value);
         return mutationExecutor.insert(value);
     }
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> entities) {
+        for (T entity : entities) {
+            validateEntity(entity);
+        }
         return mutationExecutor.insertAll(entities);
     }
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> entities, TransactionContext<FileContext> tx) {
+        for (T entity : entities) {
+            validateEntity(entity);
+        }
         return mutationExecutor.insertAll(entities);
     }
 
     @Override
     public TransactionResult<Boolean> updateAll(T entity) {
+        validateEntity(entity);
         return mutationExecutor.updateEntity(entity);
     }
 
     @Override
     public TransactionResult<Boolean> updateAll(T entity, TransactionContext<FileContext> tx) {
+        validateEntity(entity);
         return mutationExecutor.updateEntity(entity);
     }
 

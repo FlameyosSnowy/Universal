@@ -9,14 +9,18 @@ import io.github.flameyossnowy.universal.api.cache.DefaultSessionCache;
 import io.github.flameyossnowy.universal.api.cache.SessionCache;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.universal.mysql.connections.MySQLSimpleConnectionProvider;
 import io.github.flameyossnowy.universal.mysql.credentials.MySQLCredentials;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.LongFunction;
@@ -32,6 +36,7 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
     private final EnumSet<Optimizations> optimizations = EnumSet.noneOf(Optimizations.class);
     private final Class<T> repository;
     private final Class<ID> idClass;
+    private final List<TypeRegistration> typeRegistrations = new ArrayList<>();
 
     private boolean autoCreate = true;
 
@@ -78,6 +83,36 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
         return this;
     }
 
+    /**
+     * Registers custom types with the repository adapter.
+     *
+     * <p>This method allows you to register custom type mappings, resolvers, and enums
+     * that will be applied to the repository's TypeResolverRegistry during initialization.
+     * Multiple registrations can be added and will be applied in order.</p>
+     *
+     * <p>Example usage:</p>
+     * <pre>{@code
+     * builder.registerTypes(registry -> {
+     *     registry.registerSqlTypeMapping(MyCustomType.class,
+     *         SqlTypeMapping.builder()
+     *             .visual("TEXT")
+     *             .withDatabaseSpecific("mysql", "JSON")
+     *             .build());
+     * })
+     * </pre>
+     *
+     * @param registration the type registration callback
+     * @return this builder for chaining
+     */
+    public MySQLRepositoryAdapterBuilder<T, ID> registerTypes(TypeRegistration registration) {
+        this.typeRegistrations.add(registration);
+        return this;
+    }
+
+    private TypeRegistration combineRegistrations() {
+        return DefaultTypeRegistry.combineRegistrations(typeRegistrations);
+    }
+
     public MySQLRepositoryAdapter<T, ID> build() {
         if (this.credentials == null) throw new IllegalArgumentException("Credentials cannot be null");
         RepositoryModel<T, ID> information = Objects.requireNonNull(GeneratedMetadata.getByEntityClass(this.repository));
@@ -95,6 +130,8 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
             resultCache = new DefaultResultCache<>(maxSize, cacheConfig.cacheAlgorithmType());
         }
 
+        TypeRegistration combinedRegistration = combineRegistrations();
+
         return new MySQLRepositoryAdapter<>(
             this.connectionProvider != null ? this.connectionProvider.apply(credentials, this.optimizations) : new MySQLSimpleConnectionProvider(this.credentials, this.optimizations),
             resultCache,
@@ -105,7 +142,8 @@ public class MySQLRepositoryAdapterBuilder<T, ID> {
             cacheWarmer,
             cacheEnabled,
             maxSize,
-            autoCreate
+            autoCreate,
+            combinedRegistration
         );
     }
 }
