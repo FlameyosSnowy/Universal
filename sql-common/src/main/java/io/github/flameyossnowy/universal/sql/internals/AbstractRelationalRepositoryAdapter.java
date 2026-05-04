@@ -23,10 +23,14 @@ import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
+import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
 
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
+import io.github.flameyossnowy.universal.api.resolver.TypeRegistry;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverBridge;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
+import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.SimpleTransactionContext;
 import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
@@ -41,6 +45,7 @@ import io.github.flameyossnowy.universal.sql.internals.repository.SqlWriteExecut
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
 import io.github.flameyossnowy.universal.sql.query.SQLQueryValidator;
 import io.github.flameyossnowy.universal.sql.result.SQLDatabaseResult;
+import io.github.flameyossnowy.universal.sql.validation.SqlValidationTranslator;
 import io.github.flameyossnowy.uniform.json.JsonAdapter;
 import io.github.flameyossnowy.uniform.json.resolvers.CoreTypeResolverRegistry;
 import org.jetbrains.annotations.NotNull;
@@ -106,6 +111,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
     private final SqlQueryExecutor<T, ID> queryExecutor;
     private final SqlIteratorBuilder<T, ID> iteratorBuilder;
 
+    private final ValidationTranslator<T> validationTranslator;
+
     protected AbstractRelationalRepositoryAdapter(
             SQLConnectionProvider dataSource,
             DefaultResultCache<ParameterizedSql, T, ID> cache,
@@ -117,7 +124,8 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
             CacheWarmer<T, ID> cacheWarmer,
             boolean cacheEnabled,
             int maxSize,
-            boolean autoCreate) {
+            boolean autoCreate,
+            TypeRegistration typeRegistration) {
         this.sessionCacheSupplier = sessionCacheSupplier;
         this.idClass = idClass;
         this.dataSource = dataSource;
@@ -141,6 +149,12 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         this.resolverRegistry = new TypeResolverRegistry();
         for (Supplier<TypeResolver<?>> resolverSupplier : repositoryModel.getRequiredResolvers()) {
             resolverRegistry.register(resolverSupplier.get());
+        }
+
+        // Apply user-provided type registrations via the wrapper API
+        if (typeRegistration != null) {
+            TypeRegistry typeRegistry = new DefaultTypeRegistry(resolverRegistry);
+            typeRegistration.register(typeRegistry);
         }
 
         TypeResolverBridge.registerAll(resolverRegistry, CoreTypeResolverRegistry.INSTANCE);
@@ -174,6 +188,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
                 operationExecutor
         );
         this.queryValidator = new SQLQueryValidator<>(repositoryModel, sqlType.getDialect());
+        this.validationTranslator = new SqlValidationTranslator();
         if (cacheWarmer != null) cacheWarmer.warmCache(this);
 
         this.relationshipHandler = new SQLRelationshipHandler<>(repositoryModel, idClass, resolverRegistry);
@@ -345,17 +360,14 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
                 return loaded;
             }
 
-            if (l2Cache != null) {
+            // Single iteration to populate all caches
+            if (l2Cache != null || globalCache != null) {
                 for (Map.Entry<ID, T> e : loaded.entrySet()) {
-                    if (e.getValue() != null) {
-                        l2Cache.put(e.getKey(), e.getValue());
-                    }
-                }
-            }
-            if (globalCache != null) {
-                for (Map.Entry<ID, T> e : loaded.entrySet()) {
-                    if (e.getValue() != null) {
-                        globalCache.put(e.getKey(), e.getValue());
+                    T value = e.getValue();
+                    if (value != null) {
+                        ID key = e.getKey();
+                        if (l2Cache != null) l2Cache.put(key, value);
+                        if (globalCache != null) globalCache.put(key, value);
                     }
                 }
             }
@@ -409,12 +421,16 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public TransactionResult<Boolean> insert(@NotNull T value, TransactionContext<Connection> transactionContext) {
+        validateEntity(value);
         return writeExecutor.executeInsertAndSetId(transactionContext, engine.parseInsert(), value);
     }
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext<Connection> transactionContext) {
         if (value.isEmpty()) return TransactionResult.success(false);
+        for (T entity : value) {
+            validateEntity(entity);
+        }
         return writeExecutor.executeBatch(transactionContext, engine.parseInsert(), value);
     }
 
@@ -426,6 +442,7 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull T entity, TransactionContext<Connection> transactionContext) {
+        validateEntity(entity);
         ID id = this.objectModel.getId(entity);
         ParameterizedSql sql = engine.parseUpdateFromEntity();
         TransactionResult<Boolean> result = writeExecutor.executeUpdate(
@@ -602,6 +619,26 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     public @NotNull RepositoryModel<T, ID> getRepositoryModel() {
         return repositoryModel;
+    }
+
+    public @NotNull ValidationTranslator<T> getValidationTranslator() {
+        return validationTranslator;
+    }
+
+    /**
+     * Validates an entity against all field-level validations and cross-field constraints.
+     * Throws ValidationException if validation fails.
+     *
+     * @param entity the entity to validate
+     */
+    public void validateEntity(T entity) {
+        var violations = validationTranslator.validate(entity, repositoryModel, objectModel);
+        if (!violations.isEmpty()) {
+            throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
+                repositoryModel.getEntityClass().getSimpleName(),
+                violations
+            );
+        }
     }
 
     @Override
