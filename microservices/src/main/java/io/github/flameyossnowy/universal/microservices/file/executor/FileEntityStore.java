@@ -120,10 +120,7 @@ public class FileEntityStore<T, ID> {
                 OutputStream output = compressed ? wrapCompression(buffered) : buffered;
 
                 if (Objects.requireNonNull(format) == FileFormat.JSON) {
-                    objectMapper.createWriter(JsonWriterOptions.ASYNC_WRITES).write(
-                        objectMapper.writeValue(MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryModel, entity)),
-                        path
-                    );
+                    objectMapper.writeValue(MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryModel, entity), raw);
                 }
 
                 // Flush/close the compression wrapper before the buffered stream closes,
