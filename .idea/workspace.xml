@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Make registration much more natural">
+    <list default="true" id="cfc5da89-11a8-4285-bd9c-dcd644c579c7" name="Changes" comment="Fix some issues and optimize&#10;&#10;fix unnecessary blocking and improve performance and heap utilization">
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/buildOutputCleanup.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/checksums.lock" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/executionHistory.bin" afterDir="false" />
@@ -18,7 +18,29 @@
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/resourceHashesCache.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/sha1-checksums.bin" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_3_10_26,_11_46 AM_[Changes]/shelved.patch" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sketch/first_sketch.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/internal/DefaultTypeRegistry.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/advanced/Faction.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/advanced/FactionMember.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/advanced/FactionSettings.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/advanced/FactionSystemExample.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/advanced/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/advanced/Warp.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/advanced/WarpMetadata.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/LICENSE" beforeDir="false" afterPath="$PROJECT_DIR$/LICENSE" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/RepositoryValidatorProcessor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/ObjectModelGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryFieldModelGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/compile-time-checker/src/main/java/io/github/flameyossnowy/universal/checker/generator/RepositoryFieldModelGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PrefetchCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PrefetchCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PrefetchingCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/PrefetchingCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/ReadThroughCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/ReadThroughCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/SecondLevelCache.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/cache/SecondLevelCache.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/ObjectModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/ObjectModel.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TimestampTypeResolver.java" beforeDir="false" afterPath="$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/resolver/TimestampTypeResolver.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/qodana.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/qodana.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlCacheManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlCacheManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" beforeDir="false" afterPath="$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlWriteExecutor.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -167,6 +189,7 @@
   <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="$PROJECT_DIR$/../.gradle/wrapper/dists/gradle-9.3.1-bin/23ovyewtku6u96viwx3xl3oks/gradle-9.3.1" javaHome="$PROJECT_DIR$/../.jdks/corretto-21.0.10" gradleVersion="9.3.1" />
   <component name="HighlightingSettingsPerFile">
     <setting file="jrt:///usr/lib/jvm/default!/java.base/java/lang/AbstractStringBuilder.class" root0="SKIP_INSPECTION" />
+    <setting file="jrt:///usr/lib/jvm/default!/java.base/java/lang/Enum.class" root0="SKIP_INSPECTION" />
     <setting file="jrt:///usr/lib/jvm/default!/java.base/java/lang/IllegalArgumentException.class" root0="SKIP_INSPECTION" />
     <setting file="jrt:///usr/lib/jvm/default!/java.base/java/lang/String.class" root0="SKIP_INSPECTION" />
     <setting file="jrt:///usr/lib/jvm/default!/java.base/java/lang/StringBuilder.class" root0="SKIP_INSPECTION" />
@@ -192,136 +215,139 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_MARK_IGNORED_FILES_AS_EXCLUDED&quot;: &quot;true&quot;,
-    &quot;Application.Main.executor&quot;: &quot;Run&quot;,
-    &quot;DELOMBOK_PRE_COMMIT&quot;: &quot;false&quot;,
-    &quot;Downloaded.Files.Path.Enabled&quot;: &quot;false&quot;,
-    &quot;Gradle.Build Universal-new.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Build Universal.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.DbOrderCollectionTest (1).executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.DbOrderCollectionTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.DbProductCollectionTest (1).executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.DbProductCollectionTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.DefaultSessionTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Download Sources.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.FileAggregationTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.FileRepositoryAdapterTest.deleteRemovesEntity.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.FileRepositoryAdapterTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.FileRepositoryAdapterTest.jsonField_roundTrip_and_jsonSelectOption_filtering.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.InsertCollectionEntitiesGeneratorTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MongoAggregationTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MongoRepositoryAdapterTest.delete_user_is_called_on_collection.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MongoRepositoryAdapterTest.executor&quot;: &quot;Debug&quot;,
-    &quot;Gradle.MongoRepositoryAdapterTest.find_by_id_queries_collection.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MongoRepositoryAdapterTest.insert_existing_user_does_not_insert.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MongoRepositoryAdapterTest.insert_new_user_inserts_document.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MongoRepositoryAdapterTest.insert_user_is_written_to_collection.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MongoRepositoryAdapterTest.mixed_filters_build_and_clause.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MongoRepositoryAdapterTest.one_to_one_relationship_is_populated_on_findById.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.MySqlJsonFilterTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.NetworkRepositoryAdapterTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.NetworkRepositoryAdapterTest.insertClearsCache.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.NormalTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.NormalTest.postgres_connection_leak_stress_test.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.NormalTest.postgresql_arrays_test.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.NormalTest.postgresql_cache_test.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.NormalTest.postgresql_test.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.NormalTest.postgresql_test_record.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgreSQLAggregationTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgreSQLOneToOneUuidTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresAnnotationInteractionTests.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresAnnotationsTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresAnnotationsTest.sql_parameter_binder_sets_now_value_on_update_and_mutates_entity.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresCacheCorrectnessTests.cache_should_return_consistent_results.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresCacheCorrectnessTests.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresConstraintTests.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresDbProductCollectionTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresJsonAndNamedIntegrationTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresJsonFilterTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresRelationshipIntegrityTests.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.PostgresTransactionTests.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.RelationshipTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.RelationshipTest.testManyToManyRelationship.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.RelationshipTest.testOneToManyRelationship.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.RelationshipTest.testOneToOneRelationship.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SqliteJsonFilterTest.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.SqliteJsonFilterTest.json_select_option_is_not_supported_for_sqlite.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:cassandra:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:compile-time-checker:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:core:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:microservices:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:mongodb:Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:mongodb:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:mysql:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:postgresql:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:sql-common:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:sqlite:Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal [:sqlite:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:compile-time-checker:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:core:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:microservices:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:mongodb:Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:mongodb:build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:mongodb:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:mysql:build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:mysql:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:postgresql:build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:postgresql:jmh].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:postgresql:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:sqlite:Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:sqlite:build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [:sqlite:shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [clean].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal-new [publish].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:cassandra [shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:mongodb [shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:mysql [:mysql:Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:mysql [shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:postgresql [shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:postgresql [sourcesJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:sql-common [shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:sqlite [:sqlite:Main.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.Universal:sqlite [shadowJar].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.UserJsonFieldTest.executor&quot;: &quot;Run&quot;,
-    &quot;JUnit.NormalTest.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Repository.Attach.Annotations&quot;: &quot;false&quot;,
-    &quot;Repository.Attach.JavaDocs&quot;: &quot;false&quot;,
-    &quot;Repository.Attach.Sources&quot;: &quot;false&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
-    &quot;extract.method.default.visibility&quot;: &quot;private&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last.edited.regexp&quot;: &quot;hello.hi&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/flameyosflow/Universal-new/postgresql/src/test/java/testapp&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;onboarding.tips.debug.path&quot;: &quot;/home/flameyosflow/IdeaProjects/Universal/core-ktx/src/main/java/me/flame/universal/api/kotlin/Main.java&quot;,
-    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;reference.settingsdialog.project.gradle&quot;,
-    &quot;show.migrate.to.gradle.popup&quot;: &quot;false&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_MARK_IGNORED_FILES_AS_EXCLUDED": "true",
+    "Application.Main.executor": "Run",
+    "DELOMBOK_PRE_COMMIT": "false",
+    "Downloaded.Files.Path.Enabled": "false",
+    "Gradle.Build Universal-new.executor": "Run",
+    "Gradle.Build Universal.executor": "Run",
+    "Gradle.DbOrderCollectionTest (1).executor": "Run",
+    "Gradle.DbOrderCollectionTest.executor": "Run",
+    "Gradle.DbProductCollectionTest (1).executor": "Run",
+    "Gradle.DbProductCollectionTest.executor": "Run",
+    "Gradle.DefaultSessionTest.executor": "Run",
+    "Gradle.Download Sources.executor": "Run",
+    "Gradle.FileAggregationTest.executor": "Run",
+    "Gradle.FileRepositoryAdapterTest.deleteRemovesEntity.executor": "Run",
+    "Gradle.FileRepositoryAdapterTest.executor": "Run",
+    "Gradle.FileRepositoryAdapterTest.jsonField_roundTrip_and_jsonSelectOption_filtering.executor": "Run",
+    "Gradle.InsertCollectionEntitiesGeneratorTest.executor": "Run",
+    "Gradle.MongoAggregationTest.executor": "Run",
+    "Gradle.MongoRepositoryAdapterTest.delete_user_is_called_on_collection.executor": "Run",
+    "Gradle.MongoRepositoryAdapterTest.executor": "Debug",
+    "Gradle.MongoRepositoryAdapterTest.find_by_id_queries_collection.executor": "Run",
+    "Gradle.MongoRepositoryAdapterTest.insert_existing_user_does_not_insert.executor": "Run",
+    "Gradle.MongoRepositoryAdapterTest.insert_new_user_inserts_document.executor": "Run",
+    "Gradle.MongoRepositoryAdapterTest.insert_user_is_written_to_collection.executor": "Run",
+    "Gradle.MongoRepositoryAdapterTest.mixed_filters_build_and_clause.executor": "Run",
+    "Gradle.MongoRepositoryAdapterTest.one_to_one_relationship_is_populated_on_findById.executor": "Run",
+    "Gradle.MySqlJsonFilterTest.executor": "Run",
+    "Gradle.NetworkRepositoryAdapterTest.executor": "Run",
+    "Gradle.NetworkRepositoryAdapterTest.insertClearsCache.executor": "Run",
+    "Gradle.NormalTest.executor": "Run",
+    "Gradle.NormalTest.postgres_connection_leak_stress_test.executor": "Run",
+    "Gradle.NormalTest.postgresql_arrays_test.executor": "Run",
+    "Gradle.NormalTest.postgresql_cache_test.executor": "Run",
+    "Gradle.NormalTest.postgresql_test.executor": "Run",
+    "Gradle.NormalTest.postgresql_test_record.executor": "Run",
+    "Gradle.PostgreSQLAggregationTest.executor": "Run",
+    "Gradle.PostgreSQLOneToOneUuidTest.executor": "Run",
+    "Gradle.PostgresAnnotationInteractionTests.executor": "Run",
+    "Gradle.PostgresAnnotationsTest.executor": "Run",
+    "Gradle.PostgresAnnotationsTest.sql_parameter_binder_sets_now_value_on_update_and_mutates_entity.executor": "Run",
+    "Gradle.PostgresCacheCorrectnessTests.cache_should_return_consistent_results.executor": "Run",
+    "Gradle.PostgresCacheCorrectnessTests.executor": "Run",
+    "Gradle.PostgresConstraintTests.executor": "Run",
+    "Gradle.PostgresDbProductCollectionTest.executor": "Run",
+    "Gradle.PostgresJsonAndNamedIntegrationTest.executor": "Run",
+    "Gradle.PostgresJsonFilterTest.executor": "Run",
+    "Gradle.PostgresRelationshipIntegrityTests.executor": "Run",
+    "Gradle.PostgresTransactionTests.executor": "Run",
+    "Gradle.RelationshipTest.executor": "Run",
+    "Gradle.RelationshipTest.testManyToManyRelationship.executor": "Run",
+    "Gradle.RelationshipTest.testOneToManyRelationship.executor": "Run",
+    "Gradle.RelationshipTest.testOneToOneRelationship.executor": "Run",
+    "Gradle.SqliteJsonFilterTest.executor": "Run",
+    "Gradle.SqliteJsonFilterTest.json_select_option_is_not_supported_for_sqlite.executor": "Run",
+    "Gradle.Universal [:cassandra:shadowJar].executor": "Run",
+    "Gradle.Universal [:compile-time-checker:shadowJar].executor": "Run",
+    "Gradle.Universal [:core:shadowJar].executor": "Run",
+    "Gradle.Universal [:microservices:shadowJar].executor": "Run",
+    "Gradle.Universal [:mongodb:Main.main()].executor": "Run",
+    "Gradle.Universal [:mongodb:shadowJar].executor": "Run",
+    "Gradle.Universal [:mysql:shadowJar].executor": "Run",
+    "Gradle.Universal [:postgresql:shadowJar].executor": "Run",
+    "Gradle.Universal [:sql-common:shadowJar].executor": "Run",
+    "Gradle.Universal [:sqlite:Main.main()].executor": "Run",
+    "Gradle.Universal [:sqlite:shadowJar].executor": "Run",
+    "Gradle.Universal-new [:compile-time-checker:shadowJar].executor": "Run",
+    "Gradle.Universal-new [:core:shadowJar].executor": "Run",
+    "Gradle.Universal-new [:microservices:shadowJar].executor": "Run",
+    "Gradle.Universal-new [:mongodb:Main.main()].executor": "Run",
+    "Gradle.Universal-new [:mongodb:build].executor": "Run",
+    "Gradle.Universal-new [:mongodb:shadowJar].executor": "Run",
+    "Gradle.Universal-new [:mysql:build].executor": "Run",
+    "Gradle.Universal-new [:mysql:shadowJar].executor": "Run",
+    "Gradle.Universal-new [:postgresql:build].executor": "Run",
+    "Gradle.Universal-new [:postgresql:jmh].executor": "Run",
+    "Gradle.Universal-new [:postgresql:shadowJar].executor": "Run",
+    "Gradle.Universal-new [:sqlite:Main.main()].executor": "Run",
+    "Gradle.Universal-new [:sqlite:build].executor": "Run",
+    "Gradle.Universal-new [:sqlite:shadowJar].executor": "Run",
+    "Gradle.Universal-new [build].executor": "Run",
+    "Gradle.Universal-new [clean].executor": "Run",
+    "Gradle.Universal-new [publish].executor": "Run",
+    "Gradle.Universal:cassandra [shadowJar].executor": "Run",
+    "Gradle.Universal:mongodb [shadowJar].executor": "Run",
+    "Gradle.Universal:mysql [:mysql:Main.main()].executor": "Run",
+    "Gradle.Universal:mysql [shadowJar].executor": "Run",
+    "Gradle.Universal:postgresql [shadowJar].executor": "Run",
+    "Gradle.Universal:postgresql [sourcesJar].executor": "Run",
+    "Gradle.Universal:sql-common [shadowJar].executor": "Run",
+    "Gradle.Universal:sqlite [:sqlite:Main.main()].executor": "Run",
+    "Gradle.Universal:sqlite [shadowJar].executor": "Run",
+    "Gradle.UserJsonFieldTest.executor": "Run",
+    "JUnit.NormalTest.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Repository.Attach.Annotations": "false",
+    "Repository.Attach.JavaDocs": "false",
+    "Repository.Attach.Sources": "false",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "cidr.known.project.marker": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "extract.method.default.visibility": "private",
+    "git-widget-placeholder": "main",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last.edited.regexp": "hello.hi",
+    "last_opened_file_path": "/home/flameyosflow/Universal-new/postgresql/src/test/java/testapp",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "onboarding.tips.debug.path": "/home/flameyosflow/IdeaProjects/Universal/core-ktx/src/main/java/me/flame/universal/api/kotlin/Main.java",
+    "org.rust.first.attach.projects": "true",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "run.code.analysis.last.selected.profile": "pProject Default",
+    "settings.editor.selected.configurable": "preferences.lookFeel",
+    "show.migrate.to.gradle.popup": "false",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/postgresql/src/test/java/testapp" />
@@ -713,94 +739,9 @@
       <workItem from="1777147426699" duration="31219000" />
       <workItem from="1777364068553" duration="19010000" />
       <workItem from="1777709895497" duration="628000" />
-    </task>
-    <task id="LOCAL-00172" summary="Add documentation and convert JSON to Uniform">
-      <option name="closed" value="true" />
-      <created>1772543874348</created>
-      <option name="number" value="00172" />
-      <option name="presentableId" value="LOCAL-00172" />
-      <option name="project" value="LOCAL" />
-      <updated>1772543874348</updated>
-    </task>
-    <task id="LOCAL-00173" summary="Split into many files, add parallel read support, autoCreate and improve performance">
-      <option name="closed" value="true" />
-      <created>1772543967340</created>
-      <option name="number" value="00173" />
-      <option name="presentableId" value="LOCAL-00173" />
-      <option name="project" value="LOCAL" />
-      <updated>1772543967340</updated>
-    </task>
-    <task id="LOCAL-00174" summary="Convert to Uniform and add autoCreate">
-      <option name="closed" value="true" />
-      <created>1772544003200</created>
-      <option name="number" value="00174" />
-      <option name="presentableId" value="LOCAL-00174" />
-      <option name="project" value="LOCAL" />
-      <updated>1772544003200</updated>
-    </task>
-    <task id="LOCAL-00175" summary="Convert to Uniform">
-      <option name="closed" value="true" />
-      <created>1772544029557</created>
-      <option name="number" value="00175" />
-      <option name="presentableId" value="LOCAL-00175" />
-      <option name="project" value="LOCAL" />
-      <updated>1772544029557</updated>
-    </task>
-    <task id="LOCAL-00176" summary="Split files into many, fix a few bugs and update tests">
-      <option name="closed" value="true" />
-      <created>1772544041650</created>
-      <option name="number" value="00176" />
-      <option name="presentableId" value="LOCAL-00176" />
-      <option name="project" value="LOCAL" />
-      <updated>1772544041650</updated>
-    </task>
-    <task id="LOCAL-00177" summary="Many optimizations and fixes&#10;&#10;L1 cache, query result cache, adapter cache, cache key pooling, MANY_TO_ONE prefetch, parallel batch loading, deep/recursive prefetch, cache warming by ID, auto-behaviours, metrics, getRelationshipSize, and proper clear/shutdown lifecycle.">
-      <option name="closed" value="true" />
-      <created>1772544258794</created>
-      <option name="number" value="00177" />
-      <option name="presentableId" value="LOCAL-00177" />
-      <option name="project" value="LOCAL" />
-      <updated>1772544258794</updated>
-    </task>
-    <task id="LOCAL-00178" summary="Add benchmarks">
-      <option name="closed" value="true" />
-      <created>1772697814983</created>
-      <option name="number" value="00178" />
-      <option name="presentableId" value="LOCAL-00178" />
-      <option name="project" value="LOCAL" />
-      <updated>1772697814983</updated>
-    </task>
-    <task id="LOCAL-00179" summary="Fix a few issues">
-      <option name="closed" value="true" />
-      <created>1772699325000</created>
-      <option name="number" value="00179" />
-      <option name="presentableId" value="LOCAL-00179" />
-      <option name="project" value="LOCAL" />
-      <updated>1772699325000</updated>
-    </task>
-    <task id="LOCAL-00180" summary="Fix missing functionality in DefaultSession, NetworkSession and FileSession&#10;&#10;- NO_CACHE, BUFFERED_WRITE, LOG_OPERATIONS and CASCADE support in FileSession and NetworkSession&#10;- New methods like insertAll, updateAll, deleteAll, findAllById, async versions, etc in both Sessions">
-      <option name="closed" value="true" />
-      <created>1772699588060</created>
-      <option name="number" value="00180" />
-      <option name="presentableId" value="LOCAL-00180" />
-      <option name="project" value="LOCAL" />
-      <updated>1772699588061</updated>
-    </task>
-    <task id="LOCAL-00181" summary="Fix missing JSON functioanlity">
-      <option name="closed" value="true" />
-      <created>1772781976021</created>
-      <option name="number" value="00181" />
-      <option name="presentableId" value="LOCAL-00181" />
-      <option name="project" value="LOCAL" />
-      <updated>1772781976022</updated>
-    </task>
-    <task id="LOCAL-00182" summary="Fix inverse condition issue">
-      <option name="closed" value="true" />
-      <created>1772781996169</created>
-      <option name="number" value="00182" />
-      <option name="presentableId" value="LOCAL-00182" />
-      <option name="project" value="LOCAL" />
-      <updated>1772781996170</updated>
+      <workItem from="1777710953004" duration="5107000" />
+      <workItem from="1777724088949" duration="43024000" />
+      <workItem from="1777892318774" duration="5543000" />
     </task>
     <task id="LOCAL-00183" summary="Fix @Named issues and JSON issues">
       <option name="closed" value="true" />
@@ -1106,21 +1047,101 @@
       <option name="project" value="LOCAL" />
       <updated>1777710203620</updated>
     </task>
-    <option name="localTasksCounter" value="221" />
+    <task id="LOCAL-00221" summary="Fix nullability mismatch">
+      <option name="closed" value="true" />
+      <created>1777711070482</created>
+      <option name="number" value="00221" />
+      <option name="presentableId" value="LOCAL-00221" />
+      <option name="project" value="LOCAL" />
+      <updated>1777711070482</updated>
+    </task>
+    <task id="LOCAL-00222" summary="Type registration API">
+      <option name="closed" value="true" />
+      <created>1777897320300</created>
+      <option name="number" value="00222" />
+      <option name="presentableId" value="LOCAL-00222" />
+      <option name="project" value="LOCAL" />
+      <updated>1777897320300</updated>
+    </task>
+    <task id="LOCAL-00223" summary="New validation API in favor of old Condition API">
+      <option name="closed" value="true" />
+      <created>1777897782290</created>
+      <option name="number" value="00223" />
+      <option name="presentableId" value="LOCAL-00223" />
+      <option name="project" value="LOCAL" />
+      <updated>1777897782290</updated>
+    </task>
+    <task id="LOCAL-00224" summary="Type registration API">
+      <option name="closed" value="true" />
+      <created>1777897959902</created>
+      <option name="number" value="00224" />
+      <option name="presentableId" value="LOCAL-00224" />
+      <option name="project" value="LOCAL" />
+      <updated>1777897959902</updated>
+    </task>
+    <task id="LOCAL-00225" summary="Type registration API and loop merge optimization">
+      <option name="closed" value="true" />
+      <created>1777898007053</created>
+      <option name="number" value="00225" />
+      <option name="presentableId" value="LOCAL-00225" />
+      <option name="project" value="LOCAL" />
+      <updated>1777898007053</updated>
+    </task>
+    <task id="LOCAL-00226" summary="Bump version">
+      <option name="closed" value="true" />
+      <created>1777898012682</created>
+      <option name="number" value="00226" />
+      <option name="presentableId" value="LOCAL-00226" />
+      <option name="project" value="LOCAL" />
+      <updated>1777898012682</updated>
+    </task>
+    <task id="LOCAL-00227" summary="Fix OutputStream being ignored.">
+      <option name="closed" value="true" />
+      <created>1777898076012</created>
+      <option name="number" value="00227" />
+      <option name="presentableId" value="LOCAL-00227" />
+      <option name="project" value="LOCAL" />
+      <updated>1777898076012</updated>
+    </task>
+    <task id="LOCAL-00228" summary="Add sharding check.">
+      <option name="closed" value="true" />
+      <created>1777898109441</created>
+      <option name="number" value="00228" />
+      <option name="presentableId" value="LOCAL-00228" />
+      <option name="project" value="LOCAL" />
+      <updated>1777898109441</updated>
+    </task>
+    <task id="LOCAL-00229" summary="Add sharding check.">
+      <option name="closed" value="true" />
+      <created>1777898590452</created>
+      <option name="number" value="00229" />
+      <option name="presentableId" value="LOCAL-00229" />
+      <option name="project" value="LOCAL" />
+      <updated>1777898590452</updated>
+    </task>
+    <task id="LOCAL-00230" summary="Fix some issues and optimize&#10;&#10;fix unnecessary blocking and improve performance and heap utilization">
+      <option name="closed" value="true" />
+      <created>1777898655536</created>
+      <option name="number" value="00230" />
+      <option name="presentableId" value="LOCAL-00230" />
+      <option name="project" value="LOCAL" />
+      <updated>1777898655536</updated>
+    </task>
+    <task id="LOCAL-00231" summary="Fix some issues and optimize&#10;&#10;fix unnecessary blocking and improve performance and heap utilization">
+      <option name="closed" value="true" />
+      <created>1777898668666</created>
+      <option name="number" value="00231" />
+      <option name="presentableId" value="LOCAL-00231" />
+      <option name="project" value="LOCAL" />
+      <updated>1777898668666</updated>
+    </task>
+    <option name="localTasksCounter" value="232" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add getTargetPrimaryKeyType" />
-    <MESSAGE value="Improve the performance of SQLDatabaseParameters and loadFromDatabase" />
-    <MESSAGE value="Fix loadFromDatabaseBatch not using addResultAndAddToCache" />
-    <MESSAGE value="Improve the performance of SQLDatabaseParameters and relocations in codegen" />
-    <MESSAGE value="Fixes" />
-    <MESSAGE value="Bump versions and prepare for maven central" />
-    <MESSAGE value="MongoDB/Microservice fixes and relocations" />
-    <MESSAGE value="Bump versions" />
     <MESSAGE value="Remove comments" />
     <MESSAGE value="Make relationship handler use LRU and make it tunable" />
     <MESSAGE value="Remove maven-publish from gradle" />
@@ -1138,7 +1159,15 @@
     <MESSAGE value="Fix test and compile time validator" />
     <MESSAGE value="Greatly optimize" />
     <MESSAGE value="Make registration much more natural" />
-    <option name="LAST_COMMIT_MESSAGE" value="Make registration much more natural" />
+    <MESSAGE value="Fix nullability mismatch" />
+    <MESSAGE value="New validation API in favor of old Condition API" />
+    <MESSAGE value="Type registration API" />
+    <MESSAGE value="Type registration API and loop merge optimization" />
+    <MESSAGE value="Bump version" />
+    <MESSAGE value="Fix OutputStream being ignored." />
+    <MESSAGE value="Add sharding check." />
+    <MESSAGE value="Fix some issues and optimize&#10;&#10;fix unnecessary blocking and improve performance and heap utilization" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fix some issues and optimize&#10;&#10;fix unnecessary blocking and improve performance and heap utilization" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -1177,16 +1206,6 @@
           <url>file://$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlQueryExecutor.java</url>
           <line>101</line>
           <option name="timeStamp" value="16" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlResultMapper.java</url>
-          <line>139</line>
-          <option name="timeStamp" value="17" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/sql-common/src/main/java/io/github/flameyossnowy/universal/sql/internals/repository/SqlReadExecutor.java</url>
-          <line>89</line>
-          <option name="timeStamp" value="18" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>jar://$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/com.zaxxer/HikariCP/6.2.1/2d60b91e74ee4ff10fc9a395d10b3b9c7061ef87/HikariCP-6.2.1.jar!/com/zaxxer/hikari/pool/HikariProxyResultSet.class</url>
@@ -1238,7 +1257,7 @@
         <line-breakpoint enabled="true" type="java-method">
           <url>file://$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/handler/RelationshipHandler.java</url>
           <line>17</line>
-          <properties class="io.github.flameyossnowy.universal.api.handler.RelationshipHandler" method="handleOneToOneRelationshipOwning">
+          <properties class="io.github.flameyossnowy.universal.api.handler.RelationshipHandler">
             <option name="EMULATED" value="true" />
             <option name="WATCH_EXIT" value="false" />
           </properties>
@@ -1247,7 +1266,7 @@
         <line-breakpoint enabled="true" type="java-method">
           <url>file://$PROJECT_DIR$/core/src/main/java/io/github/flameyossnowy/universal/api/factory/RelationshipLoader.java</url>
           <line>14</line>
-          <properties class="io.github.flameyossnowy.universal.api.factory.RelationshipLoader" method="oneToOneOwning">
+          <properties class="io.github.flameyossnowy.universal.api.factory.RelationshipLoader">
             <option name="EMULATED" value="true" />
             <option name="WATCH_EXIT" value="false" />
           </properties>
