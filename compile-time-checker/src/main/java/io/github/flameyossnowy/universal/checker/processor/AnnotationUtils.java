@@ -125,4 +125,51 @@ public final class AnnotationUtils {
         }
         return out;
     }
+
+    public static List<AnnotationMirror> getAnnotationValue(
+        AnnotationMirror am,
+        String annotationFieldName,
+        javax.lang.model.util.Elements elements // pass this in
+    ) {
+        List<AnnotationMirror> out = new ArrayList<>(4);
+
+        if (am == null) {
+            return out;
+        }
+
+        // IMPORTANT: include default values
+        var values = elements.getElementValuesWithDefaults(am);
+
+        for (var entry : values.entrySet()) {
+            if (!entry.getKey().getSimpleName().contentEquals(annotationFieldName)) {
+                continue;
+            }
+
+            Object value = entry.getValue().getValue();
+
+            // Case 1: single annotation
+            if (value instanceof AnnotationMirror mirror) {
+                out.add(mirror);
+                return out;
+            }
+
+            // Case 2: array of annotations
+            if (value instanceof List<?> list) {
+                for (Object o : list) {
+                    if (o instanceof AnnotationValue av) {
+                        Object inner = av.getValue();
+                        if (inner instanceof AnnotationMirror mirror) {
+                            out.add(mirror);
+                        }
+                    }
+                }
+                return out;
+            }
+
+            // If it's neither, it's not an annotation field → ignore
+            return out;
+        }
+
+        return out;
+    }
 }

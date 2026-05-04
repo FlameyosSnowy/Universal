@@ -23,6 +23,6 @@ public final class TimestampTypeResolver implements TypeResolver<Timestamp> {
 
     @Override
     public void insert(DatabaseParameters parameters, String index, Timestamp value) {
-        parameters.set(index, value, Timestamp.class);
+        parameters.setRaw(index, value, Timestamp.class);
     }
 }
