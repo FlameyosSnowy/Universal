@@ -48,7 +48,7 @@ public class NetworkSessionCache<ID, T> implements SessionCache<ID, T> {
 
     @Override
     public CacheStatistics getStatistics() {
-        return CacheStatistics.empty();
+        return new CacheStatistics();
     }
 
     @Override

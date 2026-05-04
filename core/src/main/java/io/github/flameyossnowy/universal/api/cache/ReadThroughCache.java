@@ -165,9 +165,7 @@ public class ReadThroughCache<K, V> implements SessionCache<K, V> {
     public void clear() {
         int size = cache.size();
         cache.clear();
-        for (int i = 0; i < size; i++) {
-            statistics.recordEviction();
-        }
+        statistics.recordEviction(size - 1);
     }
     
     /**

@@ -44,6 +44,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import static io.github.flameyossnowy.universal.api.utils.ValueUtils.getLength;
+import static io.github.flameyossnowy.universal.api.utils.ValueUtils.isEmpty;
 
 /**
  * MongoDB implementation of {@link ValidationTranslator}.
@@ -421,7 +422,7 @@ public class MongoValidationTranslator<T> implements ValidationTranslator<T> {
                 yield s.equals(s.toLowerCase());
             }
             case UNIQUE -> true; // Handled at database level
-            case REQUIRED -> value != null && !ValueUtils.isEmpty(value);
+            case REQUIRED -> value != null && !isEmpty(value);
             case REFERENCE_EXISTS -> value != null;
         };
     }
@@ -446,9 +447,9 @@ public class MongoValidationTranslator<T> implements ValidationTranslator<T> {
             case UNIQUE_COMBINATION -> true; // Handled at database level
             case REQUIRES -> {
                 // If first field exists, all others must exist
-                if (values[0] == null || ValueUtils.isEmpty(values[0])) yield true;
+                if (values[0] == null || isEmpty(values[0])) yield true;
                 for (int i = 1; i < values.length; i++) {
-                    if (values[i] == null || ValueUtils.isEmpty(values[i])) yield false;
+                    if (values[i] == null || isEmpty(values[i])) yield false;
                 }
                 yield true;
             }
@@ -456,7 +457,7 @@ public class MongoValidationTranslator<T> implements ValidationTranslator<T> {
                 // Only one of the fields can be non-null
                 int nonNullCount = 0;
                 for (Object value : values) {
-                    if (value != null && !ValueUtils.isEmpty(value)) nonNullCount++;
+                    if (value != null && !isEmpty(value)) nonNullCount++;
                 }
                 yield nonNullCount <= 1;
             }

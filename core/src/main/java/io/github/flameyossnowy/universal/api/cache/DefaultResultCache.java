@@ -102,13 +102,15 @@ public class DefaultResultCache<Q, T, ID> {
      */
     public void invalidate(ID id) {
         Set<Q> affectedQueries = idToQueries.remove(id);
+        int count = 0;
         if (affectedQueries != null) {
             for (Q query : affectedQueries) {
                 if (cache.remove(query) != null) {
-                    statistics.recordEviction();
+                    count++;
                 }
             }
         }
+        statistics.recordEviction(count);
     }
     
     /**
@@ -140,9 +142,7 @@ public class DefaultResultCache<Q, T, ID> {
         int size = cache.size();
         cache.clear();
         idToQueries.clear();
-        for (int i = 0; i < size; i++) {
-            statistics.recordEviction();
-        }
+        statistics.recordEviction(size - 1);
     }
     
     /**
@@ -163,7 +163,7 @@ public class DefaultResultCache<Q, T, ID> {
      * Gets cache metrics snapshot.
      */
     public CacheMetrics getMetrics() {
-        return statistics.getMetrics();
+        return new CacheMetrics(statistics.getHits(), statistics.getMisses(), statistics.getEvictions(), statistics.getPuts(), statistics.getHitRate(), statistics.getAverageLoadTime(), statistics.getOpsPerSecond() * 60);
     }
     
     /**

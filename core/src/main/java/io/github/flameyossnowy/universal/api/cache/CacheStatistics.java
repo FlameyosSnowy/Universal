@@ -37,6 +37,13 @@ public class CacheStatistics {
         recordOp();
     }
 
+    public void recordEviction(int count) {
+        if (count > 0) {
+            evictions.add(count);
+            recordOps(count);
+        }
+    }
+
     public void recordPut() {
         puts.increment();
         recordOp();

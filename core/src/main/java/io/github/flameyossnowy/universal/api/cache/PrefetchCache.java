@@ -132,9 +132,7 @@ public class PrefetchCache<ID, T> implements SessionCache<ID, T> {
         int size = cache.size();
         cache.clear();
         accessHistory.clear();
-        for (int i = 0; i < size; i++) {
-            statistics.recordEviction();
-        }
+        statistics.recordEviction(size - 1);
     }
     
     /**

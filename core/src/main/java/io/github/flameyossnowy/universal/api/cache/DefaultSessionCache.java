@@ -46,6 +46,6 @@ public class DefaultSessionCache<ID, T> implements SessionCache<ID, T> {
 
     @Override
     public CacheMetrics getMetrics() {
-        return statistics.getMetrics();
+        return new CacheMetrics(statistics.getHits(), statistics.getMisses(), statistics.getEvictions(), statistics.getPuts(), statistics.getHitRate(), statistics.getAverageLoadTime(), statistics.getOpsPerSecond() * 60);
     }
 }

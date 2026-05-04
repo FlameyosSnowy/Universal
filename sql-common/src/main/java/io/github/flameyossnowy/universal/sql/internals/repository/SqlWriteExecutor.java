@@ -318,7 +318,7 @@ public final class SqlWriteExecutor<T, ID> {
 
                         this.objectModel.insertCollectionEntities(value, generatedId, parameters);
                     }
-                    if (cache != null) cache.invalidate(generatedId);
+
                     if (auditLogger != null) auditLogger.onInsert(value);
                     if (entityLifecycleListener != null) entityLifecycleListener.onPostInsert(value);
 

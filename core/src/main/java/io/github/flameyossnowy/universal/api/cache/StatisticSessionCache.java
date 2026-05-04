@@ -43,9 +43,7 @@ public class StatisticSessionCache<ID, T> implements SessionCache<ID, T> {
     public void clear() {
         int size = internalCache.size();
         internalCache.clear();
-        for (int i = 0; i < size; i++) {
-            statistics.recordEviction();
-        }
+        statistics.recordEviction(size - 1);
     }
 
     @Override
@@ -60,6 +58,6 @@ public class StatisticSessionCache<ID, T> implements SessionCache<ID, T> {
 
     @Override
     public CacheMetrics getMetrics() {
-        return statistics.getMetrics();
+        return new CacheMetrics(statistics.getHits(), statistics.getMisses(), statistics.getEvictions(), statistics.getPuts(), statistics.getHitRate(), statistics.getAverageLoadTime(), statistics.getOpsPerSecond() * 60);
     }
 }

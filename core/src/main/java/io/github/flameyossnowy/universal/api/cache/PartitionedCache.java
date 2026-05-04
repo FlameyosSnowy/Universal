@@ -111,9 +111,7 @@ public class PartitionedCache<K, V> implements SessionCache<K, V> {
             totalSize += partition.size();
             partition.clear();
         }
-        for (int i = 0; i < totalSize; i++) {
-            statistics.recordEviction();
-        }
+        statistics.recordEviction(totalSize - 1);
     }
     
     /**
@@ -138,6 +136,6 @@ public class PartitionedCache<K, V> implements SessionCache<K, V> {
      * Gets cache metrics snapshot.
      */
     public CacheMetrics getMetrics() {
-        return statistics.getMetrics();
+        return new CacheMetrics(statistics.getHits(), statistics.getMisses(), statistics.getEvictions(), statistics.getPuts(), statistics.getHitRate(), statistics.getAverageLoadTime(), statistics.getOpsPerSecond() * 60);
     }
 }
