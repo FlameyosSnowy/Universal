@@ -11,12 +11,14 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class SqlCacheManager<T, ID> {
 
     private final DefaultResultCache<ParameterizedSql, T, ID> cache;
     private final ObjectModel<T, ID> objectModel;
     private final boolean cacheEnabled;
+    private final Function<T, ID> idExtractor;
 
     @Nullable
     private final SecondLevelCache<ID, T> l2Cache;
@@ -30,11 +32,13 @@ public class SqlCacheManager<T, ID> {
         this.cacheEnabled = cacheEnabled;
         this.l2Cache = l2Cache;
         this.readThroughCache = readThroughCache;
+        // Pre-create the function to avoid lambda allocation on each insertToCache call
+        this.idExtractor = objectModel != null ? objectModel::getId : null;
     }
 
     public List<T> insertToCache(ParameterizedSql query, List<T> result) {
-        if (cache != null) {
-            cache.insert(query, result, objectModel::getId);
+        if (cache != null && idExtractor != null) {
+            cache.insert(query, result, idExtractor);
         }
         return result;
     }

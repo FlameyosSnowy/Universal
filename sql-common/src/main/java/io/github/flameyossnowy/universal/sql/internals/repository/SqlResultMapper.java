@@ -87,7 +87,7 @@ public final class SqlResultMapper<T, ID> {
         String idColumn = primaryKey.name();
         TypeResolver<ID> resolver = resolverRegistry.resolve(idClass);
 
-        List<ID> list = new ArrayList<>(32);
+        List<ID> list = new ArrayList<>(rs.getFetchSize());
 
         SQLDatabaseResult result = new SQLDatabaseResult(rs, resolverRegistry, collectionHandler, supportsArrays, repositoryModel);
         while (rs.next()) {

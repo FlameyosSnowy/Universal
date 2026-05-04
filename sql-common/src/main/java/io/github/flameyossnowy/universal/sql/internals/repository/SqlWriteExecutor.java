@@ -153,7 +153,13 @@ public final class SqlWriteExecutor<T, ID> {
 
                 connection.commit();
 
-                if (cache != null) cache.clear();
+                // Selective invalidation: only invalidate affected entity IDs instead of clearing entire cache
+                if (cache != null) {
+                    for (T entity : collection) {
+                        ID id = objectModel.getId(entity);
+                        if (id != null) cache.invalidate(id);
+                    }
+                }
 
                 return TransactionResult.success(true);
             } catch (Exception e) {
@@ -168,7 +174,6 @@ public final class SqlWriteExecutor<T, ID> {
     public TransactionResult<Boolean> executeUpdate(TransactionContext<Connection> transactionContext, ParameterizedSql sql, StatementSetter setter) {
         try (var statement = dataSource.prepareStatement(sql.sql(), transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
             if (setter != null) setter.set(statement);
-            if (cache != null) cache.clear();
             int updated = statement.executeUpdate();
             return TransactionResult.success(updated > 0);
         } catch (Exception e) {
@@ -187,7 +192,7 @@ public final class SqlWriteExecutor<T, ID> {
         if (entityLifecycleListener != null) entityLifecycleListener.onPreUpdate(entity);
         try (var statement = dataSource.prepareStatement(sql.sql(), transactionContext == null ? dataSource.getConnection() : transactionContext.connection())) {
             if (setter != null) setter.set(statement);
-            if (cache != null) cache.clear();
+            if (cache != null) cache.invalidate(id);
             if (globalCache != null) globalCache.put(id, entity);
 
             T oldEntity = null;
@@ -226,6 +231,8 @@ public final class SqlWriteExecutor<T, ID> {
     public TransactionResult<Boolean> executeDeleteQuery(TransactionContext<Connection> transactionContext, ParameterizedSql sql, DeleteQuery query) {
         return executeDelete(transactionContext, sql, (parameters, statement) -> {
             parameterBinder.setUpdateParameters(query, parameters, resolverRegistry, repositoryModel, sqlType);
+            // For query-based deletes, we don't know which specific entities are affected
+            // so we must clear the entire cache to maintain consistency
             if (cache != null) cache.clear();
             relationshipHandler.clear();
             return TransactionResult.success(statement.execute());
@@ -253,7 +260,7 @@ public final class SqlWriteExecutor<T, ID> {
         var resolver = resolverRegistry.resolve(idClass);
         resolver.insert(parameters, repositoryModel.getPrimaryKey().name(), id);
 
-        if (cache != null) cache.clear();
+        if (cache != null) cache.invalidate(id);
         if (globalCache != null) globalCache.remove(id);
 
         int updated = statement.executeUpdate();
@@ -311,7 +318,7 @@ public final class SqlWriteExecutor<T, ID> {
 
                         this.objectModel.insertCollectionEntities(value, generatedId, parameters);
                     }
-                    if (cache != null) cache.clear();
+                    if (cache != null) cache.invalidate(generatedId);
                     if (auditLogger != null) auditLogger.onInsert(value);
                     if (entityLifecycleListener != null) entityLifecycleListener.onPostInsert(value);
 
