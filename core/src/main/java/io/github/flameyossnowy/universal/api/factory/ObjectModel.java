@@ -109,4 +109,17 @@ public interface ObjectModel<T, ID> {
     Class<T> getEntityType();
 
     ID getId(T entity);
+
+    /**
+     * Retrieves the value of a specific field from the entity.
+     * <p>
+     * This method provides runtime access to field values without reflection,
+     * using the compile-time generated getter methods.
+     *
+     * @param entity the entity to extract the field value from
+     * @param fieldName the name of the field to retrieve
+     * @return the field value, or null if the field doesn't exist or is null
+     * @throws IllegalArgumentException if the field name is unknown
+     */
+    Object getFieldValue(T entity, String fieldName);
 }

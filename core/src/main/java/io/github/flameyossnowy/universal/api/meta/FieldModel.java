@@ -81,8 +81,19 @@ public interface FieldModel<T> {
     /**
      * The @Condition annotation for this field, or null if not present.
      * Used for CHECK constraints in SQL.
+     * @deprecated since 2.0.0, use {@link #validation()} instead
      */
+    @Deprecated(since = "2.0.0", forRemoval = true)
     Condition condition();
+
+    /**
+     * The parsed validation rules for this field, or null if no validation specified.
+     * Contains data from @Validate annotations.
+     *
+     * @return the validation model, or null if no validation
+     * @since 2.0.0
+     */
+    ValidationModel validation();
 
     /**
      * The @OnDelete annotation for this field, or null if not present.

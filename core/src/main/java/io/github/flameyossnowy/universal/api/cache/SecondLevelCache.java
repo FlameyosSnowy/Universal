@@ -61,7 +61,7 @@ public class SecondLevelCache<ID, T> implements SessionCache<ID, T> {
         
         if (cached.isExpired()) {
             cache.remove(id);
-            statistics.recordMiss(0);
+            statistics.recordMiss(duration);
             statistics.recordEviction();
             return null;
         }
@@ -146,7 +146,7 @@ public class SecondLevelCache<ID, T> implements SessionCache<ID, T> {
      */
     @Override
     public CacheMetrics getMetrics() {
-        return statistics.getMetrics();
+        return new CacheMetrics(statistics.getHits(), statistics.getMisses(), statistics.getEvictions(), statistics.getPuts(), statistics.getHitRate(), statistics.getAverageLoadTime(), statistics.getOpsPerSecond() * 60);
     }
     
     /**

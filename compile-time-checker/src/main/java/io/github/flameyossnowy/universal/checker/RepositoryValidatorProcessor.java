@@ -30,6 +30,9 @@ import io.github.flameyossnowy.universal.api.annotations.RepositoryEventLifecycl
 import io.github.flameyossnowy.universal.api.annotations.RepositoryExceptionHandler;
 import io.github.flameyossnowy.universal.api.annotations.Resolves;
 import io.github.flameyossnowy.universal.api.annotations.Unique;
+import io.github.flameyossnowy.universal.api.annotations.Validate;
+import io.github.flameyossnowy.universal.api.annotations.Validations;
+import io.github.flameyossnowy.universal.api.meta.ValidationModel;
 import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
 import io.github.flameyossnowy.universal.api.annotations.enums.IndexType;
 import io.github.flameyossnowy.universal.api.cache.CacheConfig;
@@ -86,6 +89,8 @@ import static io.github.flameyossnowy.universal.api.meta.RelationshipKind.*;
     "io.github.flameyossnowy.universal.api.annotations.DefaultValue",
     "io.github.flameyossnowy.universal.api.annotations.DefaultValueProvider",
     "io.github.flameyossnowy.universal.api.annotations.Resolves",
+    "io.github.flameyossnowy.universal.api.annotations.Validate",
+    "io.github.flameyossnowy.universal.api.annotations.Validations",
 })
 public class RepositoryValidatorProcessor extends AbstractProcessor {
     private Types types;
@@ -740,6 +745,16 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             }
 
             Condition condition = field.getAnnotation(Condition.class);
+
+            // Extract @Validate annotations and create ValidationModel
+            ValidationModel validation = extractValidationModel(field);
+
+            // Warn if both @Condition (deprecated) and @Validate are used
+            if (condition != null && validation != null) {
+                warn("Field '" + fieldName + "' has both @Condition (deprecated) and @Validate. " +
+                     "@Validate takes precedence. Consider migrating to @Validate.", field);
+            }
+
             OnDelete onDelete = field.getAnnotation(OnDelete.class);
             OnUpdate onUpdate = field.getAnnotation(OnUpdate.class);
 
@@ -824,7 +839,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             if (jsonIndexMirrors.isEmpty()) {
                 jsonIndexes = List.of();
             } else {
-                jsonIndexes = new java.util.ArrayList<>(jsonIndexMirrors.size());
+                jsonIndexes = new ArrayList<>(jsonIndexMirrors.size());
                 for (AnnotationMirror jsonIndex : jsonIndexMirrors) {
                     String path = AnnotationUtils.getStringValue(jsonIndex, "path");
                     boolean unique = AnnotationUtils.getBooleanValue(jsonIndex, "unique");
@@ -856,6 +871,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
                 enumAsOrdinal,
                 externalRepo,
                 condition,
+                validation,
                 onDelete,
                 onUpdate,
                 resolveWithClass,
@@ -1018,6 +1034,129 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         if (otm != null) return extractOneToMany(field, otm, columnName);
         if (mto != null) return extractManyToOne(field, mto, columnName);
         return extractOneToOne(field, oto, columnName);
+    }
+
+    /**
+     * Extracts validation information from @Validate annotations on a field.
+     * Handles both single @Validate and repeatable @Validations.
+     *
+     * @param field the field element to extract validation from
+     * @return ValidationModel containing all validation rules, or null if no validation
+     */
+    private ValidationModel extractValidationModel(VariableElement field) {
+        // Get @Validations container (for multiple @Validate annotations)
+        AnnotationMirror validationsContainer = AnnotationUtils.getAnnotationMirror(
+            field, Validations.class.getCanonicalName());
+
+        // Get single @Validate annotation
+        AnnotationMirror singleValidate = AnnotationUtils.getAnnotationMirror(
+            field, Validate.class.getCanonicalName());
+
+        List<AnnotationMirror> validateAnnotations = new ArrayList<>();
+
+        if (validationsContainer != null) {
+            // Extract all @Validate from the container
+            List<AnnotationMirror> nested = AnnotationUtils.getAnnotationValue(validationsContainer, "value", elements);
+            if (nested != null) {
+                validateAnnotations.addAll(nested);
+            }
+        }
+
+        if (singleValidate != null) {
+            validateAnnotations.add(singleValidate);
+        }
+
+        if (validateAnnotations.isEmpty()) {
+            return null;
+        }
+
+        // Collect all rules and parameters from all @Validate annotations
+        List<Validate.Rule> allRules = new ArrayList<>();
+        Map<String, String> allParams = new HashMap<>();
+        String customValidatorClass = null;
+        String message = null;
+
+        for (AnnotationMirror validate : validateAnnotations) {
+            // Extract rules
+            @SuppressWarnings("unchecked")
+            List<AnnotationMirror> rules = AnnotationUtils.getAnnotationValue(validate, "value", elements);
+            if (rules != null) {
+                for (AnnotationMirror rule : rules) {
+                    String ruleName = AnnotationUtils.getEnumValueName(rule, "name");
+                    if (ruleName != null) {
+                        try {
+                            allRules.add(Validate.Rule.valueOf(ruleName));
+                        } catch (IllegalArgumentException e) {
+                            warn("Unknown validation rule: " + ruleName, field);
+                        }
+                    }
+                }
+            }
+
+            // Extract parameters
+            AnnotationMirror paramMirror = AnnotationUtils.getAnnotationMirror(
+                field, Validate.Param.class.getCanonicalName());
+            if (paramMirror != null) {
+                String paramName = AnnotationUtils.getStringValue(paramMirror, "name");
+                String paramValue = AnnotationUtils.getStringValue(paramMirror, "value");
+                if (paramName != null && paramValue != null) {
+                    allParams.put(paramName, paramValue);
+                }
+            }
+
+            // Get params from the Validate annotation itself if present
+            List<AnnotationMirror> params = AnnotationUtils.getAnnotationValue(validate, "params", elements);
+            if (params != null) {
+                for (AnnotationMirror param : params) {
+                    String paramName = AnnotationUtils.getStringValue(param, "name");
+                    String paramValue = AnnotationUtils.getStringValue(param, "value");
+                    if (paramName != null && paramValue != null) {
+                        allParams.put(paramName, paramValue);
+                    }
+                }
+            }
+
+            // Extract custom validator class
+            if (customValidatorClass == null) {
+                TypeMirror customClass = AnnotationUtils.getClassValue(validate, "custom");
+                if (customClass != null) {
+                    String qn = TypeMirrorUtils.qualifiedName(customClass);
+                    if (!"java.lang.Void".equals(qn)) {
+                        customValidatorClass = qn;
+                    }
+                }
+            }
+
+            // Extract message (use first non-empty message)
+            if (message == null || message.isEmpty()) {
+                String msg = AnnotationUtils.getStringValue(validate, "message");
+                if (msg != null && !msg.isEmpty()) {
+                    message = msg;
+                }
+            }
+        }
+
+        // Also look for standalone @Validate.Param annotations
+        List<AnnotationMirror> standaloneParams = AnnotationUtils.getAnnotations(
+            field, Validate.Param.class.getCanonicalName());
+        for (AnnotationMirror param : standaloneParams) {
+            String paramName = AnnotationUtils.getStringValue(param, "name");
+            String paramValue = AnnotationUtils.getStringValue(param, "value");
+            if (paramName != null && paramValue != null) {
+                allParams.put(paramName, paramValue);
+            }
+        }
+
+        if (allRules.isEmpty() && customValidatorClass == null) {
+            return null;
+        }
+
+        return new ValidationModel(
+            allRules.toArray(new Validate.Rule[0]),
+            allParams,
+            customValidatorClass,
+            message
+        );
     }
 
     private RelationshipModel extractManyToOne(
@@ -1330,5 +1469,9 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
     private void error(String msg, Element e) {
         messager.printMessage(Diagnostic.Kind.ERROR, msg, e);
+    }
+
+    private void warn(String msg, Element e) {
+        messager.printMessage(Diagnostic.Kind.WARNING, msg, e);
     }
 }

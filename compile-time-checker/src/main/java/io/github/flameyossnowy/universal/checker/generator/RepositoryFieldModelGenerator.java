@@ -12,12 +12,14 @@ import com.squareup.javapoet.WildcardTypeName;
 import io.github.flameyossnowy.universal.api.annotations.Condition;
 import io.github.flameyossnowy.universal.api.annotations.OnDelete;
 import io.github.flameyossnowy.universal.api.annotations.OnUpdate;
+import io.github.flameyossnowy.universal.api.annotations.Validate;
 import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
 import io.github.flameyossnowy.universal.api.json.DefaultJsonCodec;
 import io.github.flameyossnowy.universal.api.json.JsonCodec;
 import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
+import io.github.flameyossnowy.universal.api.meta.ValidationModel;
 import io.github.flameyossnowy.universal.checker.FieldModel;
 import io.github.flameyossnowy.universal.checker.RepositoryModel;
 
@@ -135,6 +137,7 @@ public class RepositoryFieldModelGenerator {
         classBuilder.addMethod(generateSetMethod(field, entityClass));
 
         classBuilder.addMethod(createConditionMethod(field.condition()));
+        classBuilder.addMethod(createValidationMethod(field.validation()));
         classBuilder.addMethod(createOnDeleteMethod(field.onDelete()));
         classBuilder.addMethod(createOnUpdateMethod(field.onUpdate()));
         classBuilder.addMethod(createNullableStringMethod("resolveWithClass", field.resolveWithClass()));
@@ -353,6 +356,63 @@ public class RepositoryFieldModelGenerator {
                 condition.value()
             );
         }
+
+        return method.build();
+    }
+
+    public static MethodSpec createValidationMethod(ValidationModel validation) {
+        MethodSpec.Builder method = MethodSpec.methodBuilder("validation")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(ClassName.get("io.github.flameyossnowy.universal.api.meta", "ValidationModel"));
+
+        if (validation == null) {
+            method.addStatement("return null");
+            return method.build();
+        }
+
+        ClassName ruleClass = ClassName.get("io.github.flameyossnowy.universal.api.annotations.Validate", "Rule");
+        ClassName validationModelClass = ClassName.get("io.github.flameyossnowy.universal.api.meta", "ValidationModel");
+
+        // Build rules array literal
+        Validate.Rule[] rules = validation.rules();
+        StringBuilder rulesCode = new StringBuilder("new $T[]{");
+        java.util.List<Object> rulesArgs = new java.util.ArrayList<>();
+        rulesArgs.add(ruleClass);
+
+        for (int i = 0; i < rules.length; i++) {
+            if (i > 0) rulesCode.append(", ");
+            rulesCode.append("$T.").append(rules[i].name());
+            rulesArgs.add(ruleClass);
+        }
+        rulesCode.append("}");
+
+        // Build params map literal
+        java.util.Map<String, String> params = validation.params();
+        StringBuilder paramsCode = new StringBuilder("$T.of(");
+        java.util.List<Object> paramsArgs = new java.util.ArrayList<>();
+        paramsArgs.add(ClassName.get(java.util.Map.class));
+
+        boolean first = true;
+        for (java.util.Map.Entry<String, String> entry : params.entrySet()) {
+            if (!first) paramsCode.append(", ");
+            paramsCode.append("$S, $S");
+            paramsArgs.add(entry.getKey());
+            paramsArgs.add(entry.getValue());
+            first = false;
+        }
+        paramsCode.append(")");
+
+        // Build complete args list
+        java.util.List<Object> allArgs = new java.util.ArrayList<>();
+        allArgs.add(validationModelClass);
+        allArgs.addAll(rulesArgs);
+        allArgs.addAll(paramsArgs);
+        allArgs.add(validation.customValidatorClass());
+        allArgs.add(validation.message());
+
+        method.addStatement("return new $T(" + rulesCode + ", " + paramsCode + ", $S, $S)",
+            allArgs.toArray());
 
         return method.build();
     }

@@ -117,9 +117,7 @@ public class ReadThroughCache<K, V> implements SessionCache<K, V> {
             
             result.putAll(loaded);
             cache.putAll(loaded);
-            for (int i = 0; i < loaded.size(); i++) {
-                statistics.recordPut();
-            }
+            statistics.recordPuts(loaded.size() - 1);
         }
         
         return result;
@@ -190,6 +188,6 @@ public class ReadThroughCache<K, V> implements SessionCache<K, V> {
      * Gets cache metrics snapshot.
      */
     public CacheMetrics getMetrics() {
-        return statistics.getMetrics();
+        return new CacheMetrics(statistics.getHits(), statistics.getMisses(), statistics.getEvictions(), statistics.getPuts(), statistics.getHitRate(), statistics.getAverageLoadTime(), statistics.getOpsPerSecond() * 60);
     }
 }

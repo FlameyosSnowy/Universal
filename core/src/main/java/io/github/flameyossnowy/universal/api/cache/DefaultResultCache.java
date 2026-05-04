@@ -38,10 +38,10 @@ public class DefaultResultCache<Q, T, ID> {
     public DefaultResultCache(int maxSize, CacheAlgorithmType type) {
         this(maxSize, DEFAULT_TTL_MILLIS, type);
     }
-    
+
     /**
      * Fetches cached query results.
-     * 
+     *
      * @param query the query to fetch results for
      * @return the cached results, or null if not found or expired
      */
@@ -53,14 +53,14 @@ public class DefaultResultCache<Q, T, ID> {
             statistics.recordMiss(duration);
             return null;
         }
-        
+
         if (entry.isExpired()) {
             cache.remove(query);
-            statistics.recordMiss(0);
+            statistics.recordMiss(duration);
             statistics.recordEviction();
             return null;
         }
-        
+
         statistics.recordHit();
         return entry.results;
     }

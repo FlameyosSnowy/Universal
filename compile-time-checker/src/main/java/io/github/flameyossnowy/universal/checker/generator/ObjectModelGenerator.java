@@ -92,6 +92,7 @@ public final class ObjectModelGenerator {
 
         builder.addMethod(InsertCollectionEntitiesGenerator.generate(repo, entityType, idType))
             .addMethod(generateGetId(repo, entityType, idType))
+            .addMethod(generateGetFieldValue(repo, entityType))
             .addMethod(generateGetIdType(idType))
             .addMethod(generateGetEntityType(entityType));
 
@@ -124,6 +125,28 @@ public final class ObjectModelGenerator {
             return m.addStatement("return null").build();
         }
         return m.addStatement("return entity.$L()", repo.primaryKeys().getFirst().getterName()).build();
+    }
+
+    private static MethodSpec generateGetFieldValue(RepositoryModel repo, ClassName entityType) {
+        MethodSpec.Builder m = MethodSpec.methodBuilder("getFieldValue")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(Object.class)
+            .addParameter(entityType, "entity")
+            .addParameter(String.class, "fieldName")
+            .beginControlFlow("return switch (fieldName)");
+
+        // Add cases for each field
+        for (FieldModel field : repo.fields()) {
+            m.addStatement("case $S -> entity.$L()", field.name(), field.getterName());
+        }
+
+        // Add default case that throws exception
+        m.addStatement("default -> throw new $T($S + fieldName)",
+            IllegalArgumentException.class, "Unknown field: ");
+
+        m.endControlFlow();
+        return m.build();
     }
 
     private static MethodSpec generateGetIdType(TypeName idType) {

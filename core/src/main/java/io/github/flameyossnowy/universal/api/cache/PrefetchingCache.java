@@ -49,9 +49,7 @@ public class PrefetchingCache<ID, T> {
             List<ID> toPrefetch = predictNextIds(id);
             Map<ID, T> loaded = batchLoader.apply(toPrefetch);
             cache.putAll(loaded);
-            for (int i = 0; i < loaded.size(); i++) {
-                statistics.recordPut();
-            }
+            statistics.recordPuts(loaded.size() - 1);
             
             long duration = System.currentTimeMillis() - start;
             statistics.recordMiss(duration);
@@ -147,6 +145,6 @@ public class PrefetchingCache<ID, T> {
      * Gets cache metrics snapshot.
      */
     public CacheMetrics getMetrics() {
-        return statistics.getMetrics();
+        return new CacheMetrics(statistics.getHits(), statistics.getMisses(), statistics.getEvictions(), statistics.getPuts(), statistics.getHitRate(), statistics.getAverageLoadTime(), statistics.getOpsPerSecond() * 60);
     }
 }

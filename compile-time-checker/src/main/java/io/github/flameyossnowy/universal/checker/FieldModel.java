@@ -7,6 +7,7 @@ import io.github.flameyossnowy.universal.api.annotations.enums.Consistency;
 import io.github.flameyossnowy.universal.api.meta.JsonIndexModel;
 import io.github.flameyossnowy.universal.api.meta.JsonStorageKind;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
+import io.github.flameyossnowy.universal.api.meta.ValidationModel;
 import io.github.flameyossnowy.universal.checker.processor.TypeMirrorUtils;
 
 import javax.lang.model.type.TypeMirror;
@@ -39,6 +40,7 @@ public record FieldModel(
     boolean enumAsOrdinal,
     String externalRepository,
     Condition condition,
+    ValidationModel validation,
     OnDelete onDelete,
     OnUpdate onUpdate,
     String resolveWithClass,

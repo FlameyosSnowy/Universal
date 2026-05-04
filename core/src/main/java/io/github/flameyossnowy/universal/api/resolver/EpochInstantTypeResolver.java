@@ -19,31 +19,8 @@ public final class EpochInstantTypeResolver implements TypeResolver<Instant> {
 
     @Override
     public @Nullable Instant resolve(DatabaseResult result, String columnName) {
-        Object raw = result.get(columnName, Object.class);
-        switch (raw) {
-            case null -> {
-                return null;
-            }
-            case Long l -> {
-                return Instant.ofEpochMilli(l);
-            }
-            case Number n -> {
-                return Instant.ofEpochMilli(n.longValue());
-            }
-            case String s -> {
-                try {
-                    return Instant.ofEpochMilli(Long.parseLong(s));
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Cannot parse epoch millis from string: " + s, e);
-                }
-            }
-            default -> {
-            }
-        }
-
-        throw new IllegalArgumentException(
-            "Unsupported epoch instant type for column '" + columnName + "': " + raw.getClass().getName()
-        );
+        Long raw = result.get(columnName, Long.class);
+        return Instant.ofEpochMilli(raw);
     }
 
     @Override
