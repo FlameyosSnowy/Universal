@@ -28,12 +28,9 @@ public class PostgreSQLSimpleConnectionProvider implements SQLConnectionProvider
             dataSource.setPassword(credentials.getPassword());
             dataSource.setUser(credentials.getUsername());
             dataSource.setDatabaseName(credentials.getDatabase());
-            if (optimizations.contains(Optimizations.CACHE_PREPARED_STATEMENTS)) {
-                dataSource.setProperty(PGProperty.PREPARED_STATEMENT_CACHE_QUERIES, "300");
-            }
-            if (optimizations.contains(Optimizations.RECOMMENDED_SETTINGS)) {
 
-                Properties props = new Properties();
+            Properties props = new Properties();
+            if (optimizations.contains(Optimizations.RECOMMENDED_SETTINGS)) {
                 PGProperty.TCP_KEEP_ALIVE.set(props, true);                 // Prevents broken idle connections
                 PGProperty.REWRITE_BATCHED_INSERTS.set(props, true);        // Optimizes batch inserts
                 PGProperty.APPLICATION_NAME.set(props, "Universal PostgreSQL Application");   // Shows up in pg_stat_activity
@@ -44,11 +41,14 @@ public class PostgreSQLSimpleConnectionProvider implements SQLConnectionProvider
                 PGProperty.TCP_NO_DELAY.set(props, true);                   // Disable Nagle's algorithm
                 PGProperty.PREFER_QUERY_MODE.set(props, PreferQueryMode.EXTENDED_CACHE_EVERYTHING.value()); // Use extended cache
                 PGProperty.PREPARED_STATEMENT_CACHE_QUERIES.set(props, 300); // Cache prepared statements
-
-                for (String key : props.stringPropertyNames()) {
-                    dataSource.setProperty(key, props.getProperty(key));
-                }
+            } else if (optimizations.contains(Optimizations.CACHE_PREPARED_STATEMENTS)) {
+                PGProperty.PREPARED_STATEMENT_CACHE_QUERIES.set(props, 300);
             }
+
+            for (String key : props.stringPropertyNames()) {
+                dataSource.setProperty(key, props.getProperty(key));
+            }
+
             credentials.getDataSourceConsumer().accept(dataSource);
         } catch (Exception e) {
             throw new RuntimeException(e);

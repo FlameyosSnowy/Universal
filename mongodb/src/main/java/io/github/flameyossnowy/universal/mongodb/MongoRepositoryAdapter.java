@@ -20,17 +20,20 @@ import io.github.flameyossnowy.universal.api.factory.ValueReader;
 import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
 import io.github.flameyossnowy.universal.api.listener.AuditLogger;
 import io.github.flameyossnowy.universal.api.listener.EntityLifecycleListener;
+import io.github.flameyossnowy.universal.api.annotations.Validate;
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.GeneratedObjectFactories;
 import io.github.flameyossnowy.universal.api.meta.GeneratedRelationshipLoaders;
 import io.github.flameyossnowy.universal.api.meta.GeneratedValueReaders;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.meta.ValidationModel;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
 import io.github.flameyossnowy.universal.api.options.validator.ValidationEstimation;
+import io.github.flameyossnowy.universal.api.validation.ValidationException;
 import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
 import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
 import io.github.flameyossnowy.universal.api.resolver.TypeRegistry;
@@ -69,6 +72,7 @@ import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 @SuppressWarnings({ "unused", "unchecked" })
 public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, ClientSession> {
     private final MongoClient client;
+    private final MongoDatabase database;
 
     private static final Document EMPTY = new Document();
 
@@ -119,6 +123,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     private final TypeResolverRegistry typeResolverRegistry = new TypeResolverRegistry();
     private final QueryValidator queryValidator;
     private final ValidationTranslator validationTranslator;
+
+    // Optimization: pre-compute whether any validation is needed
+    private final boolean hasAnyValidation;
 
     private final JsonAdapter objectMapper;
 
@@ -171,6 +178,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
         this.queryValidator = new MongoQueryValidator(repositoryModel);
         this.validationTranslator = new MongoValidationTranslator();
 
+        // Optimization: pre-compute if any validation is needed to skip checks at runtime
+        this.hasAnyValidation = computeHasAnyValidation(repositoryModel);
+
         this.operationExecutor = new MongoOperationExecutor<>(this);
         this.operationContext = new OperationContext<>(repositoryModel, typeResolverRegistry, this.operationExecutor);
 
@@ -218,9 +228,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
             return MongoClients.create(clientBuilder.build());
         });
 
-        MongoDatabase database = this.client.getDatabase(dbName);
-        this.collection = database.getCollection(repositoryModel.tableName());
-        this.collectionHandler = new MongoCollectionHandler(database);
+        this.database = this.client.getDatabase(dbName);
+        this.collection = this.database.getCollection(repositoryModel.tableName());
+        this.collectionHandler = new MongoCollectionHandler(this.database);
         MongoTypeCodecProvider runtimeContext = new MongoTypeCodecProvider(
             typeResolverRegistry,
             collectionHandler,
@@ -773,7 +783,10 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insert(T value, @NotNull TransactionContext<ClientSession> tx) {
-        validateEntity(value);
+        ValidationException validationException = validateEntity(value);
+        if (validationException != null) {
+            return TransactionResult.failure(validationException);
+        }
         FieldModel<T> primaryKey = repositoryModel.getPrimaryKey();
         if (primaryKey == null) {
             throw new IllegalArgumentException("Primary key not found for " + repositoryModel.tableName());
@@ -808,7 +821,10 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insert(T value) {
-        validateEntity(value);
+        ValidationException validationException = validateEntity(value);
+        if (validationException != null) {
+            return TransactionResult.failure(validationException);
+        }
         FieldModel<T> primaryKey = repositoryModel.getPrimaryKey();
         if (primaryKey == null) {
             throw new IllegalArgumentException("Primary key not found for " + repositoryModel.tableName());
@@ -842,13 +858,9 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> values, @NotNull TransactionContext<ClientSession> tx) {
-        for (T value : values) {
-            validateEntity(value);
-        }
         try {
-            List<Document> docs = insertAll0(values);
-            InsertManyResult result = collection.insertMany(tx.connection(), docs);
-            return TransactionResult.success(result.wasAcknowledged());
+            TransactionResult<List<Document>> transactionResult = insertAll0(values);
+            return transactionResult.map(docs -> collection.insertMany(tx.connection(), docs).wasAcknowledged());
         } catch (Exception e) {
             return this.exceptionHandler.handleInsert(e, repositoryModel, this);
         }
@@ -856,21 +868,22 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> values) {
-        for (T value : values) {
-            validateEntity(value);
-        }
         try {
-            List<Document> docs = insertAll0(values);
-            InsertManyResult result = collection.insertMany(docs);
-            return TransactionResult.success(result.wasAcknowledged());
+            TransactionResult<List<Document>> transactionResult = insertAll0(values);
+            return transactionResult.map(docs -> collection.insertMany(docs).wasAcknowledged());
         } catch (Exception e) {
             return this.exceptionHandler.handleInsert(e, repositoryModel, this);
         }
     }
 
-    private List<Document> insertAll0(Collection<T> values) throws Exception {
+    private TransactionResult<List<Document>> insertAll0(Collection<T> values) throws Exception {
         List<Document> docs = new ArrayList<>(values.size());
         for (T value : values) {
+            ValidationException validationException = validateEntity(value);
+            if (validationException != null) {
+                return TransactionResult.failure(validationException);
+            }
+
             MongoDatabaseParameters parameters = new MongoDatabaseParameters(collectionHandler);
             objectModel.insertEntity(parameters, value);
             Document doc = parameters.toDocument();
@@ -881,7 +894,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
             }
             docs.add(doc);
         }
-        return docs;
+        return TransactionResult.success(docs);
     }
 
     private void insertPkIfNotExists(T value, Document doc, FieldModel<T> primaryKey) {
@@ -1227,7 +1240,206 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     @Override
     public TransactionResult<Boolean> createRepository(boolean ifNotExists) {
-        return TransactionResult.success(true);
+        try {
+            // Build JSON Schema validation from field validators
+            Document jsonSchema = buildJsonSchemaValidation();
+
+            CreateCollectionOptions options = new CreateCollectionOptions();
+
+            if (jsonSchema != null && !jsonSchema.isEmpty()) {
+                ValidationOptions validationOptions = new ValidationOptions()
+                    .validator(jsonSchema)
+                    .validationLevel(ValidationLevel.STRICT)
+                    .validationAction(ValidationAction.ERROR);
+                options.validationOptions(validationOptions);
+            }
+
+            if (ifNotExists) {
+                // Check if collection already exists
+                for (String name : database.listCollectionNames()) {
+                    if (name.equals(repositoryModel.tableName())) {
+                        return TransactionResult.success(true);
+                    }
+                }
+            }
+
+            database.createCollection(repositoryModel.tableName(), options);
+            return TransactionResult.success(true);
+        } catch (Exception e) {
+            if (ifNotExists && e.getMessage() != null && e.getMessage().contains("already exists")) {
+                return TransactionResult.success(true);
+            }
+            return TransactionResult.failure(e);
+        }
+    }
+
+    /**
+     * Builds a JSON Schema validation document from field validators.
+     *
+     * @return the $jsonSchema document, or null if no validations
+     */
+    private Document buildJsonSchemaValidation() {
+        // Optimization: skip schema building entirely if no validation rules are defined
+        if (!hasAnyValidation) {
+            return null;
+        }
+
+        java.util.List<Document> allConditions = new java.util.ArrayList<>();
+        java.util.List<String> requiredFields = new java.util.ArrayList<>();
+
+        for (FieldModel<T> field : repositoryModel.fields()) {
+            ValidationModel validation = field.validation();
+            if (validation == null || !validation.hasValidation()) {
+                continue;
+            }
+
+            // Build field validation conditions
+            java.util.List<Document> fieldConditions = new java.util.ArrayList<>();
+            Map<String, String> params = validation.params();
+
+            for (Validate.Rule rule : validation.rules()) {
+                Document condition = translateRuleToJsonSchema(rule, field.name(), params);
+                if (condition != null) {
+                    fieldConditions.add(condition);
+                }
+            }
+
+            // Combine multiple conditions for the same field
+            if (!fieldConditions.isEmpty()) {
+                if (fieldConditions.size() == 1) {
+                    allConditions.add(fieldConditions.get(0));
+                } else {
+                    allConditions.add(new Document("$and", fieldConditions));
+                }
+            }
+
+            // Track required fields
+            for (Validate.Rule rule : validation.rules()) {
+                if (rule == Validate.Rule.NOT_NULL || rule == Validate.Rule.REQUIRED || rule == Validate.Rule.NOT_EMPTY) {
+                    requiredFields.add(field.name());
+                    break;
+                }
+            }
+        }
+
+        if (allConditions.isEmpty() && requiredFields.isEmpty()) {
+            return null;
+        }
+
+        // Build the JSON Schema document
+        Document properties = new Document();
+        for (Document condition : allConditions) {
+            // Each condition is a Document with field name as key
+            for (Map.Entry<String, Object> entry : condition.entrySet()) {
+                Object value = entry.getValue();
+                if (value instanceof Document doc) {
+                    properties.merge(entry.getKey(), doc, (oldVal, newVal) -> {
+                        Document oldDoc = (Document) oldVal;
+                        Document newDoc = (Document) newVal;
+                        Document merged = new Document(oldDoc);
+                        merged.putAll(newDoc);
+                        return merged;
+                    });
+                }
+            }
+        }
+
+        Document schema = new Document("$jsonSchema", new Document()
+            .append("bsonType", "object")
+            .append("properties", properties));
+
+        if (!requiredFields.isEmpty()) {
+            schema.get("$jsonSchema", Document.class).append("required", requiredFields);
+        }
+
+        // Wrap in $or to allow documents that either satisfy all conditions or are being deleted
+        // This is necessary because MongoDB validation runs on all operations including deletes
+        return new Document("$or", java.util.List.of(
+            schema,
+            new Document("_id", new Document("$exists", true))  // Allow all documents with _id
+        ));
+    }
+
+    /**
+     * Translates a validation rule to a MongoDB JSON Schema condition.
+     */
+    private Document translateRuleToJsonSchema(Validate.Rule rule, String fieldName, Map<String, String> params) {
+        return switch (rule) {
+            case NOT_NULL, REQUIRED -> new Document(fieldName, new Document("$exists", true));
+            case NOT_EMPTY -> new Document(fieldName, new Document("$exists", true)
+                .append("$ne", ""));
+            case NOT_BLANK -> new Document(fieldName, new Document("$exists", true)
+                .append("$type", "string")
+                .append("$not", new Document("$regex", "^\\s*$")));
+            case POSITIVE -> new Document(fieldName, new Document("$gt", 0));
+            case POSITIVE_OR_ZERO -> new Document(fieldName, new Document("$gte", 0));
+            case NEGATIVE -> new Document(fieldName, new Document("$lt", 0));
+            case NEGATIVE_OR_ZERO -> new Document(fieldName, new Document("$lte", 0));
+            case MIN -> {
+                String min = params.get("min");
+                yield min != null ? new Document(fieldName, new Document("$gte", parseNumber(min))) : null;
+            }
+            case MAX -> {
+                String max = params.get("max");
+                yield max != null ? new Document(fieldName, new Document("$lte", parseNumber(max))) : null;
+            }
+            case MIN_LENGTH -> {
+                String min = params.get("min");
+                if (min != null) {
+                    yield new Document("$expr", new Document("$gte", java.util.List.of(
+                        new Document("$strLenCP", "$" + fieldName),
+                        Integer.parseInt(min)
+                    )));
+                }
+                yield null;
+            }
+            case MAX_LENGTH -> {
+                String max = params.get("max");
+                if (max != null) {
+                    yield new Document("$expr", new Document("$lte", java.util.List.of(
+                        new Document("$strLenCP", "$" + fieldName),
+                        Integer.parseInt(max)
+                    )));
+                }
+                yield null;
+            }
+            case RANGE -> {
+                Document rangeDoc = new Document();
+                String min = params.get("min");
+                String max = params.get("max");
+                if (min != null) rangeDoc.append("$gte", parseNumber(min));
+                if (max != null) rangeDoc.append("$lte", parseNumber(max));
+                yield rangeDoc.isEmpty() ? null : new Document(fieldName, rangeDoc);
+            }
+            case PATTERN -> {
+                String pattern = params.get("pattern");
+                yield pattern != null ? new Document(fieldName, new Document("$regex", pattern)) : null;
+            }
+            case EMAIL -> new Document(fieldName, new Document("$regex",
+                "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"));
+            case URL -> new Document(fieldName, new Document("$regex", "^https?://.+$"));
+            case UUID -> new Document(fieldName, new Document("$regex",
+                "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
+            case CREDIT_CARD -> new Document(fieldName, new Document("$regex", "^\\d{16}$"));
+            case DIGITS_ONLY -> new Document(fieldName, new Document("$regex", "^\\d+$"));
+            case ALPHA_ONLY -> new Document(fieldName, new Document("$regex", "^[a-zA-Z]+$"));
+            case ALPHANUMERIC -> new Document(fieldName, new Document("$regex", "^[a-zA-Z0-9]+$"));
+            case UPPERCASE -> new Document(fieldName, new Document("$regex", "^[A-Z]+$"));
+            case LOWERCASE -> new Document(fieldName, new Document("$regex", "^[a-z]+$"));
+            case UNIQUE, REFERENCE_EXISTS -> null; // Handled by indexes/application layer
+            case FUTURE, PAST, FUTURE_OR_PRESENT, PAST_OR_PRESENT -> null; // Temporal checks not supported in schema
+        };
+    }
+
+    private Number parseNumber(String value) {
+        try {
+            if (value.contains(".")) {
+                return Double.parseDouble(value);
+            }
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     @Override
@@ -1337,18 +1549,38 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
 
     /**
      * Validates an entity against all field-level validations and cross-field constraints.
-     * Throws ValidationException if validation fails.
+     * Returns ValidationException if validation fails, or null if validation passes or no validation needed.
      *
      * @param entity the entity to validate
+     * @return ValidationException if validation fails, null otherwise
      */
-    public void validateEntity(T entity) {
+    public ValidationException validateEntity(T entity) {
+        // Optimization: skip validation entirely if no validation rules are defined
+        if (!hasAnyValidation) {
+            return null;
+        }
         var violations = validationTranslator.validate(entity, repositoryModel, objectModel);
         if (!violations.isEmpty()) {
-            throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
+            return new io.github.flameyossnowy.universal.api.validation.ValidationException(
                 repositoryModel.getEntityClass().getSimpleName(),
                 violations
             );
         }
+        return null;
+    }
+
+    /**
+     * Computes whether any field in the repository has validation rules.
+     * This is computed once during construction for performance.
+     */
+    private static <T, ID> boolean computeHasAnyValidation(RepositoryModel<T, ID> repositoryModel) {
+        for (FieldModel<T> field : repositoryModel.fields()) {
+            ValidationModel validation = field.validation();
+            if (validation != null && validation.hasValidation()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

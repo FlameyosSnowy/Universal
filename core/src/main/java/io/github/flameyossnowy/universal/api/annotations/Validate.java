@@ -197,7 +197,8 @@ public @interface Validate {
      * }</pre>
      */
     @Retention(RetentionPolicy.SOURCE)
-    @Target({})
+    @Target(ElementType.FIELD)
+    @Repeatable(value = Params.class)
     public @interface Param {
         /**
          * Parameter name. Common names:
@@ -222,5 +223,14 @@ public @interface Validate {
          * @return the parameter value
          */
         String value();
+    }
+
+    /**
+     * Container for multiple parameters.
+     */
+    @Retention(RetentionPolicy.SOURCE)
+    @Target(ElementType.FIELD)
+    public @interface Params {
+        Param[] value();
     }
 }

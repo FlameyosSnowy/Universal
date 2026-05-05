@@ -113,6 +113,9 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     private final ValidationTranslator<T> validationTranslator;
 
+    // Optimization: pre-compute whether any validation is needed
+    private final boolean hasAnyValidation;
+
     protected AbstractRelationalRepositoryAdapter(
             SQLConnectionProvider dataSource,
             DefaultResultCache<ParameterizedSql, T, ID> cache,
@@ -189,6 +192,10 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
         );
         this.queryValidator = new SQLQueryValidator<>(repositoryModel, sqlType.getDialect());
         this.validationTranslator = new SqlValidationTranslator();
+
+        // Optimization: pre-compute if any validation is needed to skip checks at runtime
+        this.hasAnyValidation = computeHasAnyValidation(repositoryModel);
+
         if (cacheWarmer != null) cacheWarmer.warmCache(this);
 
         this.relationshipHandler = new SQLRelationshipHandler<>(repositoryModel, idClass, resolverRegistry);
@@ -632,6 +639,10 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
      * @param entity the entity to validate
      */
     public void validateEntity(T entity) {
+        // Optimization: skip validation entirely if no validation rules are defined
+        if (!hasAnyValidation) {
+            return;
+        }
         var violations = validationTranslator.validate(entity, repositoryModel, objectModel);
         if (!violations.isEmpty()) {
             throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
@@ -639,6 +650,20 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
                 violations
             );
         }
+    }
+
+    /**
+     * Computes whether any field in the repository has validation rules.
+     * This is computed once during construction for performance.
+     */
+    private static <T, ID> boolean computeHasAnyValidation(RepositoryModel<T, ID> repositoryModel) {
+        for (FieldModel<T> field : repositoryModel.fields()) {
+            io.github.flameyossnowy.universal.api.meta.ValidationModel validation = field.validation();
+            if (validation != null && validation.hasValidation()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

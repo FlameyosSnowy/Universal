@@ -133,19 +133,24 @@ public final class ObjectModelGenerator {
             .addModifiers(Modifier.PUBLIC)
             .returns(Object.class)
             .addParameter(entityType, "entity")
-            .addParameter(String.class, "fieldName")
-            .beginControlFlow("return switch (fieldName)");
+            .addParameter(String.class, "fieldName");
 
-        // Add cases for each field
+        StringBuilder sb = new StringBuilder(64);
+        sb.append("return switch (fieldName) {\n");
+
         for (FieldModel field : repo.fields()) {
-            m.addStatement("case $S -> entity.$L()", field.name(), field.getterName());
+            sb.append("case \"")
+                .append(field.name())
+                .append("\" -> entity.")
+                .append(field.getterName())
+                .append("();\n");
         }
 
-        // Add default case that throws exception
-        m.addStatement("default -> throw new $T($S + fieldName)",
-            IllegalArgumentException.class, "Unknown field: ");
+        sb.append("default -> throw new IllegalArgumentException(\"Unknown field: \" + fieldName);\n");
+        sb.append("}");
 
-        m.endControlFlow();
+        m.addStatement(sb.toString());
+
         return m.build();
     }
 
