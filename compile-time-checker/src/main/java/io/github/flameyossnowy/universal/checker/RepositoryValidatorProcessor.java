@@ -604,12 +604,14 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         Cacheable cacheable = entity.getAnnotation(Cacheable.class);
         GlobalCacheable globalCacheable = entity.getAnnotation(GlobalCacheable.class);
 
-        CacheConfig cacheConfig = CacheConfig.none();
+        CacheConfig cacheConfig;
         if (cacheable != null) {
             cacheConfig = new CacheConfig(
                 cacheable.maxCacheSize(),
                 cacheable.algorithm()
             );
+        } else {
+            cacheConfig = CacheConfig.none();
         }
 
         List<FieldModel> fields = new ArrayList<>(16);
@@ -617,6 +619,10 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
         List<io.github.flameyossnowy.universal.checker.IndexModel> indexes = extractIndexes(entity);
         Set<io.github.flameyossnowy.universal.checker.IndexModel> indexModelSet = new LinkedHashSet<>(indexes);
+
+        // Extract field-level indexes and add them to the set
+        List<io.github.flameyossnowy.universal.checker.IndexModel> fieldIndexes = extractFieldIndexes(entity, enclosedFields);
+        indexModelSet.addAll(fieldIndexes);
 
         List<ConstraintModel> constraints = extractConstraints(entity);
         List<RelationshipModel> relationships = new ArrayList<>(8);
@@ -1456,6 +1462,51 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
             }
 
             out.add(new io.github.flameyossnowy.universal.checker.IndexModel(name, fields, type));
+        }
+
+        return out;
+    }
+
+    /**
+     * Extracts field-level @Index annotations from entity fields.
+     * For each field annotated with @Index, creates an index model that indexes just that field.
+     *
+     * @param entity the entity type element
+     * @param fields the list of enclosed fields
+     * @return list of index models created from field-level @Index annotations
+     */
+    private List<io.github.flameyossnowy.universal.checker.IndexModel> extractFieldIndexes(
+            TypeElement entity,
+            List<VariableElement> fields) {
+
+        List<io.github.flameyossnowy.universal.checker.IndexModel> out = new ArrayList<>(4);
+        String tableName = entity.getAnnotation(Repository.class).name();
+
+        for (VariableElement field : fields) {
+            for (AnnotationMirror am : AnnotationUtils.getAnnotations(field, Index.class.getCanonicalName())) {
+                String name = null;
+                IndexType type = IndexType.NORMAL;
+
+                for (var e : elements.getElementValuesWithDefaults(am).entrySet()) {
+                    String key = e.getKey().getSimpleName().toString();
+                    Object v = e.getValue().getValue();
+
+                    switch (key) {
+                        case ANN_KEY_NAME   -> name = v.toString();
+                        case ANN_KEY_TYPE   -> type = IndexType.valueOf(v.toString());
+                        // fields() is ignored for field-level indexes - the annotated field is used
+                    }
+                }
+
+                String fieldName = field.getSimpleName().toString();
+
+                // Auto-generate index name if not provided
+                if (name == null || name.isBlank()) {
+                    name = "idx_" + tableName + "_" + fieldName;
+                }
+
+                out.add(new io.github.flameyossnowy.universal.checker.IndexModel(name, List.of(fieldName), type));
+            }
         }
 
         return out;
