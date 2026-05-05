@@ -1,20 +1,24 @@
 package io.github.flameyossnowy.universal.sql.internals.query;
 
+import io.github.flameyossnowy.universal.api.annotations.Validate;
 import io.github.flameyossnowy.universal.api.meta.ConstraintModel;
 import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.RelationshipKind;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.meta.ValidationModel;
 import io.github.flameyossnowy.universal.api.resolver.SqlEncoding;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider;
 
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -28,6 +32,8 @@ public final class RepositoryDdlBuilder<T, ID> {
     private final RepositoryModel<T, ID> repositoryInformation;
     private final TypeResolverRegistry resolverRegistry;
     private final SQLConnectionProvider connectionProvider;
+    // Optimization: pre-compute whether any field has validation to skip CHECK constraint generation
+    private final boolean hasAnyValidation;
 
     public RepositoryDdlBuilder(
         QueryParseEngine.SQLType sqlType,
@@ -39,6 +45,21 @@ public final class RepositoryDdlBuilder<T, ID> {
         this.repositoryInformation = repositoryInformation;
         this.resolverRegistry = resolverRegistry;
         this.connectionProvider = connectionProvider;
+        // Optimization: compute once during construction
+        this.hasAnyValidation = computeHasAnyValidation(repositoryInformation);
+    }
+
+    /**
+     * Computes whether any field in the repository has validation rules.
+     */
+    private static <T, ID> boolean computeHasAnyValidation(RepositoryModel<T, ID> repositoryInformation) {
+        for (FieldModel<T> field : repositoryInformation.fields()) {
+            ValidationModel validation = field.validation();
+            if (validation != null && validation.hasValidation()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public @NotNull String parseRepository(boolean ifNotExists) {
@@ -67,6 +88,7 @@ public final class RepositoryDdlBuilder<T, ID> {
         return createTable(finalQuery, "Failed to create main repository table: ", tableName);
     }
 
+    @Contract("_, _, _ -> param1")
     private String createTable(String query, String errorMessage, String repositoryName) {
         try (Connection connection = connectionProvider.getConnection();
              PreparedStatement statement = connectionProvider.prepareStatement(query, connection)) {
@@ -270,6 +292,113 @@ public final class RepositoryDdlBuilder<T, ID> {
         if (data.autoIncrement()) fieldBuilder.append(' ').append(sqlType.autoIncrementKeyword());
         if (data.condition() != null) fieldBuilder.append(" CHECK (").append(data.condition().value()).append(')');
         if (unique) fieldBuilder.append(" UNIQUE");
+
+        // Optimization: skip validation check entirely if no validations exist in repository
+        if (!hasAnyValidation) {
+            return;
+        }
+
+        // Add CHECK constraints from @Validate annotations
+        ValidationModel validation = data.validation();
+        if (validation != null && validation.hasValidation()) {
+            String checkConstraint = buildValidationCheckConstraint(data.columnName(), validation);
+            if (checkConstraint != null && !checkConstraint.isEmpty()) {
+                fieldBuilder.append(" CHECK (").append(checkConstraint).append(')');
+            }
+        }
+    }
+
+    /**
+     * Builds a CHECK constraint condition from validation rules.
+     *
+     * @param columnName the column name
+     * @param validation the validation model
+     * @return the CHECK constraint condition, or null if no valid rules
+     */
+    private String buildValidationCheckConstraint(String columnName, ValidationModel validation) {
+        if (validation == null || !validation.hasValidation()) {
+            return null;
+        }
+
+        List<String> conditions = new ArrayList<>();
+        Map<String, String> params = validation.params();
+
+        for (Validate.Rule rule : validation.rules()) {
+            String condition = translateRuleToCheckConstraint(rule, columnName, params);
+            if (condition != null && !condition.isEmpty()) {
+                conditions.add(condition);
+            }
+        }
+
+        if (conditions.isEmpty()) {
+            return null;
+        }
+
+        return String.join(" AND ", conditions);
+    }
+
+    /**
+     * Translates a validation rule to a SQL CHECK constraint condition.
+     */
+    private String translateRuleToCheckConstraint(Validate.Rule rule, String field, Map<String, String> params) {
+        String quotedField = sqlType.quoteChar() + field + sqlType.quoteChar();
+
+        return switch (rule) {
+            case NOT_NULL -> quotedField + " IS NOT NULL";
+            case NOT_EMPTY, REQUIRED -> quotedField + " IS NOT NULL AND LENGTH(CAST(" + quotedField + " AS VARCHAR)) > 0";
+            case NOT_BLANK -> quotedField + " IS NOT NULL AND " + quotedField + " NOT REGEXP '^\\s*$'";
+            case POSITIVE -> quotedField + " > 0";
+            case POSITIVE_OR_ZERO -> quotedField + " >= 0";
+            case NEGATIVE -> quotedField + " < 0";
+            case NEGATIVE_OR_ZERO -> quotedField + " <= 0";
+            case MIN -> {
+                String min = params.get("min");
+                yield min != null ? quotedField + " >= " + min : null;
+            }
+            case MAX -> {
+                String max = params.get("max");
+                yield max != null ? quotedField + " <= " + max : null;
+            }
+            case MIN_LENGTH -> {
+                String min = params.get("min");
+                yield min != null ? "LENGTH(CAST(" + quotedField + " AS VARCHAR)) >= " + min : null;
+            }
+            case MAX_LENGTH -> {
+                String max = params.get("max");
+                yield max != null ? "LENGTH(CAST(" + quotedField + " AS VARCHAR)) <= " + max : null;
+            }
+            case RANGE -> {
+                String min = params.get("min");
+                String max = params.get("max");
+                if (min != null && max != null) {
+                    yield quotedField + " BETWEEN " + min + " AND " + max;
+                } else if (min != null) {
+                    yield quotedField + " >= " + min;
+                } else if (max != null) {
+                    yield quotedField + " <= " + max;
+                } else {
+                    yield null;
+                }
+            }
+            case PATTERN -> {
+                String pattern = params.get("pattern");
+                yield pattern != null ? quotedField + " REGEXP '" + escapeSqlString(pattern) + "'" : null;
+            }
+            case UPPERCASE -> quotedField + " = UPPER(" + quotedField + ")";
+            case LOWERCASE -> quotedField + " = LOWER(" + quotedField + ")";
+            case FUTURE -> quotedField + " > CURRENT_TIMESTAMP";
+            case PAST -> quotedField + " < CURRENT_TIMESTAMP";
+            case FUTURE_OR_PRESENT -> quotedField + " >= CURRENT_TIMESTAMP";
+            case PAST_OR_PRESENT -> quotedField + " <= CURRENT_TIMESTAMP";
+            case DIGITS_ONLY, UNIQUE, CREDIT_CARD, URL, EMAIL, UUID, REFERENCE_EXISTS, ALPHA_ONLY, ALPHANUMERIC -> null;
+        };
+    }
+
+    /**
+     * Escapes single quotes in a string for SQL safety.
+     */
+    private static String escapeSqlString(String value) {
+        return value.replace("'", "''");
     }
 
     /**
