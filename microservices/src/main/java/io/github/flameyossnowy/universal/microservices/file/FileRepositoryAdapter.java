@@ -15,14 +15,17 @@ import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.factory.RelationshipLoader;
 import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
+import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.GeneratedObjectFactories;
 import io.github.flameyossnowy.universal.api.meta.GeneratedRelationshipLoaders;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.meta.ValidationModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
+import io.github.flameyossnowy.universal.api.validation.ValidationException;
 import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
 import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
 import io.github.flameyossnowy.universal.api.resolver.TypeRegistry;
@@ -90,6 +93,8 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     private final FileMutationExecutor<T, ID> mutationExecutor;
 
     private final JsonAdapter objectMapper;
+    private final boolean hasAnyValidation;
+    private final ObjectModel<T, ID> objectModel;
 
     FileRepositoryAdapter(
         @NotNull Class<T> entityType,
@@ -134,10 +139,11 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
             .build());
         resolverRegistry.setJsonAdapterSupplier(() -> objectMapper);
         this.objectMapper = objectMapper;
+        this.hasAnyValidation = computeHasAnyValidation(repositoryModel);
 
         this.relationshipHandler = new MicroserviceRelationshipHandler<>(repositoryModel, idType, resolverRegistry);
         this.validationTranslator = new FileValidationTranslator<>();
-        ObjectModel<T, ID> objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
+        this.objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
         RelationshipLoader<T, ID> relationshipLoader =
             GeneratedRelationshipLoaders.get(repositoryModel.tableName(), relationshipHandler, null, repositoryModel);
         RelationshipResolver<T, ID> relationshipResolver = new RelationshipResolver<>(relationshipHandler);
@@ -157,10 +163,24 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
         this.queryExecutor     = new FileQueryExecutor<>(entityStore, filterEngine, repositoryModel);
         this.aggregationEngine = new FileAggregationEngine<>(repositoryModel, objectMapper, filterEngine, queryExecutor);
         this.indexManager      = new FileIndexManager<>(repositoryModel, objectMapper, indexRoot);
-        this.mutationExecutor  = new FileMutationExecutor<>(repositoryModel, entityStore, filterEngine, indexManager);
+        this.mutationExecutor  = new FileMutationExecutor<>(repositoryModel, entityStore, filterEngine, indexManager, this);
 
         RepositoryRegistry.register(repositoryModel.tableName(), this);
         initDirectories(basePath, sharding, shardCount, autoCreate);
+    }
+
+    /**
+     * Computes whether any field in the repository has validation rules.
+     * This is computed once during construction for performance.
+     */
+    private static <T, ID> boolean computeHasAnyValidation(RepositoryModel<T, ID> repositoryModel) {
+        for (FieldModel<T> field : repositoryModel.fields()) {
+            ValidationModel validation = field.validation();
+            if (validation != null && validation.hasValidation()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static <T, ID> FileRepositoryBuilder<T, ID> builder(
@@ -207,19 +227,24 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     /**
      * Validates an entity against all field-level validations and cross-field constraints.
-     * Throws ValidationException if validation fails.
+     * Returns ValidationException if validation fails, or null if validation passes or no validation needed.
      *
      * @param entity the entity to validate
+     * @return ValidationException if validation fails, null otherwise
      */
-    public void validateEntity(T entity) {
-        ObjectModel<T, ID> objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
+    public ValidationException validateEntity(T entity) {
+        // Optimization: skip validation entirely if no validation rules are defined
+        if (!hasAnyValidation) {
+            return null;
+        }
         var violations = validationTranslator.validate(entity, repositoryModel, objectModel);
         if (!violations.isEmpty()) {
-            throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
+            return new io.github.flameyossnowy.universal.api.validation.ValidationException(
                 repositoryModel.getEntityClass().getSimpleName(),
                 violations
             );
         }
+        return null;
     }
 
     @Override @NotNull
@@ -389,41 +414,50 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     @Override
     public TransactionResult<Boolean> insert(T value) {
-        validateEntity(value);
+        ValidationException validationException = validateEntity(value);
+        if (validationException != null) {
+            return TransactionResult.failure(validationException);
+        }
         return mutationExecutor.insert(value);
     }
 
     @Override
     public TransactionResult<Boolean> insert(T value, TransactionContext<FileContext> tx) {
-        validateEntity(value);
+        ValidationException validationException = validateEntity(value);
+        if (validationException != null) {
+            return TransactionResult.failure(validationException);
+        }
         return mutationExecutor.insert(value);
     }
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> entities) {
-        for (T entity : entities) {
-            validateEntity(entity);
+        if (entities.isEmpty()) {
+            return TransactionResult.success(true);
         }
         return mutationExecutor.insertAll(entities);
     }
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> entities, TransactionContext<FileContext> tx) {
-        for (T entity : entities) {
-            validateEntity(entity);
-        }
         return mutationExecutor.insertAll(entities);
     }
 
     @Override
     public TransactionResult<Boolean> updateAll(T entity) {
-        validateEntity(entity);
+        ValidationException validationException = validateEntity(entity);
+        if (validationException != null) {
+            return TransactionResult.failure(validationException);
+        }
         return mutationExecutor.updateEntity(entity);
     }
 
     @Override
     public TransactionResult<Boolean> updateAll(T entity, TransactionContext<FileContext> tx) {
-        validateEntity(entity);
+        ValidationException validationException = validateEntity(entity);
+        if (validationException != null) {
+            return TransactionResult.failure(validationException);
+        }
         return mutationExecutor.updateEntity(entity);
     }
 

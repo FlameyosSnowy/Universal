@@ -18,6 +18,8 @@ import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.utils.Logging;
+import io.github.flameyossnowy.universal.api.validation.ValidationException;
+import io.github.flameyossnowy.universal.sql.internals.AbstractRelationalRepositoryAdapter;
 import io.github.flameyossnowy.universal.sql.internals.QueryParseEngine;
 import io.github.flameyossnowy.universal.sql.internals.query.ParameterizedSql;
 import io.github.flameyossnowy.universal.sql.params.SQLDatabaseParameters;
@@ -43,7 +45,6 @@ public final class SqlWriteExecutor<T, ID> {
     private final SessionCache<ID, T> globalCache;
     private final RelationshipHandler<T, ID> relationshipHandler;
     private final ExceptionHandler<T, ID, Connection> exceptionHandler;
-    private final RepositoryAdapter<T, ID, Connection> adapter;
     private final ObjectModel<T, ID> objectModel;
     private final Class<ID> idClass;
     private final AuditLogger<T> auditLogger;
@@ -55,6 +56,8 @@ public final class SqlWriteExecutor<T, ID> {
     private final boolean isAutoIncrement;
     private final String[] primaryKeyColumnNames;
 
+    private final AbstractRelationalRepositoryAdapter<T, ID> adapter;
+
     public SqlWriteExecutor(
         io.github.flameyossnowy.universal.sql.internals.SQLConnectionProvider dataSource,
         RepositoryModel<T, ID> repositoryModel,
@@ -65,7 +68,7 @@ public final class SqlWriteExecutor<T, ID> {
         SessionCache<ID, T> globalCache,
         RelationshipHandler<T, ID> relationshipHandler,
         ExceptionHandler<T, ID, Connection> exceptionHandler,
-        RepositoryAdapter<T, ID, Connection> adapter,
+        AbstractRelationalRepositoryAdapter<T, ID> adapter,
         ObjectModel<T, ID> objectModel,
         Class<ID> idClass,
         AuditLogger<T> auditLogger,
@@ -104,6 +107,11 @@ public final class SqlWriteExecutor<T, ID> {
             try {
                 int i = 0;
                 for (T entity : collection) {
+                    ValidationException validationException = adapter.validateEntity(entity);
+                    if (validationException != null) {
+                        return TransactionResult.failure(validationException);
+                    }
+
                     initializeJsonVersions(entity);
                     objectModel.insertEntity(parameters, entity);
                     statement.addBatch();

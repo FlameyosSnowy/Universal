@@ -16,9 +16,11 @@ import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.connection.TransactionContext;
 import io.github.flameyossnowy.universal.api.factory.ObjectModel;
 import io.github.flameyossnowy.universal.api.handler.RelationshipHandler;
+import io.github.flameyossnowy.universal.api.meta.FieldModel;
 import io.github.flameyossnowy.universal.api.meta.GeneratedMetadata;
 import io.github.flameyossnowy.universal.api.meta.GeneratedObjectFactories;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import io.github.flameyossnowy.universal.api.meta.ValidationModel;
 import io.github.flameyossnowy.universal.api.operation.Operation;
 import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
@@ -34,7 +36,7 @@ import io.github.flameyossnowy.universal.api.options.SortOrder;
 import io.github.flameyossnowy.universal.api.options.WindowQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
 import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
-import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
+import io.github.flameyossnowy.universal.api.validation.ValidationException;
 import io.github.flameyossnowy.universal.api.resolver.TypeRegistry;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import io.github.flameyossnowy.universal.api.resolver.internal.DefaultTypeRegistry;
@@ -74,6 +76,8 @@ import java.util.stream.StreamSupport;
  */
 @SuppressWarnings("unused")
 public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, HttpClient> {
+    private final boolean hasAnyValidation;
+
     @FunctionalInterface
     public interface NetworkAggregationProviderFactory<T, ID> {
         @NotNull NetworkAggregationProvider<T, ID> create(@NotNull NetworkRepositoryAdapter<T, ID> adapter);
@@ -95,7 +99,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     private final Class<T> entityType;
     private final Class<ID> idType;
-    private final RepositoryModel<T, ID> repositoryInformation;
+    private final RepositoryModel<T, ID> repositoryModel;
     private final TypeResolverRegistry resolverRegistry;
     private final OperationExecutor<T, ID, HttpClient> operationExecutor;
     private final OperationContext<T, ID, HttpClient> operationContext;
@@ -110,6 +114,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     private final @Nullable NetworkAggregationProvider<T, ID> aggregationProvider;
 
     private final RelationshipHandler<T, ID> relationshipHandler;
+    private final ObjectModel<T, ID> objectModel;
     private final NetworkValidationTranslator<T> validationTranslator;
 
     // Response cache
@@ -145,10 +150,11 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         this.cacheEnabled = cacheEnabled;
         this.cacheTtlMillis = cacheTtl * 1000L;
 
-        this.repositoryInformation = GeneratedMetadata.getByEntityClass(entityType);
-        if (repositoryInformation == null)
+        this.repositoryModel = GeneratedMetadata.getByEntityClass(entityType);
+        if (repositoryModel == null)
             throw new IllegalArgumentException("Could not find repository information for class: " + entityType.getSimpleName());
         this.resolverRegistry = new TypeResolverRegistry();
+        this.hasAnyValidation = computeHasAnyValidation(repositoryModel);
 
         // Apply user-provided type registrations via the wrapper API
         if (typeRegistration != null) {
@@ -167,19 +173,34 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
         this.operationExecutor = new NetworkOperationExecutor<>(this);
         this.operationContext = new OperationContext<>(
-                repositoryInformation,
+            repositoryModel,
                 resolverRegistry,
                 operationExecutor
         );
 
         this.responseCache = cacheEnabled ? new ConcurrentHashMap<>(3) : null;
 
-        this.relationshipHandler = new MicroserviceRelationshipHandler<>(repositoryInformation, idType, resolverRegistry);
-        this.validationTranslator = new NetworkValidationTranslator();
+        this.relationshipHandler = new MicroserviceRelationshipHandler<>(repositoryModel, idType, resolverRegistry);
+        this.validationTranslator = new NetworkValidationTranslator<>();
         this.relationshipResolver = new RelationshipResolver<>(relationshipHandler);
-        RepositoryRegistry.register(this.repositoryInformation.tableName(), this);
+        RepositoryRegistry.register(this.repositoryModel.tableName(), this);
 
         this.aggregationProvider = aggregationProviderFactory != null ? aggregationProviderFactory.create(this) : null;
+        this.objectModel = GeneratedObjectFactories.getObjectModel(repositoryModel);
+    }
+
+    /**
+     * Computes whether any field in the repository has validation rules.
+     * This is computed once during construction for performance.
+     */
+    private static <T, ID> boolean computeHasAnyValidation(RepositoryModel<T, ID> repositoryModel) {
+        for (FieldModel<T> field : repositoryModel.fields()) {
+            ValidationModel validation = field.validation();
+            if (validation != null && validation.hasValidation()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private @NotNull NetworkAggregationProvider<T, ID> getAggregationProviderOrThrow() {
@@ -317,29 +338,34 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     @Override
     @NotNull
     public RepositoryModel<T, ID> getRepositoryModel() {
-        return repositoryInformation;
+        return repositoryModel;
     }
 
     @NotNull
-    public NetworkValidationTranslator getValidationTranslator() {
+    public NetworkValidationTranslator<T> getValidationTranslator() {
         return validationTranslator;
     }
 
     /**
      * Validates an entity against all field-level validations and cross-field constraints.
-     * Throws ValidationException if validation fails.
+     * Returns ValidationException if validation fails, or null if validation passes or no validation needed.
      *
      * @param entity the entity to validate
+     * @return ValidationException if validation fails, null otherwise
      */
-    public void validateEntity(T entity) {
-        ObjectModel<T, ID> objectModel = GeneratedObjectFactories.getObjectModel(repositoryInformation);
-        var violations = validationTranslator.validate(entity, repositoryInformation, objectModel);
+    public ValidationException validateEntity(T entity) {
+        // Optimization: skip validation entirely if no validation rules are defined
+        if (!hasAnyValidation) {
+            return null;
+        }
+        var violations = validationTranslator.validate(entity, repositoryModel, objectModel);
         if (!violations.isEmpty()) {
-            throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
-                repositoryInformation.getEntityClass().getSimpleName(),
+            return new ValidationException(
+                repositoryModel.getEntityClass().getSimpleName(),
                 violations
             );
         }
+        return null;
     }
 
     @Override
@@ -382,7 +408,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             responseCache.clear();
         }
         httpClient.close();
-        RepositoryRegistry.unregister(repositoryInformation.tableName());
+        RepositoryRegistry.unregister(repositoryModel.tableName());
     }
 
     public HttpRequest.Builder createRequestBuilder(String endpoint) {
@@ -433,7 +459,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                             R entity = (R) MicroservicesJsonCodecBridge.readEntityFromStorageJson(
                                 objectMapper,
                                 resolverRegistry,
-                                repositoryInformation,
+                                repositoryModel,
                                 entityType,
                                 storedNode
                             );
@@ -462,7 +488,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                     R entity = (R) MicroservicesJsonCodecBridge.readEntityFromStorageJson(
                         objectMapper,
                         resolverRegistry,
-                        repositoryInformation,
+                        repositoryModel,
                         entityType,
                         storedNode
                     );
@@ -482,7 +508,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 .GET()
                 .build();
         T entity = sendRequest(request, entityType);
-        relationshipResolver.resolve(entity, repositoryInformation);
+        relationshipResolver.resolve(entity, repositoryModel);
         return entity;
     }
 
@@ -502,12 +528,12 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
                 entities.add(MicroservicesJsonCodecBridge.readEntityFromStorageJson(
                     objectMapper,
                     resolverRegistry,
-                    repositoryInformation,
+                    repositoryModel,
                     entityType,
                     node
                 ));
             }
-            entities.forEach(entity -> relationshipResolver.resolve(entity, repositoryInformation));
+            entities.forEach(entity -> relationshipResolver.resolve(entity, repositoryModel));
             return entities;
         } else {
             throw new IOException("HTTP error " + response.statusCode() + ": " + response.body());
@@ -516,7 +542,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     public void create(T entity) throws IOException, InterruptedException {
         String json = objectMapper.writeValue(
-            MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryInformation, entity)
+            MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryModel, entity)
         );
         HttpRequest request = createRequestBuilder(endpointConfig.create())
                 .POST(HttpRequest.BodyPublishers.ofString(json))
@@ -527,13 +553,13 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         }
         
         T newEntity = sendRequest(request, entityType);
-        relationshipResolver.resolve(newEntity, repositoryInformation);
+        relationshipResolver.resolve(newEntity, repositoryModel);
     }
 
     public void update(ID id, T entity) throws IOException, InterruptedException {
         String endpoint = endpointConfig.update().replace("{id}", id.toString());
         String json = objectMapper.writeValue(
-            MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryInformation, entity)
+            MicroservicesJsonCodecBridge.toStorageJson(objectMapper, resolverRegistry, repositoryModel, entity)
         );
         
         HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(json);
@@ -549,7 +575,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
         }
         
         T updatedEntity = sendRequest(request, entityType);
-        relationshipResolver.resolve(updatedEntity, repositoryInformation);
+        relationshipResolver.resolve(updatedEntity, repositoryModel);
     }
 
     public void deleteInternal(ID id) throws IOException, InterruptedException {
@@ -838,7 +864,10 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     @Override
     public TransactionResult<Boolean> insert(T value, TransactionContext<HttpClient> transactionContext) {
         try {
-            validateEntity(value);
+            ValidationException validationException = validateEntity(value);
+            if (validationException != null) {
+                return TransactionResult.failure(validationException);
+            }
             create(value);
             return TransactionResult.success(true);
         } catch (Exception e) {
@@ -850,7 +879,10 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     public TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext<HttpClient> transactionContext) {
         try {
             for (T entity : value) {
-                validateEntity(entity);
+                ValidationException validationException = validateEntity(entity);
+                if (validationException != null) {
+                    return TransactionResult.failure(validationException);
+                }
                 create(entity);
             }
             return TransactionResult.success(true);
@@ -862,7 +894,10 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
     @Override
     public TransactionResult<Boolean> updateAll(T entity, TransactionContext<HttpClient> transactionContext) {
         try {
-            validateEntity(entity);
+            ValidationException validationException = validateEntity(entity);
+            if (validationException != null) {
+                return TransactionResult.failure(validationException);
+            }
             ID id = extractId(entity);
             update(id, entity);
             return TransactionResult.success(true);
@@ -916,7 +951,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             for (T entity : targets) {
                 // Apply field mutations
                 for (var entry : query.updates().entrySet()) {
-                    var field = repositoryInformation.fieldByName(entry.getKey());
+                    var field = repositoryModel.fieldByName(entry.getKey());
                     if (field == null) continue;
                     field.setValue(entity, entry.getValue());
                 }
@@ -996,7 +1031,7 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     public ID extractId(T entity) {
         try {
-            return repositoryInformation.getPrimaryKeyValue(entity);
+            return repositoryModel.getPrimaryKeyValue(entity);
         } catch (Exception e) {
             throw new RuntimeException("Failed to extract ID from entity", e);
         }

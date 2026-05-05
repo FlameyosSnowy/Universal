@@ -23,6 +23,7 @@ import io.github.flameyossnowy.universal.api.operation.OperationContext;
 import io.github.flameyossnowy.universal.api.operation.OperationExecutor;
 import io.github.flameyossnowy.universal.api.options.*;
 import io.github.flameyossnowy.universal.api.options.validator.QueryValidator;
+import io.github.flameyossnowy.universal.api.validation.ValidationException;
 import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
 
 import io.github.flameyossnowy.universal.api.resolver.TypeRegistration;
@@ -428,16 +429,16 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public TransactionResult<Boolean> insert(@NotNull T value, TransactionContext<Connection> transactionContext) {
-        validateEntity(value);
+        ValidationException validationException = validateEntity(value);
+        if (validationException != null) {
+            return TransactionResult.failure(validationException);
+        }
         return writeExecutor.executeInsertAndSetId(transactionContext, engine.parseInsert(), value);
     }
 
     @Override
     public TransactionResult<Boolean> insertAll(Collection<T> value, TransactionContext<Connection> transactionContext) {
         if (value.isEmpty()) return TransactionResult.success(false);
-        for (T entity : value) {
-            validateEntity(entity);
-        }
         return writeExecutor.executeBatch(transactionContext, engine.parseInsert(), value);
     }
 
@@ -449,7 +450,10 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public TransactionResult<Boolean> updateAll(@NotNull T entity, TransactionContext<Connection> transactionContext) {
-        validateEntity(entity);
+        ValidationException validationException = validateEntity(entity);
+        if (validationException != null) {
+            return TransactionResult.failure(validationException);
+        }
         ID id = this.objectModel.getId(entity);
         ParameterizedSql sql = engine.parseUpdateFromEntity();
         TransactionResult<Boolean> result = writeExecutor.executeUpdate(
@@ -492,14 +496,20 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public TransactionResult<Boolean> createRepository(boolean ifNotExists) {
-       return queryExecutor.executeRawQuery(engine.parseRepository(ifNotExists)).flatMap((result) -> {
-            for (IndexModel index : repositoryModel.indexes()) {
-                TransactionResult<Boolean> indexResult = queryExecutor.executeRawQuery(engine.parseIndex(IndexOptions.builder(repository)
-                        .indexName(index.name()).rawFields(index.fields()).type(index.type()).build()));
-                if (indexResult.isError()) return indexResult;
-            }
-            return TransactionResult.success(true);
-        });
+       return queryExecutor
+           .executeRawQuery(engine.parseRepository(ifNotExists))
+           .flatMap(_ -> {
+                for (IndexModel index : repositoryModel.indexes()) {
+                    TransactionResult<Boolean> indexResult = queryExecutor.executeRawQuery(engine.parseIndex(IndexOptions
+                            .builder(repository)
+                            .indexName(index.name())
+                            .rawFields(index.fields())
+                            .type(index.type())
+                            .build()));
+                    if (indexResult.isError()) return indexResult;
+                }
+                return TransactionResult.success(true);
+            });
     }
 
     @Override
@@ -634,22 +644,24 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     /**
      * Validates an entity against all field-level validations and cross-field constraints.
-     * Throws ValidationException if validation fails.
+     * Returns ValidationException if validation fails, or null if validation passes or no validation needed.
      *
      * @param entity the entity to validate
+     * @return ValidationException if validation fails, null otherwise
      */
-    public void validateEntity(T entity) {
+    public ValidationException validateEntity(T entity) {
         // Optimization: skip validation entirely if no validation rules are defined
         if (!hasAnyValidation) {
-            return;
+            return null;
         }
         var violations = validationTranslator.validate(entity, repositoryModel, objectModel);
         if (!violations.isEmpty()) {
-            throw new io.github.flameyossnowy.universal.api.validation.ValidationException(
+            return new io.github.flameyossnowy.universal.api.validation.ValidationException(
                 repositoryModel.getEntityClass().getSimpleName(),
                 violations
             );
         }
+        return null;
     }
 
     /**

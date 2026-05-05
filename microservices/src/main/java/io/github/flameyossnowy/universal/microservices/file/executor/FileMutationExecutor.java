@@ -4,6 +4,8 @@ import io.github.flameyossnowy.universal.api.cache.TransactionResult;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
 import io.github.flameyossnowy.universal.api.options.DeleteQuery;
 import io.github.flameyossnowy.universal.api.options.UpdateQuery;
+import io.github.flameyossnowy.universal.api.validation.ValidationException;
+import io.github.flameyossnowy.universal.microservices.file.FileRepositoryAdapter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -22,17 +24,19 @@ public class FileMutationExecutor<T, ID> {
     private final FileEntityStore<T, ID> store;
     private final FileFilterEngine<T, ID> filterEngine;
     private final FileIndexManager<T, ID> indexManager;
+    private final FileRepositoryAdapter<T, ID> adapter;
 
     public FileMutationExecutor(
-            @NotNull RepositoryModel<T, ID> repositoryModel,
-            @NotNull FileEntityStore<T, ID> store,
-            @NotNull FileFilterEngine<T, ID> filterEngine,
-            @NotNull FileIndexManager<T, ID> indexManager
+        @NotNull RepositoryModel<T, ID> repositoryModel,
+        @NotNull FileEntityStore<T, ID> store,
+        @NotNull FileFilterEngine<T, ID> filterEngine,
+        @NotNull FileIndexManager<T, ID> indexManager, FileRepositoryAdapter<T, ID> adapter
     ) {
         this.repositoryModel = repositoryModel;
         this.store           = store;
         this.filterEngine    = filterEngine;
         this.indexManager    = indexManager;
+        this.adapter = adapter;
     }
 
     public TransactionResult<Boolean> insert(T entity) {
@@ -49,6 +53,10 @@ public class FileMutationExecutor<T, ID> {
     public TransactionResult<Boolean> insertAll(Collection<T> entities) {
         try {
             for (T entity : entities) {
+                ValidationException validationException = adapter.validateEntity(entity);
+                if (validationException != null) {
+                    return TransactionResult.failure(validationException);
+                }
                 store.write(entity, extractId(entity));
             }
             indexManager.onInsertOrUpdateBatch(entities);

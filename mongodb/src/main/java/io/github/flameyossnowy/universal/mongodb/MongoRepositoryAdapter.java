@@ -122,7 +122,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     private final ExceptionHandler<T, ID, ClientSession> exceptionHandler;
     private final TypeResolverRegistry typeResolverRegistry = new TypeResolverRegistry();
     private final QueryValidator queryValidator;
-    private final ValidationTranslator validationTranslator;
+    private final ValidationTranslator<T> validationTranslator;
 
     // Optimization: pre-compute whether any validation is needed
     private final boolean hasAnyValidation;
