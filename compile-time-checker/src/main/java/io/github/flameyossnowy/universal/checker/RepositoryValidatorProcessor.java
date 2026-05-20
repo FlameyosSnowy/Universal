@@ -43,6 +43,11 @@ import io.github.flameyossnowy.universal.api.annotations.ResolveWith;
 import io.github.flameyossnowy.universal.checker.generator.UnifiedFactoryGenerator;
 import io.github.flameyossnowy.universal.checker.processor.AnnotationUtils;
 import io.github.flameyossnowy.universal.checker.processor.TypeMirrorUtils;
+import io.github.flameyossnowy.universal.api.options.*;
+import io.github.flameyossnowy.universal.checker.schema.*;
+
+import com.sun.source.tree.*;
+import com.sun.source.util.*;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
@@ -97,9 +102,13 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     private Messager messager;
     private Elements elements;
     private Filer filer;
+    private Trees trees;
 
     private static final String RESOURCE =
         "META-INF/services/io.github.flameyossnowy.universal.api.GeneratedRepositoryFactory";
+
+    private static final String SCHEMA_RESOURCE =
+        "META-INF/universal/schema.index";
 
     private static final String ANN_KEY_VALUE    = "value";
     private static final String ANN_KEY_PRIORITY = "priority";
@@ -110,6 +119,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
     private final List<String> qualifiedNames = new ArrayList<>(16);
 
     private final Set<String> repositoryNames = new HashSet<>(16);
+    private final SchemaRegistry schemaRegistry = new SchemaRegistry();
 
     private TypeMirror map;
     private TypeMirror list;
@@ -153,6 +163,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         this.types = processingEnv.getTypeUtils();
         this.messager = processingEnv.getMessager();
         this.filer = processingEnv.getFiler();
+        this.trees = Trees.instance(processingEnv);
 
         Elements elements = processingEnv.getElementUtils();
         this.elements = elements;
@@ -408,6 +419,7 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
         checkAccessors(element, fields, methods);
 
         RepositoryModel model = buildRepositoryModel(element, fields);
+        schemaRegistry.register(model);
 
         Set<String> fieldNames = new HashSet<>(16);
         for (FieldModel field : model.fields()) {
@@ -424,14 +436,27 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
     public void writeResource() {
         try {
-            FileObject file = filer.createResource(StandardLocation.CLASS_OUTPUT, "", RESOURCE);
+            FileObject serviceFile = filer.createResource(StandardLocation.CLASS_OUTPUT, "", RESOURCE);
 
-            try (Writer w = file.openWriter()) {
+            try (Writer w = serviceFile.openWriter()) {
                 for (String fqcn : qualifiedNames) {
                     w.write(fqcn);
                     w.write('\n');
                 }
             }
+
+            /*FileObject schemaIndex = filer.createResource(
+                StandardLocation.CLASS_OUTPUT,
+                "",
+                SCHEMA_RESOURCE
+            );
+
+            try (Writer w = schemaIndex.openWriter()) {
+                for (RepositorySchema schema : schemaRegistry.all()) {
+                    w.write(schema.name());
+                    w.write('\n');
+                }
+            }*/
         } catch (IOException e) {
             throw new RuntimeException("Couldn't write resource.", e);
         }
@@ -1524,5 +1549,211 @@ public class RepositoryValidatorProcessor extends AbstractProcessor {
 
     private void warn(String msg, Element e) {
         messager.printMessage(Diagnostic.Kind.WARNING, msg, e);
+    }
+
+    /**
+     * Creates a ValidationReporter that reports errors and warnings via the annotation processor's messager.
+     *
+     * @param element the element to associate with reported messages
+     * @return a ValidationReporter implementation
+     */
+    private ValidationReporter createValidationReporter(Element element) {
+        return new ValidationReporter() {
+            @Override
+            public void error(FieldSchema field, String message) {
+                messager.printMessage(Diagnostic.Kind.ERROR, "Query validation error on field '" + field.name() + "': " + message, element);
+            }
+
+            @Override
+            public void warn(FieldSchema field, String message) {
+                messager.printMessage(Diagnostic.Kind.WARNING, "Query validation warning on field '" + field.name() + "': " + message, element);
+            }
+
+            @Override
+            public void error(String message) {
+                messager.printMessage(Diagnostic.Kind.ERROR, "Query validation error: " + message, element);
+            }
+
+            @Override
+            public void warn(String message) {
+                messager.printMessage(Diagnostic.Kind.WARNING, "Query validation warning: " + message, element);
+            }
+        };
+    }
+
+    /**
+     * Validates a query model using QueryValidator.
+     *
+     * @param query the query model to validate
+     * @param element the element to associate with any validation errors
+     */
+    private void validateQuery(QueryModel query, Element element) {
+        ValidationReporter reporter = createValidationReporter(element);
+        QueryValidator validator = new QueryValidator(schemaRegistry, reporter);
+        validator.validate(query);
+    }
+
+    /**
+     * Validates a SelectQuery at compile time.
+     *
+     * @param repositoryName the repository name
+     * @param query the select query to validate
+     * @param element the element to associate with any validation errors
+     */
+    private void validateSelectQuery(String repositoryName, io.github.flameyossnowy.universal.api.options.SelectQuery query, Element element) {
+        ValidationReporter reporter = createValidationReporter(element);
+        RuntimeQueryValidator validator = new RuntimeQueryValidator(schemaRegistry, reporter);
+        validator.validateSelectQuery(repositoryName, query);
+    }
+
+    /**
+     * Validates an UpdateQuery at compile time.
+     *
+     * @param repositoryName the repository name
+     * @param query the update query to validate
+     * @param element the element to associate with any validation errors
+     */
+    private void validateUpdateQuery(String repositoryName, io.github.flameyossnowy.universal.api.options.UpdateQuery query, Element element) {
+        ValidationReporter reporter = createValidationReporter(element);
+        RuntimeQueryValidator validator = new RuntimeQueryValidator(schemaRegistry, reporter);
+        validator.validateUpdateQuery(repositoryName, query);
+    }
+
+    /**
+     * Validates a DeleteQuery at compile time.
+     *
+     * @param repositoryName the repository name
+     * @param query the delete query to validate
+     * @param element the element to associate with any validation errors
+     */
+    private void validateDeleteQuery(String repositoryName, io.github.flameyossnowy.universal.api.options.DeleteQuery query, Element element) {
+        ValidationReporter reporter = createValidationReporter(element);
+        RuntimeQueryValidator validator = new RuntimeQueryValidator(schemaRegistry, reporter);
+        validator.validateDeleteQuery(repositoryName, query);
+    }
+
+    /**
+     * Scans method bodies for query construction and validates them at compile time.
+     * This allows catching query errors before runtime.
+     *
+     * @param element the type element containing methods to scan
+     * @param repositoryName the repository name for field validation
+     */
+    private void scanMethodQueries(TypeElement element, String repositoryName) {
+        for (Element enclosed : element.getEnclosedElements()) {
+            if (enclosed.getKind() == ElementKind.METHOD || enclosed.getKind() == ElementKind.CONSTRUCTOR) {
+                ExecutableElement method = (ExecutableElement) enclosed;
+                scanMethodBodyForQueries(method, repositoryName);
+            }
+        }
+    }
+
+    /**
+     * Scans a single method body for query construction patterns.
+     * Uses the Compiler Tree API to analyze the AST.
+     */
+    private void scanMethodBodyForQueries(ExecutableElement method, String repositoryName) {
+        if (trees == null) return; // Tree API not available
+
+        TreePath path = trees.getPath(method);
+        if (path == null) return;
+
+        new TreeScanner<Void, Void>() {
+            @Override
+            public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {
+                ExpressionTree methodSelect = node.getMethodSelect();
+                String methodName = getMethodName(methodSelect);
+
+                // Check for Query.select(), Query.update(), Query.delete() calls
+                if (methodName != null) {
+                    if (isQueryFactoryMethod(methodName)) {
+                        // Found query construction - validate what we can statically
+                        validateQueryConstruction(node, repositoryName, method);
+                    }
+                }
+
+                return super.visitMethodInvocation(node, unused);
+            }
+        }.scan(path.getLeaf(), null);
+    }
+
+    private String getMethodName(ExpressionTree methodSelect) {
+        if (methodSelect instanceof MemberSelectTree select) {
+            return select.getIdentifier().toString();
+        } else if (methodSelect instanceof IdentifierTree id) {
+            return id.getName().toString();
+        }
+        return null;
+    }
+
+    private boolean isQueryFactoryMethod(String methodName) {
+        return "select".equals(methodName) ||
+               "update".equals(methodName) ||
+               "delete".equals(methodName) ||
+               "aggregate".equals(methodName) ||
+               "window".equals(methodName);
+    }
+
+    /**
+     * Validates query construction at compile time.
+     * For basic queries with string literals, we can validate field names.
+     */
+    private void validateQueryConstruction(MethodInvocationTree node, String repositoryName, Element element) {
+        // Extract the query type from the method name
+        String queryType = getMethodName(node.getMethodSelect());
+        if (queryType == null) return;
+
+        // Scan the method chain for .where() calls with string literals
+        ExpressionTree receiver = getReceiver(node);
+        if (receiver instanceof MethodInvocationTree receiverInvocation) {
+            scanQueryChain(receiverInvocation, repositoryName, queryType, element);
+        }
+    }
+
+    private ExpressionTree getReceiver(MethodInvocationTree node) {
+        ExpressionTree methodSelect = node.getMethodSelect();
+        if (methodSelect instanceof MemberSelectTree select) {
+            return select.getExpression();
+        }
+        return null;
+    }
+
+    /**
+     * Scans a query method chain (e.g., Query.select().where("field").eq(value).build())
+     * and validates field references against the repository schema.
+     */
+    private void scanQueryChain(MethodInvocationTree node, String repositoryName,
+                                   String queryType, Element element) {
+        String methodName = getMethodName(node.getMethodSelect());
+        if (methodName == null) return;
+
+        // Check for .where() calls with string literals
+        if ("where".equals(methodName) || "whereJson".equals(methodName)) {
+            List<? extends ExpressionTree> args = node.getArguments();
+            if (!args.isEmpty() && args.get(0) instanceof LiteralTree literal) {
+                Object value = literal.getValue();
+                if (value instanceof String fieldName) {
+                    validateQueryField(repositoryName, fieldName, element);
+                }
+            }
+        }
+
+        // Continue scanning the chain
+        ExpressionTree receiver = getReceiver(node);
+        if (receiver instanceof MethodInvocationTree receiverInvocation) {
+            scanQueryChain(receiverInvocation, repositoryName, queryType, element);
+        }
+    }
+
+    /**
+     * Validates that a field name exists in the repository schema.
+     */
+    private void validateQueryField(String repositoryName, String fieldName, Element element) {
+        RepositorySchema schema = schemaRegistry.get(repositoryName);
+        if (schema == null) return;
+
+        if (!schema.hasField(fieldName)) {
+            error("Query field '" + fieldName + "' does not exist in repository '" + repositoryName + "'", element);
+        }
     }
 }

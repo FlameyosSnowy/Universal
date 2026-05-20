@@ -34,12 +34,12 @@ public final class PostgreSQLUuidTypeResolver implements TypeResolver<UUID> {
     @Override
     public @Nullable UUID resolve(@NotNull DatabaseResult result, String columnName) {
         // PostgreSQL JDBC driver returns UUID directly for native uuid columns
-        return result.get(columnName, UUID.class);
+        return result.getRaw(columnName, UUID.class);
     }
 
     @Override
     public void insert(@NotNull DatabaseParameters parameters, String index, UUID value) {
         // PostgreSQL JDBC driver accepts UUID directly for native uuid columns
-        parameters.set(index, value, UUID.class);
+        parameters.setRaw(index, value, UUID.class);
     }
 }

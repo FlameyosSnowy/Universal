@@ -2,6 +2,9 @@ package io.github.flameyossnowy.universal.api.result;
 
 import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.UUID;
 
 /**
  * Represents a database-agnostic result set that can be used to retrieve values
@@ -24,7 +27,11 @@ public interface DatabaseResult {
      * @throws IllegalArgumentException if the column doesn't exist or type conversion fails
      */
     <T> T get(String columnName, Class<T> type);
-    
+
+    default <T> T getRaw(@NotNull String columnName, @NotNull Class<T> type) {
+        return get(columnName, type);
+    }
+
     /**
      * Checks if a column exists in the result.
      * 

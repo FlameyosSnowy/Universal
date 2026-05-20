@@ -1,9 +1,9 @@
 package io.github.flameyossnowy.universal.sql.result;
 
+import io.github.flameyossnowy.universal.api.exceptions.RepositoryException;
 import io.github.flameyossnowy.universal.api.handler.CollectionHandler;
 import io.github.flameyossnowy.universal.api.handler.DataHandler;
 import io.github.flameyossnowy.universal.api.meta.RepositoryModel;
-import io.github.flameyossnowy.universal.api.resolver.TypeResolver;
 import io.github.flameyossnowy.universal.api.result.DatabaseResult;
 import io.github.flameyossnowy.universal.api.resolver.TypeResolverRegistry;
 import org.jetbrains.annotations.NotNull;
@@ -35,7 +35,16 @@ public record SQLDatabaseResult(ResultSet resultSet, TypeResolverRegistry typeRe
             return (T) resultSet.getObject(columnName);
 
         } catch (SQLException e) {
-            throw new RuntimeException("Error getting value from result set", e);
+            throw new RepositoryException("Error getting value from result set", e);
+        }
+    }
+
+    @Override
+    public <T> T getRaw(@NotNull String columnName, Class<T> type) {
+        try {
+            return (T) resultSet.getObject(columnName);
+        } catch (SQLException e) {
+            throw new RepositoryException("Error getting value from result set", e);
         }
     }
 
