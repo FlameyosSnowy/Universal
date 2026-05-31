@@ -27,12 +27,10 @@ public final class RelationshipLoaderGenerator {
 
     private final Filer                          filer;
     private final RelationshipMethodGenerator    relationshipMethods;
-    private final CollectionLoaderMethodGenerator collectionMethods;
 
     public RelationshipLoaderGenerator(Filer filer) {
         this.filer               = filer;
         this.relationshipMethods  = new RelationshipMethodGenerator();
-        this.collectionMethods    = new CollectionLoaderMethodGenerator();
     }
 
     public String generate(RepositoryModel repo, List<String> qualifiedNames) {

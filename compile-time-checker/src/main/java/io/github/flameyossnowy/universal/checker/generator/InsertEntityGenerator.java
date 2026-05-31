@@ -74,21 +74,17 @@ public final class InsertEntityGenerator {
 
             m.addStatement("$T $L = entity.$L()", fieldType, valueVar, field.getterName());
 
-            // ---- @Now timestamp injection -----------------------------------
             emitNowTimestamp(m, field, fieldMirror, valueVar);
 
-            // ---- Relationship FK binding ------------------------------------
             if (field.relationship() && field.relationshipKind() != null) {
                 RelationshipKind kind = field.relationshipKind();
                 if (kind == RelationshipKind.ONE_TO_ONE || kind == RelationshipKind.MANY_TO_ONE) {
                     emitRelationshipFk(m, repo, field, fieldName, valueVar,
                         thisIdMirror, thisIdNameBoxed, repoMeta, genMeta, fieldModel, entityType);
                 }
-                // ONE_TO_MANY -> collection, already filtered above
                 continue;
             }
 
-            // ---- Arrays: native vs. deferred --------------------------------
             if (fieldMirror.getKind() == TypeKind.ARRAY) {
                 m.beginControlFlow("if (stmt.supportsArraysNatively())")
                     .addStatement("stmt.set($S, $L, $T.class)", fieldName, valueVar, fieldType)
@@ -96,13 +92,9 @@ public final class InsertEntityGenerator {
                 continue;
             }
 
-            // ---- Scalar field -----------------------------------------------
-            // For JSON collection fields, use raw type (e.g., List.class) not generic (List<String>.class)
             TypeName classType = field.isJson() ? ClassName.get(types.erasure(fieldMirror)) : fieldType;
             m.addStatement("stmt.set($S, $L, $T.class)", fieldName, valueVar, classType);
 
-            // ---- JSON version column ----------------------------------------
-            // Set the companion version column for @JsonVersioned fields
             if (field.isJson() && field.jsonVersioned()) {
                 m.addStatement("stmt.set($S, 1, int.class)", fieldName + "_version");
             }
@@ -110,8 +102,6 @@ public final class InsertEntityGenerator {
 
         return m.build();
     }
-
-    // ------------------------------------------------------------------ helpers
 
     private static void emitNowTimestamp(MethodSpec.Builder m, FieldModel field,
                                           TypeMirror fieldMirror, String valueVar) {
@@ -199,6 +189,5 @@ public final class InsertEntityGenerator {
         return type;
     }
 
-    /** Minimal DTO – mirrors the private record in the original class. */
     public record IdFieldInfo(String name, TypeMirror type) {}
 }

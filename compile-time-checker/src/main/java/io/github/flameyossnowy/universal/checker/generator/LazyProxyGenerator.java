@@ -199,8 +199,6 @@ public final class LazyProxyGenerator {
         GeneratorUtils.write(repo.packageName(), type.build(), filer);
     }
 
-    // ------------------------------------------------------------------ helpers
-
     private void overrideEntityMethods(TypeSpec.Builder type, ClassName target) {
         TypeElement element = elements.getTypeElement(target.canonicalName());
         for (Element e : element.getEnclosedElements()) {
@@ -258,8 +256,6 @@ public final class LazyProxyGenerator {
             .addMember("comments", "$S", comment)
             .build();
     }
-
-    // ------------------------------------------------------------------ names (public for callers)
 
     public static String entityProxyName(RepositoryModel repo, RelationshipModel rel) {
         return repo.entitySimpleName() + "_" + rel.fieldName() + "_LazyProxy";

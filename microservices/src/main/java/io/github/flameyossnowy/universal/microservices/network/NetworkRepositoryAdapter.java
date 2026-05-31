@@ -404,11 +404,12 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
 
     @Override
     public void close() {
+        RepositoryRegistry.unregister(repositoryModel.tableName());
+        relationshipHandler.shutdown();
         if (responseCache != null) {
             responseCache.clear();
         }
         httpClient.close();
-        RepositoryRegistry.unregister(repositoryModel.tableName());
     }
 
     public HttpRequest.Builder createRequestBuilder(String endpoint) {
@@ -1036,4 +1037,121 @@ public class NetworkRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID,
             throw new RuntimeException("Failed to extract ID from entity", e);
         }
     }
+
+    private <R> CompletableFuture<R> sendAsync(HttpRequest request, Class<R> responseType) {
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(response -> {
+                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                        throw new RuntimeException("HTTP error " + response.statusCode() + ": " + response.body());
+                    }
+                    if (responseType == entityType) {
+                        var node = objectMapper.readValue(response.body());
+                        @SuppressWarnings("unchecked")
+                        R entity = (R) MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                                objectMapper, resolverRegistry, repositoryModel, entityType, node);
+                        return entity;
+                    }
+                    return objectMapper.readValue(response.body(), responseType);
+                });
+    }
+
+    @Override
+    public CompletableFuture<List<T>> findAsync(SelectQuery query) {
+        String queryString = query != null ? buildQueryString(query) : "";
+        HttpRequest request = createRequestBuilder(endpointConfig.findAll() + queryString)
+                .GET()
+                .build();
+
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(response -> {
+                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                        throw new RuntimeException("HTTP error " + response.statusCode() + ": " + response.body());
+                    }
+                    var root = objectMapper.readValue(response.body());
+                    if (!(root instanceof JsonArray array)) {
+                        throw new RuntimeException("Expected JSON array response");
+                    }
+                    List<T> entities = new ArrayList<>(array.size());
+                    for (var node : array) {
+                        entities.add(MicroservicesJsonCodecBridge.readEntityFromStorageJson(
+                                objectMapper, resolverRegistry, repositoryModel, entityType, node));
+                    }
+                    entities.forEach(entity -> relationshipResolver.resolve(entity, repositoryModel));
+                    return entities;
+                });
+    }
+
+    @Override
+    public CompletableFuture<List<T>> findAsync() {
+        return findAsync(null);
+    }
+
+    @Override
+    public CompletableFuture<T> findByIdAsync(ID id) {
+        String endpoint = endpointConfig.findById().replace("{id}", id.toString());
+        HttpRequest request = createRequestBuilder(endpoint).GET().build();
+
+        return sendAsync(request, entityType)
+                .thenApply(entity -> {
+                    relationshipResolver.resolve(entity, repositoryModel);
+                    return entity;
+                });
+    }
+
+    @Override
+    public CompletableFuture<Map<ID, T>> findAllByIdAsync(Collection<ID> keys) {
+        if (keys.isEmpty()) return CompletableFuture.completedFuture(Collections.emptyMap());
+
+        CompletableFuture<Void>[] futures = new CompletableFuture[keys.size()];
+        Map<ID, T> result = new ConcurrentHashMap<>(keys.size());
+
+
+        int i = 0;
+        for (ID key : keys) {
+            futures[i] = findByIdAsync(key).thenAccept(entity -> {
+                if (entity != null) result.put(key, entity);
+            });
+            i++;
+        }
+
+        return CompletableFuture.allOf(futures)
+                .thenApply(v -> result);
+    }
+
+    @Override
+    public CompletableFuture<T> firstAsync(SelectQuery query) {
+        return findAsync(query).thenApply(list -> list.isEmpty() ? null : list.getFirst());
+    }
+
+    @Override
+    public CompletableFuture<T> firstAsync() {
+        return firstAsync(null);
+    }
+
+    @Override
+    public CompletableFuture<List<ID>> findIdsAsync(SelectQuery query) {
+        return findAsync(query).thenApply(entities -> {
+            List<ID> ids = new ArrayList<>(entities.size());
+            for (T entity : entities) ids.add(extractId(entity));
+            return ids;
+        });
+    }
+
+    @Override
+    public @NotNull CompletableFuture<CloseableIterator<T>> findIteratorAsync(SelectQuery query) {
+        return findAsync(query).thenApply(entities -> {
+            Iterator<T> it = entities.iterator();
+            return new CloseableIterator<>() {
+                @Override public boolean hasNext() { return it.hasNext(); }
+                @Override public T next()          { return it.next(); }
+                @Override public void close()      { /* nothing to release */ }
+            };
+        });
+    }
+
+    @Override
+    public @NotNull CompletableFuture<Stream<T>> findStreamAsync(SelectQuery query) {
+        return findAsync(query).thenApply(Collection::stream);
+    }
+
 }

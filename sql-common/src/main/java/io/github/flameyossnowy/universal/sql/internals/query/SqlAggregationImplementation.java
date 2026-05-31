@@ -307,7 +307,7 @@ public class SqlAggregationImplementation<T, ID> {
                     acc.append(", ").append(string);
                 }
             }
-            sql.append(seen ? acc.toString() : "");
+            sql.append(acc);
         }
         
         // LIMIT clause
@@ -322,10 +322,7 @@ public class SqlAggregationImplementation<T, ID> {
      * Build window function SQL.
      */
     private String buildWindowFunction(WindowFieldDefinition window) {
-        StringBuilder sql = new StringBuilder();
-        
-        // Function name
-        sql.append(window.functionType().name());
+        StringBuilder sql = new StringBuilder(window.functionType().name());
         
         // Function arguments
         if (isAggregateWindowFunction(window.functionType())) {

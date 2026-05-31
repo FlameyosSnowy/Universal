@@ -265,8 +265,9 @@ public class AbstractRelationalRepositoryAdapter<T, ID> implements RepositoryAda
 
     @Override
     public void close() {
-        dataSource.close();
         RepositoryRegistry.unregister(repositoryModel.tableName());
+        dataSource.close();
+        relationshipHandler.shutdown();
     }
 
     @Override

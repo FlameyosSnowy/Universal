@@ -12,13 +12,11 @@ import java.util.List;
 
 /**
  * Stateless utility methods shared across all sub-generators.
- * Nothing here has side-effects beyond writing a file.
+ * Nothing here has side effects beyond writing a file.
  */
 public final class GeneratorUtils {
 
     private GeneratorUtils() {}
-
-    // ------------------------------------------------------------------ I/O
 
     public static void write(String pkg, TypeSpec spec, Filer filer) {
         try {
@@ -27,8 +25,6 @@ public final class GeneratorUtils {
             throw new RuntimeException(e);
         }
     }
-
-    // --------------------------------------------------------- Code helpers
 
     public static void addFields(TypeSpec.Builder type, FieldSpec.Builder... fields) {
         for (FieldSpec.Builder f : fields) {
@@ -50,8 +46,6 @@ public final class GeneratorUtils {
         if (value instanceof Boolean || value instanceof Number) return value.toString();
         throw new IllegalArgumentException("Unsupported constant type: " + value.getClass());
     }
-
-    // --------------------------------------------------- Type introspection
 
     public static boolean isListType(TypeMirror type) {
         String n = type.toString();
@@ -91,8 +85,6 @@ public final class GeneratorUtils {
             || n.startsWith("java.util.Set")
             || n.startsWith("java.util.Collection");
     }
-
-    // -------------------------------------------------- Qualified name helpers
 
     public static String qualifiedName(String pkg, String simpleName) {
         return (pkg != null && !pkg.isEmpty()) ? pkg + "." + simpleName : simpleName;

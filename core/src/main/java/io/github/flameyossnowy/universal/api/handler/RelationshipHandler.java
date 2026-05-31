@@ -23,6 +23,8 @@ public interface RelationshipHandler<T, ID> {
 
     void prefetch(Collection<Object> results, Set<String> prefetch);
 
+    void shutdown();
+
     void invalidateRelationshipsForId(ID id);
 
     void clear();

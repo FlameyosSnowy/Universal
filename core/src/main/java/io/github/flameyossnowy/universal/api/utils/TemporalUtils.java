@@ -44,7 +44,6 @@ public final class TemporalUtils {
     @Nullable
     public static Instant parseInstant(Object value) {
         switch (value) {
-            case null -> {}
 
             case Instant i -> {
                 return i;
@@ -67,7 +66,7 @@ public final class TemporalUtils {
             case java.util.Date d -> d.toInstant();
 
             case Long millis -> Instant.ofEpochMilli(millis);
-            default -> {}
+            case null, default -> {}
         }
         return null;
     }

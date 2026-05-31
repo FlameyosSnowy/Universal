@@ -35,10 +35,6 @@ public class FileAggregationEngine<T, ID> {
         this.queryExecutor   = queryExecutor;
     }
 
-    // -------------------------------------------------------------------------
-    // Aggregation
-    // -------------------------------------------------------------------------
-
     public List<Map<String, Object>> aggregate(@NotNull AggregationQuery query, @NotNull List<T> base) {
         if (query.limit() == 0) return Collections.emptyList();
 
@@ -63,10 +59,6 @@ public class FileAggregationEngine<T, ID> {
         return rows;
     }
 
-    // -------------------------------------------------------------------------
-    // Window functions
-    // -------------------------------------------------------------------------
-
     public List<Map<String, Object>> window(@NotNull WindowQuery query, @NotNull List<T> base) {
         if (query.limit() == 0) return Collections.emptyList();
 
@@ -89,10 +81,6 @@ public class FileAggregationEngine<T, ID> {
         return rows;
     }
 
-    // -------------------------------------------------------------------------
-    // Private – grouping
-    // -------------------------------------------------------------------------
-
     private Map<List<Object>, List<T>> groupEntities(List<T> base, List<String> groupBy) {
         Map<List<Object>, List<T>> groups = new LinkedHashMap<>(32);
         List<Object> key = new ArrayList<>(groupBy.size());
@@ -107,10 +95,6 @@ public class FileAggregationEngine<T, ID> {
         }
         return groups;
     }
-
-    // -------------------------------------------------------------------------
-    // Private – aggregation row building
-    // -------------------------------------------------------------------------
 
     private @NotNull Map<String, Object> buildAggregationRow(
             @NotNull List<FieldDefinition> fields,
@@ -142,11 +126,6 @@ public class FileAggregationEngine<T, ID> {
         return row;
     }
 
-    // -------------------------------------------------------------------------
-    // Private – aggregate computation
-    // -------------------------------------------------------------------------
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private Object computeAggregate(@NotNull AggregateFieldDefinition a, @NotNull List<T> group) {
         Function<T, Object> extractor = entity -> {
             var fm = repositoryModel.fieldByName(a.field());
@@ -280,10 +259,6 @@ public class FileAggregationEngine<T, ID> {
         return null;
     }
 
-    // -------------------------------------------------------------------------
-    // Private – HAVING evaluation
-    // -------------------------------------------------------------------------
-
     private boolean matchesHaving(
             @NotNull Map<String, Object> row,
             @NotNull List<T> group,
@@ -351,10 +326,6 @@ public class FileAggregationEngine<T, ID> {
         };
     }
 
-    // -------------------------------------------------------------------------
-    // Private – window function support
-    // -------------------------------------------------------------------------
-
     private List<Map<String, Object>> prepareWindowRows(
             @NotNull List<FieldDefinition> fields,
             @NotNull List<T> base
@@ -379,7 +350,6 @@ public class FileAggregationEngine<T, ID> {
         return rows;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private void applyWindowFunction(
             @NotNull List<Map<String, Object>> rows,
             @NotNull WindowFieldDefinition w

@@ -32,7 +32,6 @@ import io.github.flameyossnowy.universal.api.validation.ValidationException;
 import io.github.flameyossnowy.universal.api.validation.ValidationMessages;
 import io.github.flameyossnowy.universal.api.validation.ValidationTranslator;
 
-import java.time.Instant;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -75,14 +74,14 @@ public class NetworkValidationTranslator<T> implements ValidationTranslator<T> {
     /**
      * Creates a validation specification for a single rule.
      */
-    private ValidationSpec createValidationSpec(Validate.Rule rule, String field, Map<String, String> params) {
+    private static ValidationSpec createValidationSpec(Validate.Rule rule, String field, Map<String, String> params) {
         return new ValidationSpec(rule, field, new HashMap<>(params));
     }
 
     /**
      * Creates a constraint specification for cross-field validation.
      */
-    private ConstraintSpec createConstraintSpec(Constraint.Type type, String[] fields, Map<String, String> params) {
+    private static ConstraintSpec createConstraintSpec(Constraint.Type type, String[] fields, Map<String, String> params) {
         return new ConstraintSpec(type, fields, new HashMap<>(params));
     }
 
@@ -92,7 +91,7 @@ public class NetworkValidationTranslator<T> implements ValidationTranslator<T> {
      * @param specs the validation specifications
      * @return the OpenAPI schema fragment
      */
-    public Map<String, Object> toOpenApiSchema(List<ValidationSpec> specs) {
+    public static Map<String, Object> toOpenApiSchema(List<ValidationSpec> specs) {
         Map<String, Object> schema = new HashMap<>();
         Map<String, Map<String, Object>> properties = new HashMap<>();
 
@@ -136,8 +135,7 @@ public class NetworkValidationTranslator<T> implements ValidationTranslator<T> {
                 }
                 case EMAIL -> fieldSchema.put("format", "email");
                 case URL -> fieldSchema.put("format", "uri");
-                case FUTURE -> fieldSchema.put("format", "date-time");
-                case PAST -> fieldSchema.put("format", "date-time");
+                case FUTURE, PAST -> fieldSchema.put("format", "date-time");
                 default -> { /* No specific OpenAPI mapping */ }
             }
 
@@ -148,7 +146,7 @@ public class NetworkValidationTranslator<T> implements ValidationTranslator<T> {
         return schema;
     }
 
-    private boolean validateValue(Object value, ValidationSpec spec) {
+    private static boolean validateValue(Object value, ValidationSpec spec) {
         return switch (spec.rule()) {
             case NOT_EMPTY -> value != null && !ValueUtils.isEmpty(value);
             case NOT_BLANK -> value != null && !value.toString().trim().isEmpty();
@@ -239,10 +237,10 @@ public class NetworkValidationTranslator<T> implements ValidationTranslator<T> {
         return violations;
     }
 
-    private boolean validateValue(Validate.Rule rule, Object value, Map<String, String> params) {
+    private static boolean validateValue(Validate.Rule rule, Object value, Map<String, String> params) {
         return switch (rule) {
-            case NOT_NULL -> value != null;
-            case NOT_EMPTY -> value != null && !ValueUtils.isEmpty(value);
+            case NOT_NULL, REFERENCE_EXISTS -> value != null;
+            case NOT_EMPTY, REQUIRED -> value != null && !ValueUtils.isEmpty(value);
             case NOT_BLANK -> value != null && !value.toString().trim().isEmpty();
             case POSITIVE -> value instanceof Number n && n.doubleValue() > 0;
             case POSITIVE_OR_ZERO -> value instanceof Number n && n.doubleValue() >= 0;
@@ -345,8 +343,6 @@ public class NetworkValidationTranslator<T> implements ValidationTranslator<T> {
                 yield s.equals(s.toLowerCase());
             }
             case UNIQUE -> true; // Handled at server level
-            case REQUIRED -> value != null && !ValueUtils.isEmpty(value);
-            case REFERENCE_EXISTS -> value != null;
         };
     }
 

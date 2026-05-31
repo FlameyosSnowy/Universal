@@ -1524,6 +1524,7 @@ public class MongoRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, C
     @Override
     public void close() {
         client.close();
+        relationshipHandler.shutdown();
         RepositoryRegistry.unregister(repositoryModel.tableName());
         collection = null;
     }

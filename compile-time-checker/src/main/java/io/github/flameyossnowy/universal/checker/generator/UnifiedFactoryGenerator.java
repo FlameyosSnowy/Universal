@@ -56,8 +56,6 @@ public final class UnifiedFactoryGenerator {
         this.valueReaderGen        = new ValueReaderGenerator(types, elements, filer);
     }
 
-    // ------------------------------------------------------------------
-
     /** Generate all artifacts for one repository and record their qualified names. */
     public void generate(RepositoryModel repo) {
         repositoryModelGen.generate(repo, qualifiedNames);

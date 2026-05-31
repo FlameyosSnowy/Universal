@@ -30,7 +30,6 @@ public final class ObjectModelGenerator {
     private final Filer                           filer;
     private final Types                           types;
     private final InsertEntityGenerator           insertEntity;
-    private final InsertCollectionEntitiesGenerator insertCollections;
     private final LazyProxyGenerator              lazyProxy;
     private final Elements elements;
 
@@ -40,11 +39,9 @@ public final class ObjectModelGenerator {
         this.types             = types;
         this.elements          = elements;
         this.insertEntity      = new InsertEntityGenerator(types, elements, messager);
-        this.insertCollections = new InsertCollectionEntitiesGenerator();
         this.lazyProxy         = new LazyProxyGenerator(elements, filer);
     }
 
-    // ------------------------------------------------------------------
 
     public String generate(RepositoryModel repo, List<String> qualifiedNames) {
         ClassName entityType = ClassName.bestGuess(repo.entityQualifiedName());
@@ -112,8 +109,6 @@ public final class ObjectModelGenerator {
         return qualifiedName;
     }
 
-    // ------------------------------------------------------------------ private methods
-
     private static MethodSpec generateGetId(RepositoryModel repo, ClassName entityType, TypeName idType) {
         MethodSpec.Builder m = MethodSpec.methodBuilder("getId")
             .addAnnotation(Override.class)
@@ -172,7 +167,7 @@ public final class ObjectModelGenerator {
             .build();
     }
 
-    private MethodSpec generateConstruct(RepositoryModel repo, ClassName entityType) {
+    private static MethodSpec generateConstruct(RepositoryModel repo, ClassName entityType) {
         MethodSpec.Builder m = MethodSpec.methodBuilder("construct")
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)

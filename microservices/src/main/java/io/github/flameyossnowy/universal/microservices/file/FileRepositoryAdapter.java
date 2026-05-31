@@ -547,13 +547,10 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
 
     @Override
     public void close() {
-        entityStore.clearCache();
         RepositoryRegistry.unregister(repositoryModel.tableName());
+        entityStore.clearCache();
+        relationshipHandler.shutdown();
     }
-
-    // -------------------------------------------------------------------------
-    // Package-visible accessors (used by FileOperationExecutor, FileSession, etc.)
-    // -------------------------------------------------------------------------
 
     public FileEntityStore<T, ID> getEntityStore()         { return entityStore; }
     public FileFilterEngine<T, ID> getFilterEngine()       { return filterEngine; }
@@ -561,14 +558,9 @@ public class FileRepositoryAdapter<T, ID> implements RepositoryAdapter<T, ID, Fi
     public FileIndexManager<T, ID> getIndexManager()       { return indexManager; }
     public FileMutationExecutor<T, ID> getMutationExecutor() { return mutationExecutor; }
 
-    /** Convenience extractor for callers within the package. */
     public ID extractId(T entity) {
         return repositoryModel.getPrimaryKeyValue(entity);
     }
-
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
 
     private static void initDirectories(
         Path basePath,
